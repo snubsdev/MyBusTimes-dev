@@ -210,6 +210,9 @@
         {% if t.pk|stringformat:"s" == request.COOKIES.themeID %}selected{% endif %} {% endif %}>{{ t.theme_name }}
       </option>
       {% endfor %}
+      {% if google_ads_enabled %}
+        {% include "extra/google-extra.html" %}
+      {% endif %}
     </select>
     <br>
     <ul class="footer-info">
