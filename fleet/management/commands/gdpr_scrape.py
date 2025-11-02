@@ -171,7 +171,18 @@ class Command(BaseCommand):
 
 					if qs_rel.exists():
 						for inst in qs_rel:
-							exported.append(instance_to_dict(inst))
+							try:
+								inst_dict = instance_to_dict(inst)
+							except Exception as e:
+								manifest.setdefault('errors', []).append({
+									'app': app_label,
+									'model': model_name,
+									'pk': getattr(inst, 'pk', None),
+									'error': str(e),
+									'field': fname,
+								})
+								continue
+							exported.append(inst_dict)
 
 				# Optionally deep-scan Char/Text fields for containing identifiers
 				if deep:
@@ -184,7 +195,18 @@ class Command(BaseCommand):
 							continue
 						if q.exists():
 							for inst in q:
-								exported.append(instance_to_dict(inst))
+								try:
+									inst_dict = instance_to_dict(inst)
+								except Exception as e:
+									manifest.setdefault('errors', []).append({
+										'app': app_label,
+										'model': model_name,
+										'pk': getattr(inst, 'pk', None),
+										'error': str(e),
+										'field': tname,
+									})
+									continue
+								exported.append(inst_dict)
 
 				# Remove duplicates by pk
 				unique = {}

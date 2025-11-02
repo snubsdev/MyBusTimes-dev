@@ -11,7 +11,7 @@ from words.views import *
 from django_ratelimit.decorators import ratelimit
 
 urlpatterns = [
-    path('check-string/', check_string_view, name='check_string_api'),
+    path('check-string/', ratelimit(key='ip', method='GET', rate='1/s')(check_string_view), name='check_string_api'),
     path('online-members/', ratelimit(key='ip', method='GET', rate='5/s')(online_members), name='online-members'),
     path('liveries/', ratelimit(key='ip', method='GET', rate='2/s')(liveriesListView.as_view()), name='liveries-list'),
     path('liveries/<int:pk>/', ratelimit(key='ip', method='GET', rate='2/s')(liveriesDetailView.as_view()), name='liveries-detail'),
