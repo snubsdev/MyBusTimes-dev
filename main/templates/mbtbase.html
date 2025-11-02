@@ -35,14 +35,14 @@
   <script src="{% static 'js/service-updates.js' %}" defer></script>
 
   {% if google_ads_enabled %}
-    {% include "extragoogle-ads.html" %}
+    {% include "extra/google-ads.html" %}
   {% endif %}
 
   {% if ad_first %}
-    {% include "extraadfirst.html" %}
+    {% include "extra/adfirst.html" %}
   {% endif %}
 
-  {% include "extrajs.html" %}
+  {% include "extra/js.html" %}
 
   {% block extra_js %}{% endblock %}
 
@@ -50,7 +50,7 @@
   <title>
     {% block title %}{% endblock %} - MyBusTimes
   </title>
-  {% include "extracss.html" %}
+  {% include "extra/css.html" %}
 </head>
 
 <body>
