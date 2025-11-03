@@ -1130,7 +1130,7 @@ def vehicle_edit(request, operator_slug, vehicle_id):
 
         vehicle.advanced_details = json_custom
 
-        if vehicle.operator != current_operator:
+        if MBTOperator.objects.get(id=request.POST.get('operator')) != current_operator:
             vehicle.for_sale = False
 
         # Foreign keys (ensure valid or None)
