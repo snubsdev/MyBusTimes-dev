@@ -410,7 +410,7 @@
     if (btToggle.checked) await fetchBTVehicles(); // bt vehicles → top
   }, 30000);
 
-  map.on('moveend', () => {
+  map.on('moveend', async () => {
     await fetchStops();          // stops → below
     await refreshMarkers();      // vehicles → above
     if (btToggle.checked) await fetchBTVehicles(); // bt vehicles → top
