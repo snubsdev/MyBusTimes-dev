@@ -241,7 +241,7 @@
 
   async function fetchStops() {
     const zoom = map.getZoom();
-    if (zoom < 5) {
+    if (zoom < 13) {
       clearMarkers(stopMarkers);
       return;
     }
