@@ -1096,6 +1096,7 @@ def vehicle_edit(request, operator_slug, vehicle_id):
         features_list = features_json.get("features", [])
 
     if request.method == "POST":
+        current_operator = vehicle.operator
         # Update vehicle with form data
 
         # Checkboxes (exist if checked)
@@ -1128,6 +1129,9 @@ def vehicle_edit(request, operator_slug, vehicle_id):
                 json_custom[key.strip()] = value.strip()
 
         vehicle.advanced_details = json_custom
+
+        if vehicle.operator != current_operator:
+            vehicle.for_sale = False
 
         # Foreign keys (ensure valid or None)
         try:
