@@ -3055,6 +3055,11 @@ def vehicle_mass_edit(request, operator_slug):
 
             vehicle.advanced_details = json_custom
 
+            current_operator = vehicle.operator
+
+            if MBTOperator.objects.get(id=request.POST.get('operator')) != current_operator:
+                vehicle.for_sale = False
+
             # Foreign Keys
             try:
                 vehicle.operator = MBTOperator.objects.get(id=request.POST.get('operator'))
