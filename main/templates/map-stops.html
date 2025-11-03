@@ -127,7 +127,7 @@
     }).toString();
 
     try {
-      const res = await fetch(`https://stops.mybustimes.cc/api/no-lim-stops?${query}`);
+      const res = await fetch(`https://stops.mybustimes.cc/api/stops?${query}`);
       const data = await res.json();
       const stops = Array.isArray(data) ? data : (data.features || []);
       clearMarkers(stopMarkers);
