@@ -36,6 +36,7 @@
     paint-order: stroke;
     stroke-width: 2px;
     line-height: 16px;
+    z-index: 20;
   }
 
   .bt-toggle-control {
@@ -58,6 +59,11 @@
     border-radius: 0.5em !important;
     font-size: 12px !important;
   }
+
+  .stop-marker {
+    z-index: 10; /* ✅ below vehicle markers */
+  }
+
 
   small, p {
     margin: 0;
@@ -266,6 +272,7 @@
         const name = s.properties?.name || s.name || `Stop ${lat.toFixed(4)},${lng.toFixed(4)}`;
 
         const el = document.createElement('div');
+        el.className = 'stop-marker';
         el.style.cssText = 'width:10px;height:10px;border:3px solid #2f80ea;border-radius:50%;background:#fff;';
         const m = new maplibregl.Marker({ element: el })  // ✅ FIXED
           .setLngLat([lng, lat])
@@ -391,8 +398,8 @@
     else clearMarkers(btMarkers);
   });
 
-  refreshMarkers();
   fetchStops();
+  refreshMarkers();
   fetchBTVehicles();
 
   setInterval(() => {
