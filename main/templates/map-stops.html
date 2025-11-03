@@ -118,10 +118,6 @@
   }
 
   async function fetchStops() {
-    const zoom = map.getZoom();
-    clearMarkers(stopMarkers);
-    return;
-
     const b = map.getBounds();
     const query = new URLSearchParams({
       ymax: b.getNorth(),
