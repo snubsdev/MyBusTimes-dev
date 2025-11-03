@@ -398,14 +398,17 @@
     else clearMarkers(btMarkers);
   });
 
-  fetchStops();
-  refreshMarkers();
-  fetchBTVehicles();
+  (async () => {
+    await fetchStops();          // Stops first
+    await refreshMarkers();      // Vehicles next (above)
+    await fetchBTVehicles();     // BT vehicles last (top layer)
+  })();
 
-  setInterval(() => {
-    refreshMarkers();
-    if (btToggle.checked) fetchBTVehicles();
-  }, 30000);// 30 seconds
+  setInterval(async () => {
+    await fetchStops();          // stops → below
+    await refreshMarkers();      // vehicles → above
+    if (btToggle.checked) await fetchBTVehicles(); // bt vehicles → top
+  }, 30000);
 
   map.on('moveend', () => {
     fetchStops();
