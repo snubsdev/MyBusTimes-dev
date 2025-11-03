@@ -411,8 +411,9 @@
   }, 30000);
 
   map.on('moveend', () => {
-    fetchStops();
-    if (btToggle.checked) fetchBTVehicles();
+    await fetchStops();          // stops → below
+    await refreshMarkers();      // vehicles → above
+    if (btToggle.checked) await fetchBTVehicles(); // bt vehicles → top
   });
 
   setInterval(() => {
