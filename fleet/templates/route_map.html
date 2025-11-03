@@ -4,14 +4,11 @@
 
 {% block title %}{{ route.route_num }} Route Map{% endblock %}
 
-
 {% block extra_css %}
-<link rel="stylesheet" href="/static/css/leaflet.css">
+<link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
 
 <style>
-  html,
-  body,
-  main {
+  html, body, main {
     height: 100%;
     margin: 0;
     padding: 0;
@@ -31,7 +28,9 @@
     left: 10px;
     z-index: 1000;
     background: var(--brand-color);
+    color: white;
     padding: 6px 10px;
+    border: none;
     border-radius: 4px;
     cursor: pointer;
   }
@@ -39,7 +38,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="/static/js/leaflet.js"></script>
+<script src="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js"></script>
 {% endblock %}
 
 {% block content %}
@@ -50,66 +49,101 @@
   const routeId = {{ route.id }};
   const operatorName = "{{ operator.operator_name }}";
 
-  let currentDirection = "inbound"; // default view
+  let currentDirection = "inbound";
 
-  const map = L.map('map').setView([54.238, -3.325], 6);
+  // Choose tile style
+  let styleURL = '{{ mapTile.tile_url|escapejs }}';
+  {% if themeDark == 'True' %}
+    styleURL = 'https://tiles.snubs.dev/styles/dark-matter/style.json';
+  {% endif %}
 
-  L.tileLayer('{{ mapTile.tile_url }}', {
-    attribution: '{{ mapTile.attribution }}',
-  }).addTo(map);
+  const map = new maplibregl.Map({
+    container: 'map',
+    style: styleURL,
+    center: [-1.9, 54.9],
+    zoom: 6
+  });
 
-  let markersLayer = L.layerGroup().addTo(map);
-  let routeLayer = null;
+  map.addControl(new maplibregl.NavigationControl(), 'top-left');
+
+  let markers = [];
+  let routeLine = null;
 
   async function loadRoute(direction) {
-    // Clear previous layers
-    markersLayer.clearLayers();
-    if (routeLayer) {
-      map.removeLayer(routeLayer);
-      routeLayer = null;
-    }
+    // Clear markers
+    for (const m of markers) m.remove();
+    markers = [];
+
+    // Clear previous route line
+    if (map.getLayer('routeLine')) map.removeLayer('routeLine');
+    if (map.getSource('routeLine')) map.removeSource('routeLine');
 
     // Fetch stops
-    const stopsResponse = await fetch(`/api/routes/${routeId}/stops/?direction=${direction}`);
-    if (!stopsResponse.ok) {
-      alert("Failed to load route stops");
+    const res = await fetch(`/api/routes/${routeId}/stops/?direction=${direction}`);
+    if (!res.ok) {
+      alert('Failed to load route stops');
       return;
     }
-    const stops = await stopsResponse.json();
 
-    const latlngs = stops.map(stop => stop.cords.split(',').map(Number));
+    const stops = await res.json();
 
-    // Add route polyline FIRST so it appears below the stop icons
-    if (latlngs.length >= 2) {
-      routeLayer = L.polyline(latlngs, {
-        color: '#2f80ed',
-        weight: 4,
-        zIndex: 1
-      }).addTo(map);
+    const coords = stops
+      .map(stop => stop.cords?.split(',').map(Number))
+      .filter(c => c && c.length === 2 && !isNaN(c[0]) && !isNaN(c[1]))
+      .map(([lat, lon]) => [lon, lat]); // MapLibre uses [lon, lat]
+
+    // Draw polyline if multiple stops
+    if (coords.length >= 2) {
+      map.addSource('routeLine', {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          geometry: { type: 'LineString', coordinates: coords }
+        }
+      });
+
+      map.addLayer({
+        id: 'routeLine',
+        type: 'line',
+        source: 'routeLine',
+        paint: {
+          'line-color': '#2f80ed',
+          'line-width': 3
+        }
+      });
+
+      // Fit map to route
+      const bounds = new maplibregl.LngLatBounds();
+      coords.forEach(c => bounds.extend(c));
+      map.fitBounds(bounds, { padding: 60 });
     }
 
-    // THEN add stop markers so they appear on top
-    stops.forEach(stop => {
+    // Add stop markers
+    for (const stop of stops) {
       const [lat, lon] = stop.cords.split(',').map(Number);
-      const marker = L.circleMarker([lat, lon], {
-        radius: 6,
-        color: '#2f80ed',
-        fillColor: '#ffffff',
-        fillOpacity: 1,
-        weight: 4
-      }).addTo(markersLayer);
-      marker.bindPopup(`<a href="/stop/?name=${stop.stop}">${stop.stop}</a>`);
-    });
+      if (isNaN(lat) || isNaN(lon)) continue;
 
-    // Adjust view
-    if (routeLayer) {
-      map.fitBounds(routeLayer.getBounds());
-    } else {
-      map.fitBounds(markersLayer.getBounds());
+      const el = document.createElement('div');
+      el.style.cssText = `
+        width:10px;height:10px;
+        border:3px solid #2f80ea;
+        border-radius:50%;
+        background:#fff;
+        cursor:pointer;
+      `;
+
+      const marker = new maplibregl.Marker({ element: el })
+        .setLngLat([lon, lat])
+        .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(
+          `<a href="/stop/?name=${encodeURIComponent(stop.stop)}">${stop.stop}</a>`
+        ))
+        .addTo(map);
+
+      markers.push(marker);
     }
   }
 
-  // Toggle button logic
+  // Toggle inbound/outbound
   const toggleBtn = document.getElementById('directionToggle');
   toggleBtn.addEventListener('click', () => {
     if (currentDirection === 'inbound') {
@@ -122,7 +156,6 @@
     loadRoute(currentDirection);
   });
 
-  // Initial load
-  loadRoute(currentDirection);
+  map.on('load', () => loadRoute(currentDirection));
 </script>
 {% endblock %}

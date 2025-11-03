@@ -4,356 +4,284 @@
 {% block title %}{{ full_route_num }}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="/static/css/leaflet.css">
+<link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
 
 <style>
-    html,
-    body {
-        height: 100%;
-        overflow: hidden;
-    }
+  html, body { height: 100%; overflow: hidden; }
+  main { height: calc(100vh - 55px); }
 
-    main {
-        height: calc(100vh - 55px);
-    }
+  /* ─────────── map ─────────── */
+  #map {
+    position: fixed !important;
+    top: 55px;
+    bottom: 0;
+    right: 0;
+    width: 65%;
+  }
 
-    /* ─────────── map ─────────── */
-    #map {
-        position: fixed !important;
-        top: 55px;
-        bottom: 0;
-        right: 0;
-        width: 65%;
-    }
+  /* ─────────── stop-list panel ─────────── */
+  .stop-list {
+    position: fixed;
+    top: 55px;
+    left: 0;
+    bottom: 0;
+    width: 35%;
+    background: var(--background-color);
+    display: flex;
+    flex-direction: column;
+    z-index: 10;
+  }
 
-    /* ─────────── stop-list panel ─────────── */
-    .stop-list {
-        position: fixed;
-        top: 55px;
-        /* under header */
-        left: 0;
-        bottom: 0;
-        /* stretches to viewport bottom */
-        width: 35%;
-        background: var(--background-color);
-        display: flex;
-        /* column layout: scroll area + footer */
-        flex-direction: column;
-        z-index: 10;
-    }
+  .stop-list-content {
+    flex: 1 1 auto;
+    overflow-y: auto;
+  }
 
-    /* scrolling area */
-    .stop-list-content {
-        flex: 1 1 auto;
-        overflow-y: auto;
-    }
+  .stop-list-footer {
+    flex: 0 0 auto;
+    padding: 10px;
+    display: flex;
+    gap: .5rem;
+    box-shadow: 0 -2px 4px rgb(0 0 0 / .1);
+    background: var(--background-color);
+  }
 
-    /* footer that never scrolls away */
-    .stop-list-footer {
-        flex: 0 0 auto;
-        padding: 10px;
-        display: flex;
-        gap: .5rem;
-        box-shadow: 0 -2px 4px rgb(0 0 0 / .1);
-        background: var(--background-color);
-    }
+  th:first-child, td:first-child { text-wrap: auto; }
+  th:last-child, td:last-child { width: 25px; }
 
-    th:first-child,
-    td:first-child {
-        text-wrap: auto;
-    }
+  .remove-link {
+    margin: 0 7.5px;
+    color: rgb(196, 30, 30);
+    cursor: pointer;
+    width: 25px;
+    text-align: center;
+  }
 
-    th:last-child,
-    td:last-child {
-        width: 25px;
-    }
+  @media (max-width: 768px) {
+    #map { width: 100%; height: 60vh; }
+    .stop-list { top: 60vh; width: 100%; }
+  }
 
-    .remove-link {
-        margin: 0 7.5px;
-        color: rgb(196, 30, 30);
-        cursor: pointer;
-        width: 25px;
-        position: relative;
-        text-align: center;
-        right: 0;
-    }
-
-    /* ─────────── mobile layout ─────────── */
-    @media (max-width: 768px) {
-        #map {
-            width: 100%;
-            height: 60vh;
-        }
-
-        .stop-list {
-            top: 60vh;
-            /* panel sits under the map */
-            width: 100%;
-        }
-    }
+  .maplibregl-popup-tip,
+  .maplibregl-popup-content {
+    background: var(--background-color) !important;
+    color: var(--text-color) !important;
+    border-radius: 0.5em !important;
+    font-size: 12px !important;
+  }
 </style>
 {% endblock %}
 
 {% block extra_js %}
-<script src="/static/js/leaflet.js"></script>
+<script src="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js"></script>
 {% endblock %}
 
 {% block content %}
 <div id="map"></div>
-<div class="stop-list">
-    <div class="stop-list-content" style="overflow: scroll;height: 100%;">
-        <table border="0" cellpadding="5" cellspacing="0" style="width: 100%;">
-            <thead>
-                <tr>
-                    <th>
-                        <h2>Add Stops {{ route.route_num }} to
-                            {% if direction == 'inbound' %}{{ route.inbound_destination }}{% else %}{{ route.outbound_destination }}{% endif %}
-                        </h2>
-                        <h3 style="margin: 0;">Stop Name</h3><br>
-                        <button
-                            onclick="location.href='{% url 'add-stop-names-only' operator_slug=operator.operator_slug route_id=route.id direction=direction %}'">
-                            Add Stop Names Only
-                        </button>
-                    </th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody id="stopList">
-                <!-- Selected stops will be added here -->
-            </tbody>
-        </table>
-    </div>
 
-    <!-- fixed footer with action buttons -->
-    <div class="stop-list-footer">
-        <button id="addCustomStop">Add Custom Stop</button>
-        <button id="submitRoute">Save {{ direction }} stops</button>
-    </div>
+<div class="stop-list">
+  <div class="stop-list-content">
+    <table border="0" cellpadding="5" cellspacing="0" style="width: 100%;">
+      <thead>
+        <tr>
+          <th>
+            <h2>
+              Add Stops {{ route.route_num }} to
+              {% if direction == 'inbound' %}
+                {{ route.inbound_destination }}
+              {% else %}
+                {{ route.outbound_destination }}
+              {% endif %}
+            </h2>
+            <h3 style="margin: 0;">Stop Name</h3><br>
+            <button onclick="location.href='{% url 'add-stop-names-only' operator_slug=operator.operator_slug route_id=route.id direction=direction %}'">
+              Add Stop Names Only
+            </button>
+          </th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="stopList"></tbody>
+    </table>
+  </div>
+
+  <div class="stop-list-footer">
+    <button id="addCustomStop">Add Custom Stop</button>
+    <button id="submitRoute">Save {{ direction }} stops</button>
+  </div>
 </div>
 
 <form id="routeForm" action="" method="POST">
-    {% csrf_token %}
-    <input type="hidden" name="routeData" id="routeDataInput">
+  {% csrf_token %}
+  <input type="hidden" name="routeData" id="routeDataInput">
 </form>
 
 <script>
-    const map = L.map('map').setView([54.238, -3.325], 6);
-    L.tileLayer('{{ mapTile.tile_url }}', {
-        attribution: '{{ mapTile.attribution }}',
-    }).addTo(map);
+  // Select correct tile style
+  let tilesJSON = 'https://tiles.snubs.dev/styles/positron/style.json';
+  {% if themeDark == 'True' %}
+    tilesJSON = 'https://tiles.snubs.dev/styles/dark-matter/style.json';
+  {% endif %}
 
-    const stopList = document.getElementById('stopList');
-    const selectedStops = [];
-    const selectedCoords = [];
-    const markersLayer = L.layerGroup().addTo(map);
-    let routeLayer = null;
+  const map = new maplibregl.Map({
+    container: 'map',
+    style: tilesJSON,
+    center: [-1.9, 54.9],
+    zoom: 6
+  });
 
-    async function fetchStops(bounds) {
-        const zoom = map.getZoom();
-        if (zoom < 15) {
-            markersLayer.clearLayers();
-            return;
-        }
+  map.addControl(new maplibregl.NavigationControl(), 'top-left');
 
-        const query = new URLSearchParams({
-            ymax: bounds.getNorth(),
-            ymin: bounds.getSouth(),
-            xmax: bounds.getEast(),
-            xmin: bounds.getWest()
-        }).toString();
+  const stopList = document.getElementById('stopList');
+  const selectedStops = [];
+  const selectedCoords = [];
+  const markers = [];
+  let routeLine = null;
 
-        const response = await fetch(`https://bustimes.org/stops.json?${query}`);
-        const data = await response.json();
+  function addStopMarker(lat, lng, name, bearing = null) {
+    const el = document.createElement('div');
+    el.style.cssText = 'width:10px;height:10px;border:3px solid #2f80ea;border-radius:50%;background:#fff;cursor:pointer;';
+    const marker = new maplibregl.Marker({ element: el })
+      .setLngLat([lng, lat])
+      .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(name))
+      .addTo(map);
 
-        markersLayer.clearLayers();
-
-        for (const feature of data.features) {
-            // Get lat and long from OpenStreetMap
-            const [lng, lat] = feature.geometry.coordinates;
-            let name = feature.properties.name || `Unnamed Stop (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
-            const coords = [lat, lng];
-
-            // Fetch details from Bustimes API
-
-
-            const marker = L.circleMarker(coords, {
-                radius: 6,
-                color: '#2f80ed',
-                fillColor: '#ffffff',
-                fillOpacity: 1,
-                weight: 4
-            }).bindPopup(name).addTo(markersLayer);
-
-            if (feature.properties.bearing != null) {
-                const arrowLength = 0.0003; // ~30 meters, adjust as needed
-                const angleRad = feature.properties.bearing * Math.PI / 180;
-
-                const arrowLat = lat + arrowLength * Math.cos(angleRad);
-                const arrowLng = lng + arrowLength * Math.sin(angleRad);
-
-                const arrow = L.polyline([
-                    [lat, lng],
-                    [arrowLat, arrowLng]
-                ], {
-                    color: 'red',
-                    weight: 2,
-                    dashArray: '4,4'
-                }).addTo(markersLayer);
-            }
-
-            marker.on('click', () => {
-                // Remove the uniqueness check to allow duplicates
-                selectedStops.push(name);
-                selectedCoords.push({
-                    lat: lat,
-                    lon: lng,
-                    heading: feature.properties.bearing || null
-                });
-
-                const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${name}</td>
-                                <td class="timing-point-check-box"><input type="checkbox" class="timing-point"></td>
-                                <td><span class="remove-link">X</span></td>`;
-
-                const removeLink = tr.querySelector('.remove-link');
-                removeLink.addEventListener('click', () => {
-                    // remove this specific row & corresponding coordinates
-                    const rowIndex = Array.from(stopList.children).indexOf(tr);
-                    if (rowIndex !== -1) {
-                        selectedStops.splice(rowIndex, 1);
-                        selectedCoords.splice(rowIndex, 1);
-                        tr.remove();
-                        updateRoute();
-                    }
-                });
-
-                stopList.appendChild(tr);
-                updateRoute();
-            });
-        }
-    }
-
-    function updateRoute() {
-        if (selectedCoords.length < 2) return;
-
-        if (routeLayer) {
-            map.removeLayer(routeLayer);
-        }
-
-        const latlngs = selectedCoords.map(stop => [stop.lat, stop.lon]);
-
-        routeLayer = L.polyline(latlngs, {
-            color: '#2f80ed',
-            weight: 4
-        }).addTo(map);
-    }
-
-    // Decode Valhalla polyline (6-digit precision)
-    function decodeValhallaPolyline(encoded) {
-        let index = 0,
-            lat = 0,
-            lng = 0,
-            coordinates = [];
-
-        while (index < encoded.length) {
-            let result = 1,
-                shift = 0,
-                b;
-            do {
-                b = encoded.charCodeAt(index++) - 63 - 1;
-                result += b << shift;
-                shift += 5;
-            } while (b >= 0x1f);
-            lat += (result & 1) ? ~(result >> 1) : (result >> 1);
-
-            result = 1;
-            shift = 0;
-            do {
-                b = encoded.charCodeAt(index++) - 63 - 1;
-                result += b << shift;
-                shift += 5;
-            } while (b >= 0x1f);
-            lng += (result & 1) ? ~(result >> 1) : (result >> 1);
-
-            coordinates.push([lat * 1e-6, lng * 1e-6]);
-        }
-        return coordinates;
-    }
-
-    fetchStops(map.getBounds());
-    map.on('moveend', () => {
-        fetchStops(map.getBounds());
+    el.addEventListener('click', () => {
+      selectedStops.push(name);
+      selectedCoords.push({ lat, lon: lng, heading: bearing });
+      addStopToList(name);
+      updateRoute();
     });
 
-    document.getElementById('addCustomStop').addEventListener('click', () => {
-        alert('Click anywhere on the map to add a custom stop.');
+    markers.push(marker);
+  }
 
-        // Add a one-time click event listener to the map
-        function onMapClick(e) {
-            const lat = e.latlng.lat;
-            const lng = e.latlng.lng;
-            const stopName = prompt('Enter stop name:');
+  function clearMarkers() {
+    for (const m of markers) m.remove();
+    markers.length = 0;
+  }
 
-            if (stopName) {
-                const marker = L.circleMarker([lat, lng], {
-                    radius: 6,
-                    color: '#2f80ed',
-                    fillColor: '#ffffff',
-                    fillOpacity: 1,
-                    weight: 4
-                }).bindPopup(stopName).addTo(markersLayer);
+  function addStopToList(name) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${name}</td>
+                    <td><input type="checkbox" class="timing-point"></td>
+                    <td><span class="remove-link">X</span></td>`;
 
-
-                selectedStops.push(stopName);
-                selectedCoords.push({
-                    lat: lat,
-                    lon: lng,
-                    heading: null
-                });
-
-                const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${stopName}</td><td><input type="checkbox" class="timing-point"></td><td><span class="remove-link">X</span></td>`;
-                const removeLink = tr.querySelector('.remove-link');
-
-                removeLink.addEventListener('click', () => {
-                    const index = selectedStops.indexOf(stopName);
-                    if (index !== -1) {
-                        selectedStops.splice(index, 1);
-                        selectedCoords.splice(index, 1);
-                        tr.remove();
-                        markersLayer.removeLayer(marker);
-                        updateRoute();
-                    }
-                });
-
-                stopList.appendChild(tr);
-                updateRoute();
-            }
-
-            map.off('click', onMapClick);
-        }
-
-        map.on('click', onMapClick);
+    const removeLink = tr.querySelector('.remove-link');
+    removeLink.addEventListener('click', () => {
+      const idx = selectedStops.indexOf(name);
+      if (idx !== -1) {
+        selectedStops.splice(idx, 1);
+        selectedCoords.splice(idx, 1);
+      }
+      tr.remove();
+      updateRoute();
     });
-</script>
-<script>
-    document.getElementById("submitRoute").addEventListener("click", () => {
-        const rows = stopList.querySelectorAll("tr");
 
-        const formattedStops = Array.from(rows).map((row, index) => {
-            const stopName = selectedStops[index];
-            const coord = selectedCoords[index];
-            const checkbox = row.querySelector(".timing-point");
+    stopList.appendChild(tr);
+  }
 
-            return {
-                stop: stopName,
-                cords: `${coord.lat},${coord.lon}`,
-                timing_point: checkbox ? checkbox.checked : false,
-            };
+  function updateRoute() {
+    // Only draw if we have at least 2 stops
+    if (selectedCoords.length < 2) {
+        if (map.getLayer('routeLine')) map.removeLayer('routeLine');
+        if (map.getSource('routeLine')) map.removeSource('routeLine');
+        return;
+    }
+
+    const coords = selectedCoords.map(s => [s.lon, s.lat]);
+
+    // If the source exists, just update it — don't recreate the layer every time
+    if (map.getSource('routeLine')) {
+        map.getSource('routeLine').setData({
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: coords }
         });
+    } else {
+        map.addSource('routeLine', {
+        type: 'geojson',
+        data: {
+            type: 'Feature',
+            geometry: { type: 'LineString', coordinates: coords }
+        }
+        });
+        map.addLayer({
+        id: 'routeLine',
+        type: 'line',
+        source: 'routeLine',
+        paint: {
+            'line-color': '#2f80ed',
+            'line-width': 3
+        }
+        });
+    }
+    }
 
-        document.getElementById("routeDataInput").value = JSON.stringify(formattedStops);
-        document.getElementById("routeForm").submit();
+  async function fetchStops() {
+    const zoom = map.getZoom();
+    if (zoom < 15) {
+      clearMarkers();
+      return;
+    }
+
+    const b = map.getBounds();
+    const query = new URLSearchParams({
+      ymax: b.getNorth(),
+      ymin: b.getSouth(),
+      xmax: b.getEast(),
+      xmin: b.getWest()
+    }).toString();
+
+    try {
+      const res = await fetch(`https://stops.mybustimes.cc/api/stops?${query}`);
+      const data = await res.json();
+      clearMarkers();
+
+      for (const s of data) {
+        const lat = s.lat;
+        const lng = s.lon;
+        const name = s.name || s.properties?.name || `Stop ${lat.toFixed(4)},${lng.toFixed(4)}`;
+        const bearing = s.properties?.bearing || null;
+        addStopMarker(lat, lng, name, bearing);
+      }
+    } catch (err) {
+      console.error('Error fetching stops:', err);
+    }
+  }
+
+  map.on('load', fetchStops);
+  map.on('moveend', fetchStops);
+
+  // Custom stop adding
+  document.getElementById('addCustomStop').addEventListener('click', () => {
+    alert('Click anywhere on the map to add a custom stop.');
+    const clickHandler = (e) => {
+      const { lat, lng } = e.lngLat;
+      const stopName = prompt('Enter stop name:');
+      if (stopName) {
+        addStopMarker(lat, lng, stopName);
+        selectedStops.push(stopName);
+        selectedCoords.push({ lat, lon: lng, heading: null });
+        addStopToList(stopName);
+        updateRoute();
+      }
+      map.off('click', clickHandler);
+    };
+    map.on('click', clickHandler);
+  });
+
+  // Save button
+  document.getElementById("submitRoute").addEventListener("click", () => {
+    const rows = stopList.querySelectorAll("tr");
+    const formattedStops = Array.from(rows).map((row, i) => {
+      const stopName = selectedStops[i];
+      const coord = selectedCoords[i];
+      const timing = row.querySelector(".timing-point")?.checked || false;
+      return { stop: stopName, cords: `${coord.lat},${coord.lon}`, timing_point: timing };
     });
+
+    document.getElementById("routeDataInput").value = JSON.stringify(formattedStops);
+    document.getElementById("routeForm").submit();
+  });
 </script>
 {% endblock %}
