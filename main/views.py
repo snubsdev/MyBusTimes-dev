@@ -283,6 +283,9 @@ def live_map(request):
     }
     return render(request, 'map.html', context)
 
+def stop_map(request):
+    return render(request, 'map-stops.html')
+
 def live_map_simple(request):
     return render(request, 'map-simple.html')
 
