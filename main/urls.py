@@ -4,6 +4,7 @@ from django.contrib.auth import views as auth_views
 
 urlpatterns = [
     path('', index),
+    path('adfirst-test', adfirst_test, name='adfirst_test'),
     path('about/', about, name='about'),
     path("help/", resources, name="help"),
     path('ads.txt', ads_txt_view, name='ads-txt'),

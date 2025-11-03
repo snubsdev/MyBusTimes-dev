@@ -259,6 +259,51 @@ def index(request):
     }
     return render(request, 'index.html', context)
 
+def adfirst_test(request):
+    # Load mod.json messages as before
+    for_sale_vehicles = fleet.objects.filter(for_sale=True).order_by('fleet_number').count()
+
+    mod_path = os.path.join(settings.MEDIA_ROOT, 'JSON', 'mod.json')
+    with open(mod_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    messages = data.get('messages', [])
+    message = random.choice(messages) if messages else "Welcome!"
+
+    # Get all regions from DB, order by country and then name
+    regions = region.objects.all().order_by('region_country', 'region_name')
+
+    breadcrumbs = [{'name': 'Home', 'url': '/'}]
+    if for_sale_vehicles > 9999: 
+        for_sale_vehicles = "10K+"
+    elif for_sale_vehicles > 8999: 
+        for_sale_vehicles = "9K+"
+    elif for_sale_vehicles > 7999: 
+        for_sale_vehicles = "8K+"
+    elif for_sale_vehicles > 6999: 
+        for_sale_vehicles = "7K+"
+    elif for_sale_vehicles > 5999: 
+        for_sale_vehicles = "6K+"
+    elif for_sale_vehicles > 4999: 
+        for_sale_vehicles = "5K+"
+    elif for_sale_vehicles > 3999: 
+        for_sale_vehicles = "4K+"
+    elif for_sale_vehicles > 2999: 
+        for_sale_vehicles = "3K+"
+    elif for_sale_vehicles > 1999: 
+        for_sale_vehicles = "2K+"
+    elif for_sale_vehicles > 999: 
+        for_sale_vehicles = "1K+"
+    else:
+        for_sale_vehicles = for_sale_vehicles
+    
+    context = {
+        'breadcrumbs': breadcrumbs,
+        'message': message,
+        'regions': regions,
+        'for_sale_vehicles': for_sale_vehicles,
+    }
+    return render(request, 'index-adfirst.html', context)
+
 def live_map(request):
     response = feature_enabled(request, "live_map")
     if response:
