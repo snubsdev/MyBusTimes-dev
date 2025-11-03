@@ -52,14 +52,15 @@
   let currentDirection = "inbound";
 
   // Choose tile style
-  let styleURL = '{{ mapTile.tile_url|escapejs }}';
   {% if themeDark == 'True' %}
-    styleURL = 'https://tiles.snubs.dev/styles/dark-matter/style.json';
+    tilesJSON = 'https://tiles.snubs.dev/styles/dark-matter/style.json';
+  {% else %}
+    tilesJSON = 'https://tiles.snubs.dev/styles/positron/style.json';
   {% endif %}
 
   const map = new maplibregl.Map({
     container: 'map',
-    style: styleURL,
+    style: tilesJSON,
     center: [-1.9, 54.9],
     zoom: 6
   });
