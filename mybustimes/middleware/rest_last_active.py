@@ -14,11 +14,18 @@ class UpdateLastActiveMiddleware:
         return response
 
     def get_client_ip(self, request):
-        """Return the real client IP, even behind proxies."""
-        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        """
+        Safely get the real client IP address.
+        """
+        # If you're behind Cloudflare:
+        if "HTTP_CF_CONNECTING_IP" in request.META:
+            return request.META["HTTP_CF_CONNECTING_IP"]
+
+        # Common reverse proxy header
+        x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
         if x_forwarded_for:
-            # X-Forwarded-For may contain multiple IPs — first is the real client
-            ip = x_forwarded_for.split(',')[0].strip()
+            # Only take the first IP (real client)
+            ip = x_forwarded_for.split(",")[0].strip()
         else:
-            ip = request.META.get('REMOTE_ADDR', '')
+            ip = request.META.get("REMOTE_ADDR", "")
         return ip
