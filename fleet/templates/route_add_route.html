@@ -50,7 +50,7 @@
               Edit Stop Names Only
             </button>
           </th>
-          <th class="timing-point-check-box">Timing Point</th>
+          <th class="timing-point">Timing Point</th>
           <th></th>
         </tr>
       </thead>
@@ -116,7 +116,7 @@
   function addStopToList(name) {
     const tr = document.createElement('tr');
     tr.innerHTML = `<td>${name}</td>
-                    <td><input type="checkbox" class="timing-point"></td>
+                    <td><input type="checkbox" class="timing-point-check-box"></td>
                     <td><span class="remove-link">X</span></td>`;
 
     const removeLink = tr.querySelector('.remove-link');
@@ -228,7 +228,7 @@
     const formattedStops = Array.from(rows).map((row, i) => {
       const stopName = selectedStops[i];
       const coord = selectedCoords[i];
-      const timing = row.querySelector(".timing-point")?.checked || false;
+      const timing = row.querySelector(".timing-point-check-box")?.checked || false;
       return { stop: stopName, cords: `${coord.lat},${coord.lon}`, timing_point: timing };
     });
 
