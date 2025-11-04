@@ -5,63 +5,22 @@
 
 {% block extra_css %}
 <link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
-
 <style>
   html, body { height: 100%; overflow: hidden; }
   main { height: calc(100vh - 55px); }
-
-  /* ─────────── map ─────────── */
-  #map {
-    position: fixed !important;
-    top: 55px;
-    bottom: 0;
-    right: 0;
-    width: 65%;
-  }
-
-  /* ─────────── stop-list panel ─────────── */
-  .stop-list {
-    position: fixed;
-    top: 55px;
-    left: 0;
-    bottom: 0;
-    width: 35%;
-    background: var(--background-color);
-    display: flex;
-    flex-direction: column;
-    z-index: 10;
-  }
-
-  .stop-list-content {
-    flex: 1 1 auto;
-    overflow-y: auto;
-  }
-
-  .stop-list-footer {
-    flex: 0 0 auto;
-    padding: 10px;
-    display: flex;
-    gap: .5rem;
-    box-shadow: 0 -2px 4px rgb(0 0 0 / .1);
-    background: var(--background-color);
-  }
-
+  #map { position: fixed !important; top: 55px; bottom: 0; right: 0; width: 65%; }
+  .stop-list { position: fixed; top: 55px; left: 0; bottom: 0; width: 35%; background: var(--background-color); display: flex; flex-direction: column; z-index: 10; }
+  .stop-list-content { flex: 1 1 auto; overflow-y: auto; }
+  .stop-list-footer { flex: 0 0 auto; padding: 10px; display: flex; gap: .5rem; box-shadow: 0 -2px 4px rgb(0 0 0 / .1); background: var(--background-color); }
   th:first-child, td:first-child { text-wrap: auto; }
   th:last-child, td:last-child { width: 25px; }
-
-  .remove-link {
-    margin: 0 7.5px;
-    color: rgb(196, 30, 30);
-    cursor: pointer;
-    width: 25px;
-    text-align: center;
-  }
-
+  .remove-link { margin: 0 7.5px; color: rgb(196, 30, 30); cursor: pointer; width: 25px; text-align: center; }
+  .timing-point { transform: rotate(-90deg); border: 0; font-weight: normal; text-align: center; padding: 5px; margin-top: 40px; display: block; }
+  .timing-point-check-box { width: 0; text-align: center; }
   @media (max-width: 768px) {
     #map { width: 100%; height: 60vh; }
     .stop-list { top: 60vh; width: 100%; }
   }
-
   .maplibregl-popup-tip,
   .maplibregl-popup-content {
     background: var(--background-color) !important;
@@ -85,19 +44,13 @@
       <thead>
         <tr>
           <th>
-            <h2>
-              Add Stops {{ route.route_num }} to
-              {% if direction == 'inbound' %}
-                {{ route.inbound_destination }}
-              {% else %}
-                {{ route.outbound_destination }}
-              {% endif %}
-            </h2>
-            <h3 style="margin: 0;">Stop Name</h3><br>
-            <button onclick="location.href='{% url 'add-stop-names-only' operator_slug=operator.operator_slug route_id=route.id direction=direction %}'">
-              Add Stop Names Only
+            <h2>Add Stops {{ route.route_num }} {{ direction }}</h2>
+            <h3 style="margin: 0;">Stop Name</h3>
+            <button onclick="location.href='{% url 'edit-stop-names-only' operator_slug=operator.operator_slug route_id=route.id direction=direction %}'">
+              Edit Stop Names Only
             </button>
           </th>
+          <th class="timing-point">Timing Point</th>
           <th></th>
         </tr>
       </thead>
@@ -110,7 +63,6 @@
     <button id="submitRoute">Save {{ direction }} stops</button>
   </div>
 </div>
-
 <form id="routeForm" action="" method="POST">
   {% csrf_token %}
   <input type="hidden" name="routeData" id="routeDataInput">

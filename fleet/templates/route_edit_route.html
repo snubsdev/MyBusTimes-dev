@@ -8,74 +8,19 @@
 <style>
   html, body { height: 100%; overflow: hidden; }
   main { height: calc(100vh - 55px); }
-
-  /* ─────────── map ─────────── */
-  #map {
-    position: fixed !important;
-    top: 55px;
-    bottom: 0;
-    right: 0;
-    width: 65%;
-  }
-
-  /* ─────────── stop-list panel ─────────── */
-  .stop-list {
-    position: fixed;
-    top: 55px;
-    left: 0;
-    bottom: 0;
-    width: 35%;
-    background: var(--background-color);
-    display: flex;
-    flex-direction: column;
-    z-index: 10;
-  }
-
-  .stop-list-content {
-    flex: 1 1 auto;
-    overflow-y: auto;
-  }
-
-  .stop-list-footer {
-    flex: 0 0 auto;
-    padding: 10px;
-    display: flex;
-    gap: .5rem;
-    box-shadow: 0 -2px 4px rgb(0 0 0 / .1);
-    background: var(--background-color);
-  }
-
+  #map { position: fixed !important; top: 55px; bottom: 0; right: 0; width: 65%; }
+  .stop-list { position: fixed; top: 55px; left: 0; bottom: 0; width: 35%; background: var(--background-color); display: flex; flex-direction: column; z-index: 10; }
+  .stop-list-content { flex: 1 1 auto; overflow-y: auto; }
+  .stop-list-footer { flex: 0 0 auto; padding: 10px; display: flex; gap: .5rem; box-shadow: 0 -2px 4px rgb(0 0 0 / .1); background: var(--background-color); }
   th:first-child, td:first-child { text-wrap: auto; }
   th:last-child, td:last-child { width: 25px; }
-
-  .remove-link {
-    margin: 0 7.5px;
-    color: rgb(196, 30, 30);
-    cursor: pointer;
-    width: 25px;
-    text-align: center;
-  }
-
-  .timing-point {
-    transform: rotate(-90deg);
-    border: 0;
-    font-weight: normal;
-    text-align: center;
-    padding: 5px;
-    margin-top: 40px;
-    display: block;
-  }
-
-  .timing-point-check-box {
-    width: 0;
-    text-align: center;
-  }
-
+  .remove-link { margin: 0 7.5px; color: rgb(196, 30, 30); cursor: pointer; width: 25px; text-align: center; }
+  .timing-point { transform: rotate(-90deg); border: 0; font-weight: normal; text-align: center; padding: 5px; margin-top: 40px; display: block; }
+  .timing-point-check-box { width: 0; text-align: center; }
   @media (max-width: 768px) {
     #map { width: 100%; height: 60vh; }
     .stop-list { top: 60vh; width: 100%; }
   }
-
   .maplibregl-popup-tip,
   .maplibregl-popup-content {
     background: var(--background-color) !important;
@@ -124,12 +69,9 @@
   <input type="hidden" name="routeData" id="routeDataInput">
 </form>
 
-<p style="display: none;" id="existing-stops-data">
-  {{ existing_stops|json_script:"existing-stops-data" }}
-</p>
+{{ existing_stops|json_script:"existing-stops-data" }}
 
 <script>
-  // Load dark/light tiles
   let tilesJSON = 'https://tiles.snubs.dev/styles/positron/style.json';
   {% if themeDark == 'True' %}
     tilesJSON = 'https://tiles.snubs.dev/styles/dark-matter/style.json';
@@ -148,9 +90,7 @@
   const selectedStops = [];
   const selectedCoords = [];
   const markers = [];
-  let routeLine = null;
 
-  // Add stop marker
   function addStopMarker(lat, lng, name, timing_point = false) {
     const el = document.createElement('div');
     el.style.cssText = 'width:10px;height:10px;border:3px solid #2f80ea;border-radius:50%;background:#fff;cursor:pointer;';
@@ -198,51 +138,57 @@
     stopList.appendChild(tr);
   }
 
-  // Draw route line
   function updateRoute() {
-    if (selectedCoords.length < 2) return;
+    if (!map.isStyleLoaded()) {
+      map.once('load', updateRoute);
+      return;
+    }
+
+    if (selectedCoords.length < 2) {
+      if (map.getLayer('routeLine')) map.removeLayer('routeLine');
+      if (map.getSource('routeLine')) map.removeSource('routeLine');
+      return;
+    }
+
     const coords = selectedCoords.map(s => [s.lon, s.lat]);
 
-    if (map.getLayer('routeLine')) map.removeLayer('routeLine');
-    if (map.getSource('routeLine')) map.removeSource('routeLine');
-
-    map.addSource('routeLine', {
-      type: 'geojson',
-      data: {
+    if (map.getSource('routeLine')) {
+      map.getSource('routeLine').setData({
         type: 'Feature',
         geometry: { type: 'LineString', coordinates: coords }
-      }
-    });
-
-    map.addLayer({
-      id: 'routeLine',
-      type: 'line',
-      source: 'routeLine',
-      paint: { 'line-color': '#2f80ed', 'line-width': 3 }
-    });
+      });
+    } else {
+      map.addSource('routeLine', {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          geometry: { type: 'LineString', coordinates: coords }
+        }
+      });
+      map.addLayer({
+        id: 'routeLine',
+        type: 'line',
+        source: 'routeLine',
+        paint: { 'line-color': '#2f80ed', 'line-width': 3 }
+      });
+    }
   }
 
-
-  // Prefill existing stops
   const existingStops = JSON.parse(document.getElementById("existing-stops-data").textContent);
   if (Array.isArray(existingStops)) {
     for (const s of existingStops) {
       if (!s.cords?.includes(',')) continue;
       const [lat, lon] = s.cords.split(',').map(Number);
       selectedStops.push(s.stop);
-      selectedCoords.push({ lat, lon, heading: null });
+      selectedCoords.push({ lat: lat, lon: lon, heading: null });
       addStopToList(s.stop, s.timing_point);
       addStopMarker(lat, lon, s.stop);
     }
-    updateRoute();
   }
 
   async function fetchStops() {
     const zoom = map.getZoom();
-    if (zoom < 10) {
-      clearMarkers();
-      return;
-    }
+    if (zoom < 15) return;
 
     const b = map.getBounds();
     const query = new URLSearchParams({
@@ -254,14 +200,11 @@
 
     try {
       const res = await fetch(`https://stops.mybustimes.cc/api/stops?${query}`);
-      const json = await res.json();
-      const data = json.results || json;
+      const data = await res.json();
       clearMarkers();
       for (const s of data) {
-        const lat = s.lat ?? s.location?.[1];
-        const lng = s.lon ?? s.location?.[0];
-        if (!lat || !lng) continue;
-        const name = s.name || s.common_name || `Stop ${lat.toFixed(4)},${lng.toFixed(4)}`;
+        const lat = s.lat, lng = s.lon;
+        const name = s.name || s.properties?.name || `Stop ${lat.toFixed(4)},${lng.toFixed(4)}`;
         addStopMarker(lat, lng, name);
       }
     } catch (e) {
@@ -269,31 +212,20 @@
     }
   }
 
-
-
   map.on('moveend', fetchStops);
   map.on('load', () => {
-    // Now it’s safe to do anything with sources or layers
     fetchStops();
+    updateRoute();
 
-    // Prefill stops only after style is loaded
-    if (Array.isArray(existingStops)) {
-      for (const s of existingStops) {
-        if (!s.cords?.includes(',')) continue;
-        const [lon, lat] = s.cords.split(',').map(Number);
-        selectedStops.push(s.stop);
-        selectedCoords.push({ lat, lon, heading: null });
-        addStopToList(s.stop, s.timing_point);
-        addStopMarker(lat, lon, s.stop);
-      }
-      updateRoute();  // now safe
+    // If there are existing route coordinates, zoom to them
+    if (selectedCoords.length > 1) {
+      const coords = selectedCoords.map(s => [s.lon, s.lat]);
+      const bounds = new maplibregl.LngLatBounds();
+      coords.forEach(c => bounds.extend(c));
+      map.fitBounds(bounds, { padding: 80, animate: true });
     }
-
-    // start listening to movement
-    map.on('moveend', fetchStops);
   });
 
-  // Custom stop creation
   document.getElementById('addCustomStop').addEventListener('click', () => {
     alert('Click anywhere on the map to add a custom stop.');
     const clickHandler = (e) => {
@@ -311,7 +243,6 @@
     map.on('click', clickHandler);
   });
 
-  // Save button
   document.getElementById("submitRoute").addEventListener("click", () => {
     const formatted = [];
     document.querySelectorAll('#stopList tr').forEach((row, i) => {
