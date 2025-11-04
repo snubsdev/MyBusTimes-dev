@@ -843,7 +843,7 @@ class siteUpdateListView(ListAPIView):
     filterset_class = siteUpdateFilter
 
 def site_updates(request):
-    updates = siteUpdate.objects.all().order_by('-updated_at')
+    updates = siteUpdate.objects.filter(live=True).order_by('-updated_at')
     
     # Add formatted date to each update
     for update in updates:
