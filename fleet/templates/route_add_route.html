@@ -116,7 +116,9 @@
   function addStopToList(name) {
     const tr = document.createElement('tr');
     tr.innerHTML = `<td>${name}</td>
-                    <td><input type="checkbox" class="timing-point-check-box"></td>
+                    <td class="timing-point-check-box">
+                      <input type="checkbox" id="timing_point">
+                    </td>
                     <td><span class="remove-link">X</span></td>`;
 
     const removeLink = tr.querySelector('.remove-link');
