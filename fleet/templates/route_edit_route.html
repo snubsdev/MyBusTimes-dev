@@ -202,7 +202,8 @@
   function updateRoute() {
     if (selectedCoords.length < 2) return;
     const coords = selectedCoords.map(s => [s.lon, s.lat]);
-    if (routeLine) map.removeLayer('routeLine');
+
+    if (map.getLayer('routeLine')) map.removeLayer('routeLine');
     if (map.getSource('routeLine')) map.removeSource('routeLine');
 
     map.addSource('routeLine', {
@@ -212,6 +213,7 @@
         geometry: { type: 'LineString', coordinates: coords }
       }
     });
+
     map.addLayer({
       id: 'routeLine',
       type: 'line',
@@ -219,6 +221,7 @@
       paint: { 'line-color': '#2f80ed', 'line-width': 3 }
     });
   }
+
 
   // Prefill existing stops
   const existingStops = JSON.parse(document.getElementById("existing-stops-data").textContent);
@@ -236,7 +239,7 @@
 
   async function fetchStops() {
     const zoom = map.getZoom();
-    if (zoom < 15) {
+    if (zoom < 10) {
       clearMarkers();
       return;
     }
@@ -251,11 +254,14 @@
 
     try {
       const res = await fetch(`https://stops.mybustimes.cc/api/stops?${query}`);
-      const data = await res.json();
+      const json = await res.json();
+      const data = json.results || json;
       clearMarkers();
       for (const s of data) {
-        const lat = s.lat, lng = s.lon;
-        const name = s.name || s.properties?.name || `Stop ${lat.toFixed(4)},${lng.toFixed(4)}`;
+        const lat = s.lat ?? s.location?.[1];
+        const lng = s.lon ?? s.location?.[0];
+        if (!lat || !lng) continue;
+        const name = s.name || s.common_name || `Stop ${lat.toFixed(4)},${lng.toFixed(4)}`;
         addStopMarker(lat, lng, name);
       }
     } catch (e) {
@@ -263,8 +269,29 @@
     }
   }
 
+
+
   map.on('moveend', fetchStops);
-  map.on('load', fetchStops);
+  map.on('load', () => {
+    // Now it’s safe to do anything with sources or layers
+    fetchStops();
+
+    // Prefill stops only after style is loaded
+    if (Array.isArray(existingStops)) {
+      for (const s of existingStops) {
+        if (!s.cords?.includes(',')) continue;
+        const [lon, lat] = s.cords.split(',').map(Number);
+        selectedStops.push(s.stop);
+        selectedCoords.push({ lat, lon, heading: null });
+        addStopToList(s.stop, s.timing_point);
+        addStopMarker(lat, lon, s.stop);
+      }
+      updateRoute();  // now safe
+    }
+
+    // start listening to movement
+    map.on('moveend', fetchStops);
+  });
 
   // Custom stop creation
   document.getElementById('addCustomStop').addEventListener('click', () => {

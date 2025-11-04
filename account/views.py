@@ -32,6 +32,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
+from dateutil.relativedelta import relativedelta 
 
 # Local imports
 from .forms import CustomUserCreationForm, AccountSettingsForm
@@ -225,6 +226,13 @@ def subscribe_ad_free(request):
         user = request.user
         now = timezone.now()
 
+        if plan == 'monthly':
+            months = 1
+        elif plan == 'yearly':
+            months = 12
+        else:
+            months = 1
+
         months = 1
         if plan in ['custom', 'gift']:
             try:
@@ -315,42 +323,57 @@ def stripe_webhook(request):
         metadata = session.get('metadata', {})
         user_id = metadata.get('user_id')
         gift_username = metadata.get('gift_username')
-        months = int(metadata.get('months', 1))
-        now = timezone.now()
-        amount_paid = session.get('amount_total', 0)
+        plan = metadata.get('plan')
+        amount_paid = session.get('amount_total', 0) / 100.0  # Convert cents to GBP
+        months = metadata.get('months')
 
-        if amount_paid == 1000:
-            months = 12
-        else:
+        # Ensure months is a valid integer
+        try:
+            months = int(months) if months else 1
+            if months < 1:
+                months = 1
+        except (TypeError, ValueError):
             months = 1
 
+        # Adjust if plan is yearly
+        if plan and plan.lower() == "yearly":
+            months = 12 * months
+
+        now = timezone.now()
+        expires_datetime = now + relativedelta(months=months)
+
+        print(
+            f"Webhook received for user_id={user_id}, gift_username={gift_username}, "
+            f"amount_paid={amount_paid}, plan={plan}, months={months}, "
+            f"expires_at={expires_datetime}"
+        )
+
         try:
-            target_user = (User.objects.get(username=gift_username)
-                           if gift_username else
-                           User.objects.get(id=user_id))
+            target_user = (
+                User.objects.get(username=gift_username)
+                if gift_username
+                else User.objects.get(id=user_id)
+            )
+
+            # Extend or set ad-free period correctly
             if target_user.ad_free_until and target_user.ad_free_until > now:
-                target_user.ad_free_until += timedelta(days=30 * months)
+                target_user.ad_free_until += relativedelta(months=months)
             else:
-                target_user.ad_free_until = now + timedelta(days=30 * months)
+                target_user.ad_free_until = expires_datetime
+
             target_user.save()
-            if event['type'] == 'checkout.session.completed':
-                session = event['data']['object']
-                metadata = session.get('metadata', {})
-                user_id = metadata.get('user_id')
+            print(f"Set ad-free for user {target_user.username} until {target_user.ad_free_until}")
 
-                # Save subscription ID if this is a subscription mode
-                subscription_id = session.get('subscription')
-
-                try:
-                    user = User.objects.get(id=user_id)
-                    if subscription_id:
-                        user.stripe_subscription_id = subscription_id
-                        user.save()
-                except User.DoesNotExist:
-                    logger.error(f"User not found for webhook: user_id={user_id}")
+            # Save subscription ID if applicable
+            subscription_id = session.get('subscription')
+            if subscription_id:
+                target_user.stripe_subscription_id = subscription_id
+                target_user.save()
 
         except User.DoesNotExist:
-            logger.error(f"Stripe webhook failed: user not found for user_id={user_id} or gift_username={gift_username}")
+            logger.error(
+                f"Stripe webhook failed: user not found for user_id={user_id} or gift_username={gift_username}"
+            )
 
     return HttpResponse(status=200)
 
