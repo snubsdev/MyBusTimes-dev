@@ -195,8 +195,10 @@ def ads_view(request):
 @login_required
 def admin_site_links(request):
     if not has_permission(request.user, 'admin_dash'):
-    return redirect('/admin/permission-denied/')
-return render(request, 'admin-site-links.html')
+        return redirect('/admin/permission-denied/')
+    
+    return render(request, 'admin_site_links.html')
+
 
 @login_required(login_url='/admin/login/')
 def edit_ad(request, ad_id):
