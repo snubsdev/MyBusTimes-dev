@@ -192,6 +192,12 @@ def ads_view(request):
     ads = ad.objects.all()
     return render(request, 'ads.html', {'ads': ads, 'feature_toggles': feature_toggles})
 
+@login_required
+def admin_site_links(request):
+    if not has_permission(request.user, 'admin_dash'):
+    return redirect('/admin/permission-denied/')
+return render(request, 'admin-site-links.html')
+
 @login_required(login_url='/admin/login/')
 def edit_ad(request, ad_id):
     if not has_permission(request.user, 'ad_edit'):
