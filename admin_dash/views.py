@@ -169,7 +169,7 @@ def dashboard_view(request):
         return redirect('/admin/permission-denied/')
 
     # Read filter from query param (?period=this_week)
-period = request.GET.get('period', 'this_week')
+    period = request.GET.get('period', 'this_week')
     user_joins_per_day = get_user_joins_per_day(period)
 
     user_count = CustomUser.objects.count()
