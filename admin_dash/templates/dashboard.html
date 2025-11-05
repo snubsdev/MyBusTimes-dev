@@ -25,7 +25,6 @@
             <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
             <form method="get" id="periodForm">
                 <select name="period" onchange="document.getElementById('periodForm').submit()">
-                    <option value="all" {% if current_period == 'all' %}selected{% endif %}>All Time</option>
                     <option value="this_week" {% if current_period == 'this_week' %}selected{% endif %}>This Week
                     </option>
                     <option value="last_week" {% if current_period == 'last_week' %}selected{% endif %}>Last Week
@@ -38,6 +37,7 @@
                     </option>
                     <option value="last_year" {% if current_period == 'last_year' %}selected{% endif %}>Last Year
                     </option>
+                    <option value="all" {% if current_period == 'all' %}selected{% endif %}>All Time</option>
                 </select>
             </form>
 
