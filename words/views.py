@@ -8,6 +8,7 @@ import re
 import requests
 from django.conf import settings
 from datetime import datetime
+from main.cloudflare_ips import get_cloudflare_networks, is_cloudflare_ip
 
 discord_id = 1432696791735734333
 
@@ -40,28 +41,51 @@ def send_to_discord_embed(discord_id, title, message, colour=0xED4245):
     )
     response.raise_for_status()
 
-def ban_ip(self, request, banned_word):
-    """Return the real client IP, even behind proxies."""
+def get_real_ip(request):
+    ip = request.META.get('HTTP_CF_CONNECTING_IP')
+    if ip:
+        return ip.strip()
+
     x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
     if x_forwarded_for:
-        # X-Forwarded-For may contain multiple IPs — first is the real client
-        ip = x_forwarded_for.split(',')[0].strip()
-    else:
-        ip = request.META.get('REMOTE_ADDR', '')
+        return x_forwarded_for.split(',')[0].strip()
 
+    return request.META.get('REMOTE_ADDR', '').strip()
+
+def ban_ip(self, request, banned_word):
+    ip = get_real_ip(request)
+
+    # Make sure we actually *have* an IP
+    if not ip:
+        return
+
+    # Never ban Cloudflare IPs (this would ban everyone)
+    if is_cloudflare_ip(ip):
+        send_to_discord_embed(
+            discord_id,
+            "⚠️ Ban Prevented",
+            f"Attempted ban on Cloudflare IP `{ip}` was blocked for safety."
+        )
+        return
+
+    # Create or update ban entry
+    ban, created = BannedIps.objects.get_or_create(
+        ip_address=ip,
+        defaults={
+            "banned_at": timezone.now(),
+            "related_user": request.user if request.user.is_authenticated else None,
+            "reason": f'Used banned word "{banned_word}" in text scan'
+        }
+    )
+
+    # Log to Discord
     send_to_discord_embed(
         discord_id,
         "IP Banned",
-        f"The IP address {ip} has been banned for using the word {banned_word} in text scan."
-    )
-    
-    BannedIps.objects.get_or_create(
-        ip_address=ip,
-        banned_at=timezone.now(),
-        related_user=request.user if request.user.is_authenticated else None,
-        reason=f'Used banned word "{banned_word}" in text scan'
+        f"The IP `{ip}` has been banned for saying banned word `{banned_word}`."
     )
 
+    return ban  # Optional: can return the model instance
 
 @csrf_exempt
 def check_string_view(request):
