@@ -5,6 +5,9 @@ from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 from django.conf import settings
+from .cloudflare_ips import *
+from django.core.exceptions import ValidationError
+import ipaddress
 import uuid
 
 # Create your models here.
@@ -125,9 +128,36 @@ class BannedIps(models.Model):
     ip_address = models.GenericIPAddressField(unique=True)
     reason = models.TextField(blank=True, null=True)
     banned_at = models.DateTimeField(auto_now_add=True)
-    related_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='banned_ips')
-    
+    related_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='banned_ips'
+    )
+
     history = HistoricalRecords()
+
+    def clean(self):
+        ip = ipaddress.ip_address(self.ip_address)
+
+        ipv4_nets, ipv6_nets = get_cloudflare_networks()
+
+        # Check IPv4
+        if ip.version == 4:
+            for net in ipv4_nets:
+                if ip in net:
+                    raise ValidationError("This IP belongs to Cloudflare's network and cannot be banned.")
+
+        # Check IPv6
+        if ip.version == 6:
+            for net in ipv6_nets:
+                if ip in net:
+                    raise ValidationError("This IP belongs to Cloudflare's network and cannot be banned.")
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        return super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.ip_address} - {self.reason or 'No reason provided'}"
