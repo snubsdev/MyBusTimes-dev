@@ -40,7 +40,7 @@ urlpatterns = [
     path('applications-management/', applications_management, name='applications-management'),
     path("applications/<int:application_id>/", application_detail, name="application_detail"),
     path('restart-service/', restart_service, name='restart_service'),
-    path('admin-site-links/', admin-site-links, name='admin-site-links'),
+    path('admin-site-links/', admin_site_links, name='admin-site-links'),
 ]
 
 if settings.DEBUG:
