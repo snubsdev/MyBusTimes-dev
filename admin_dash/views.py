@@ -180,7 +180,7 @@ def dashboard_view(request):
         'user_count': user_count,
         'active_user_count': active_user_count,
         'user_joins_per_day': json.dumps(user_joins_per_day),
-        'current_period': period,
+        'current_period': this_week,
     })
 @login_required(login_url='/admin/login/')
 def ads_view(request):
