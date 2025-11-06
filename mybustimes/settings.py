@@ -90,6 +90,8 @@ INSTALLED_APPS = [
     'cms',
     'menus',
 
+    'giveaway',
+
     'djangocms_text',
     'djangocms_link',
     'djangocms_alias',

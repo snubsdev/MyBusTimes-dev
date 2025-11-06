@@ -30,6 +30,7 @@ urlpatterns = [
     path('docs/', include('docs.urls')),
     path('invite/', include('from.urls')),
     path('oidc/', include('mozilla_django_oidc.urls')),
+    path('giveaway/', include('giveaway.urls')),  # Include your giveaway app urls here
     path('', include('main.urls')),  # Include your main app urls here
 ]
 
