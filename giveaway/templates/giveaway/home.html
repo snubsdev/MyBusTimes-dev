@@ -132,7 +132,7 @@
             <img src="{{ prize.image.url }}" alt="{{ prize.name }}">
           {% endif %}
           <h2>{{ prize.name }}</h2>
-          <p>{{ prize.description }}</p>
+          <p>{{ prize.description|linebreaks }}</p>
           <p class="quantity">Quantity: {{ prize.quantity }}</p>
           <div class="enter-wrapper">
             {% if user.is_authenticated %}
