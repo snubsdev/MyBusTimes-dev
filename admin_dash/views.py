@@ -97,10 +97,10 @@ def submit_ip_ban_user(request, user_id):
 
     ip = user.last_ip
 
-    if ip == '172.29.0.1':
+    # Check if IP is a Docker/local address (172.x.x.x, 10.x.x.x, 192.168.x.x)
+    if ip and (ip.startswith('172.') or ip.startswith('10.') or ip.startswith('192.168.')):
         ip = None
-        messages.error(request, "IP ban skipped due to local IP address. This IP make everyone go bye bye.")
-        
+        messages.error(request, "IP ban skipped due to local/Docker IP address.")
 
     try:
         validate_ipv46_address(ip)
