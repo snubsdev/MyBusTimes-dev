@@ -96,6 +96,12 @@ def submit_ip_ban_user(request, user_id):
     user.save()
 
     ip = user.last_ip
+
+    if ip == '172.29.0.1':
+        ip = None
+        messages.error(request, "IP ban skipped due to local IP address. This IP make everyone go bye bye.")
+        
+
     try:
         validate_ipv46_address(ip)
     except (ValidationError, TypeError):  # TypeError covers ip=None
