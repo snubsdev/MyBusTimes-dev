@@ -95,7 +95,7 @@ def submit_ip_ban_user(request, user_id):
     user.banned = True
     user.save()
 
-    ip = user.last_login_ip
+    ip = user.last_ip
     try:
         validate_ipv46_address(ip)
     except (ValidationError, TypeError):  # TypeError covers ip=None
