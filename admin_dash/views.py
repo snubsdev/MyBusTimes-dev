@@ -75,8 +75,16 @@ def user_activity_view(request):
             entries = sorted(entries, key=lambda x: x.history_date, reverse=True)
 
     for entry in entries:
-        model = entry.instance.__class__ if entry.instance else entry.history_model
-        entry.model_name = model._meta.verbose_name.title()
+        # model name already done above
+        instance = entry.instance
+
+        if instance:
+            # Nice object display (uses __str__)
+            entry.display = str(instance)
+        else:
+            # If deleted, fallback to stored history values
+            entry.display = entry.history_object if hasattr(entry, "history_object") else "(deleted)"
+
 
     # Pagination
     paginator = Paginator(entries, 50)  # 50 per page
