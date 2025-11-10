@@ -3,85 +3,56 @@
 {% block content %}
 <h1>User Activity Viewer</h1>
 
-<form method="get" action="" style="margin-bottom: 20px;">
-    <input type="text"
-           name="username"
-           placeholder="Search by username"
-           value="{{ query_username }}"
-           style="padding:6px; width: 250px;">
+<form method="get" action="" style="margin-bottom: 20px; display:flex; gap:8px; align-items:center;">
+    <input type="text" name="username" placeholder="Search by username" value="{{ query_username }}" style="padding:6px; width:250px;">
+    <select name="model" style="padding:6px;">
+    <option value="">All Models</option>
+    {% for model_value, model_label in historical_models %}
+        <option value="{{ model_value }}" {% if selected_model == model_value %}selected{% endif %}>{{ model_label }}</option>
+    {% endfor %}
+</select>
     <button type="submit" style="padding:6px 12px;">Search</button>
 </form>
 
-{% if target_user %}
-    <h2>Activity for {{ target_user.username }}</h2>
+{% if selected_user %}
+<h2>History for <a href="{{ page_obj.0.admin_user_url }}">{{ selected_user.username }}</a></h2>
+<table class="adminlist">
+<thead>
+<tr>
+  <th>Date</th>
+  <th>Action</th>
+  <th>Model</th>
+  <th>Details</th>
+</tr>
+</thead>
+<tbody>
 
-    <table class="adminlist" style="width:100%; border-collapse: collapse;">
-        <thead>
-            <tr style="background: #333;">
-                <th style="text-align:left; padding:8px;">Date</th>
-                <th style="text-align:left; padding:8px;">Action</th>
-                <th style="text-align:left; padding:8px;">Model</th>
-                <th style="text-align:left; padding:8px;">Object ID</th>
-                <th style="text-align:left; padding:8px;">Details</th>
-            </tr>
-        </thead>
-        <tbody>
-        {% for entry in page_obj %}
-            <tr>
-                <td style="padding:8px;">{{ entry.history_date|date:"Y-m-d H:i:s" }}</td>
-                <td style="padding:8px;">
-                    {% if entry.history_type == "+" %}
-                        Created
-                    {% elif entry.history_type == "~" %}
-                        Updated
-                    {% else %}
-                        Deleted
-                    {% endif %}
-                </td>
-                <td style="padding:8px;">{{ entry.model_name }}</td>
-                <td style="padding:8px;">{{ entry.pk }}</td>
-                <td style="padding:8px; font-size:90%; color:#555;">
-                    {% if entry.changes %}
-                        <ul style="margin:0; padding-left:15px;">
-                            {% for field, old, new in entry.changes %}
-                                <li><strong>{{ field }}:</strong> "{{ old }}" → "{{ new }}"</li>
-                            {% endfor %}
-                        </ul>
-                    {% else %}
-                        {% if entry.history_type == "+" %}
-                            Created
-                        {% elif entry.history_type == "~" %}
-                            Updated (no detectable field changes)
-                        {% else %}
-                            Deleted
-                        {% endif %}
-                    {% endif %}
-                </td>
-
-            </tr>
-        {% empty %}
-            <tr>
-                <td colspan="5" style="padding:8px; text-align:center; color:#888;">
-                    No actions found.
-                </td>
-            </tr>
+{% for entry in page_obj %}
+<tr>
+  <td>{{ entry.date|date:"Y-m-d H:i:s" }}</td>
+  <td>{{ entry.history_type }}</td>
+  <td><a href="{{ entry.history_url }}">{{ entry.model }}</a></td>
+  <td>
+      {% if entry.changes %}
+      <ul>
+        {% for field, old, new in entry.changes %}
+        <li><strong>{{ field }}:</strong> "{{ old }}" → "{{ new }}"</li>
         {% endfor %}
-        </tbody>
-    </table>
+      </ul>
+      {% else %}
+      No field changes recorded
+      {% endif %}
+  </td>
+</tr>
+{% empty %}
+<tr>
+  <td colspan="4">No history found</td>
+</tr>
+{% endfor %}
 
-    <div style="margin-top: 15px; text-align:center;">
-        {% if page_obj.has_previous %}
-            <a href="?username={{ query_username }}&page={{ page_obj.previous_page_number }}">← Previous</a>
-        {% endif %}
-
-        <strong style="margin: 0 10px;">
-            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
-        </strong>
-
-        {% if page_obj.has_next %}
-            <a href="?username={{ query_username }}&page={{ page_obj.next_page_number }}">Next →</a>
-        {% endif %}
-    </div>
+</tbody>
+</table>
 
 {% endif %}
+
 {% endblock %}

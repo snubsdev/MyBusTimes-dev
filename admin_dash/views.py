@@ -30,6 +30,7 @@ from django.db.models import Count
 from simple_history.utils import get_history_model_for_model
 import json
 from django.forms.models import model_to_dict
+from django.urls import reverse, NoReverseMatch
 from simple_history import utils
 from simple_history.models import HistoricalRecords
 
@@ -47,71 +48,114 @@ def has_permission(user, perm_name):
 def permission_denied(request):
     return render(request, 'now-access.html')
 
+
 def get_changes(entry):
     prev = entry.prev_record
     if not prev:
         return None
-
     try:
-        current_data = model_to_dict(entry.instance) if entry.instance else {}
-    except:
-        current_data = {}
-
-    try:
-        prev_data = model_to_dict(prev.instance) if prev.instance else {}
-    except:
-        prev_data = {}
-
-    changes = []
-    for field, new_value in current_data.items():
-        old_value = prev_data.get(field)
-        if old_value != new_value:
-            changes.append((field, old_value, new_value))
-
-    return changes or None
+        diff = entry.diff_against(prev)
+    except Exception as e:
+        print("diff_against failed:", e)
+        return None
+    return [(c.field, c.old, c.new) for c in diff.changes]
 
 
 def user_activity_view(request):
+    print("=== USER ACTIVITY VIEW ===")
+
     query_username = request.GET.get("username", "").strip()
-    entries = []
-    user = None
+    query_model = request.GET.get("model", "").strip()
+    print("query_username:", query_username)
+    print("query_model:", query_model)
 
-    if query_username:
+    # Build model dropdown list with REAL model references
+    historical_models = []  # (value, label)
+    model_map = {}  # value -> actual model class
+
+    for model in apps.get_models():
         try:
-            user = User.objects.get(username=query_username)
-        except User.DoesNotExist:
-            user = None
+            hist = get_history_model_for_model(model)
+            value = f"{model._meta.app_label}.{model._meta.model_name}"
+            model_map[value] = model
+            historical_models.append((value, model._meta.verbose_name.title()))
+            print("Model added to dropdown:", value)
+        except:
+            continue
 
-        if user:
-            # Loop only through models that use HistoricalRecords (fast)
-            for model in apps.get_models():
-                if not hasattr(model, 'history'):
-                    continue
-                if not isinstance(model.history, HistoricalRecords):
-                    continue
+    # No username yet → just show filter form
+    if not query_username:
+        print("No username entered yet.")
+        return render(request, "user_activity.html", {
+            "selected_user": None,
+            "historical_models": historical_models,
+            "selected_model": query_model,
+            "page_obj": None,
+        })
 
-                hist_model = model.history.model
+    try:
+        user = User.objects.get(username=query_username)
+        print("User found:", user)
+    except User.DoesNotExist:
+        print("User NOT FOUND!")
+        return render(request, "user_activity.html", {
+            "error": "User not found",
+            "historical_models": historical_models,
+        })
 
-                # Direct query - no `.exists()`, avoids double DB hit
-                entries.extend(hist_model.objects.filter(history_user=user))
+    # Require model selection to avoid timeout
+    if not query_model:
+        print("No model selected yet — waiting.")
+        return render(request, "user_activity.html", {
+            "selected_user": user,
+            "historical_models": historical_models,
+            "selected_model": "",
+            "page_obj": None,
+        })
 
-            # Sort once
-            entries.sort(key=lambda x: x.history_date, reverse=True)
+    if query_model not in model_map:
+        print("MODEL NOT FOUND IN MAP:", query_model)
+        return render(request, "user_activity.html", {
+            "selected_user": user,
+            "historical_models": historical_models,
+            "selected_model": query_model,
+            "page_obj": None,
+        })
 
-    # Add display data
-    for entry in entries:
-        model = entry.instance.__class__ if entry.instance else entry.history_model
-        entry.model_name = model._meta.verbose_name.title()
-        entry.changes = get_changes(entry)
+    selected_model = model_map[query_model]
+    hist_model = get_history_model_for_model(selected_model)
+    print("Querying history model:", hist_model.__name__)
 
-    paginator = Paginator(entries, 50)
+    # **Important fix** — filter using history_user_id
+    qs = hist_model.objects.filter(history_user_id=user.id).order_by("-history_date")
+    print("History rows found:", qs.count())
+
+    paginator = Paginator(qs, 50)
     page_obj = paginator.get_page(request.GET.get('page', 1))
 
+    for entry in page_obj:
+        instance = entry.instance if hasattr(entry, "instance") else None
+
+        if instance:
+            entry.model_name = instance._meta.verbose_name.title()
+            obj_id = instance.pk
+        else:
+            entry.model_name = selected_model._meta.verbose_name.title()
+            obj_id = getattr(entry, entry._meta.pk.name, None)
+
+        entry.changes = get_changes(entry)
+        entry.admin_user_url = f"/admin/auth/user/{user.id}/change/"
+        entry.history_url = f"/admin/{selected_model._meta.app_label}/{selected_model._meta.model_name}/{obj_id}/history/"
+
+        print("Entry:", entry.history_date, entry.history_type, entry.model_name, "obj:", obj_id)
+
     return render(request, "user_activity.html", {
-        "target_user": user,
-        "query_username": query_username,
+        "selected_user": user,
+        "historical_models": historical_models,
+        "selected_model": query_model,
         "page_obj": page_obj,
     })
+
 
 def ban_user(request, user_id):
     if not has_permission(request.user, 'user_ban'):
