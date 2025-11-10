@@ -30,7 +30,7 @@ from django.db.models import Count
 from simple_history.utils import get_history_model_for_model
 import json
 from django.forms.models import model_to_dict
-from simple_history.registry import HistoricalRecords
+from simple_history import utils
 
 def has_permission(user, perm_name):
     if user.is_superuser:
