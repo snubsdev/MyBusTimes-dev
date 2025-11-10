@@ -79,6 +79,7 @@ def user_activity_view(request):
             value = f"{model._meta.app_label}.{model._meta.model_name}"
             model_map[value] = model
             historical_models.append((value, model._meta.verbose_name.title()))
+            historical_models.sort(key=lambda x: x[1])  # sort by label
             print("Model added to dropdown:", value)
         except:
             continue
