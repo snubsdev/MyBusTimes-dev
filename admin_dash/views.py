@@ -88,15 +88,12 @@ def user_activity_view(request):
             user = None
 
     # Identify operator filter
-    if operator:
-        # Check if ORIGINAL model has operator fk
-        original_fields = [f.name for f in model._meta.get_fields()]
-        if "operator" in original_fields:
-            qs = qs.filter(operator_id=operator.id)
-        else:
-            # This model does not relate to operator → skip operator filter
-            pass
-        
+    if query_operator:
+        try:
+            operator = MBTOperator.objects.get(id=query_operator)
+        except MBTOperator.DoesNotExist:
+            operator = None
+
     # If neither selected → show blank page
     if not user and not operator:
         return render(request, "user_activity.html", {
@@ -115,23 +112,17 @@ def user_activity_view(request):
 
         qs = hist_model.objects.all()
 
-        # Filter by user (always safe)
         if user:
             qs = qs.filter(history_user_id=user.id)
 
-        # Filter by operator **only if model has operator relationship**
         if operator:
-            # Check if historical model has operator_id column
-            if "operator_id" in [f.name for f in hist_model._meta.get_fields()] \
-                or "operator" in [f.name for f in hist_model._meta.get_fields()]:
-                qs = qs.filter(operator_id=operator.id)
-            else:
-                # This model does not relate to operator → skip operator filter
-                pass
+            # Skip models that do not relate to operator
+            if "operator" not in [f.name for f in model._meta.get_fields()]:
+                continue
+            qs = qs.filter(operator_id=operator.id)
 
-        if qs.exists():
-            results.extend(list(qs))
-
+        # Append results without forcing exists()
+        results.extend(qs.only("history_date", "history_user_id", "id"))
     # Sort latest first
     results.sort(key=lambda x: x.history_date, reverse=True)
 
