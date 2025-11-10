@@ -40,20 +40,20 @@
                 </td>
                 <td style="padding:8px;">{{ entry.model_name }}</td>
                 <td style="padding:8px;">{{ entry.pk }}</td>
-                <td style="padding:8px; font-size: 90%;">
-                    {% if entry.history_type == "+" %}
-                        Created
-                    {% elif entry.history_type == "-" %}
-                        Deleted
+                <td style="padding:8px; font-size:90%; color:#555;">
+                    {% if entry.changes %}
+                        <ul style="margin:0; padding-left:15px;">
+                            {% for field, old, new in entry.changes %}
+                                <li><strong>{{ field }}:</strong> "{{ old }}" → "{{ new }}"</li>
+                            {% endfor %}
+                        </ul>
                     {% else %}
-                        {% if entry.changes %}
-                            <ul style="margin:0; padding-left:15px;">
-                                {% for field, old, new in entry.changes %}
-                                    <li><strong>{{ field }}:</strong> "{{ old }}" → "{{ new }}"</li>
-                                {% endfor %}
-                            </ul>
+                        {% if entry.history_type == "+" %}
+                            Created
+                        {% elif entry.history_type == "~" %}
+                            Updated (no detectable field changes)
                         {% else %}
-                            No field changes
+                            Deleted
                         {% endif %}
                     {% endif %}
                 </td>

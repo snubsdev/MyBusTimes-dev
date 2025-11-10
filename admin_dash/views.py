@@ -30,6 +30,7 @@ from django.db.models import Count
 from simple_history.utils import get_history_model_for_model
 import json
 from django.forms.models import model_to_dict
+from simple_history.registry import HistoricalRecords
 
 def has_permission(user, perm_name):
     if user.is_superuser:
@@ -48,19 +49,26 @@ def permission_denied(request):
 def get_changes(entry):
     prev = entry.prev_record
     if not prev:
-        return None
+        return None  # Created entries have no previous version
 
-    current_data = model_to_dict(entry.instance) if entry.instance else {}
-    prev_data = model_to_dict(prev.instance) if prev.instance else {}
+    # Safely get current and previous field data
+    try:
+        current_data = model_to_dict(entry.instance) if entry.instance else {}
+    except:
+        current_data = {}
+
+    try:
+        prev_data = model_to_dict(prev.instance) if prev.instance else {}
+    except:
+        prev_data = {}
 
     changes = []
-    for field in current_data:
-        old = prev_data.get(field)
-        new = current_data.get(field)
-        if old != new:
-            changes.append((field, old, new))
+    for field, new_value in current_data.items():
+        old_value = prev_data.get(field)
+        if old_value != new_value:
+            changes.append((field, old_value, new_value))
 
-    return changes
+    return changes or None
 
 
 def user_activity_view(request):
@@ -75,23 +83,22 @@ def user_activity_view(request):
             user = None
 
         if user:
-            for model in apps.get_models():
-                try:
-                    hist_model = get_history_model_for_model(model)
-                except Exception:
-                    continue
-
+            # Query only history-enabled models (fast)
+            for hist_model in utils.get_history_models():
                 qs = hist_model.objects.filter(history_user=user)
                 if qs.exists():
                     entries.extend(qs)
 
+            # Sort by date
             entries = sorted(entries, key=lambda x: x.history_date, reverse=True)
 
+    # Annotate entry display fields
     for entry in entries:
         model = entry.instance.__class__ if entry.instance else entry.history_model
         entry.model_name = model._meta.verbose_name.title()
         entry.changes = get_changes(entry)
 
+    # Pagination
     paginator = Paginator(entries, 50)
     page_obj = paginator.get_page(request.GET.get('page', 1))
 
