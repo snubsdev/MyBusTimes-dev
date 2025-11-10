@@ -23,6 +23,8 @@
 <tr>
   <th>Date</th>
   <th>Action</th>
+  <th>User</th>
+  <th>Entry Name</th>
   <th>Model</th>
   <th>Details</th>
 </tr>
@@ -40,6 +42,14 @@
         Updated
         {% endif %}
   </td>
+    <td>
+        {% if entry.user_url %}
+        <a href="{{ entry.user_url }}">{{ entry.history_user_username }}</a>
+        {% else %}
+        {{ entry.history_user_username|default:"System" }}
+        {% endif %}
+  </td>
+    <td><a href="{{ entry.entry_url }}">{{ entry }}</a></td>
   <td><a href="{{ entry.history_url }}">{{ entry.model_name }}</a></td>
   <td>
       {% if entry.changes %}
