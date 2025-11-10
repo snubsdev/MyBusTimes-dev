@@ -107,7 +107,7 @@ def user_activity_view(request):
             print("[NO OPERATOR FOUND]")
             operator = None
 
-    if not user and not operator:
+    if not user and not operator and not selected_model:
         print("[NO FILTERS] Returning blank page")
         return render(request, "user_activity.html", {
             "selected_user": None,
