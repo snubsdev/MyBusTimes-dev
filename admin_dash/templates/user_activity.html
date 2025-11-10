@@ -29,7 +29,7 @@
 
 {% for entry in page_obj %}
 <tr>
-  <td>{{ entry.date|date:"Y-m-d H:i:s" }}</td>
+  <td>{{ entry.history_date|date:"Y-m-d H:i:s" }}</td>
   <td>{% if entry.history_type  == "+" %}
         Created
         {% elif entry.history_type  == "-" %}
