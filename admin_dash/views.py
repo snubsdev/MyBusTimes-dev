@@ -9,7 +9,7 @@ from django.contrib.auth.decorators import login_required
 from .forms import AdForm, LiveryForm, VehicleForm
 from .models import CustomModel
 from main.models import CustomUser, badge, ad, featureToggle, BannedIps, MBTTeam
-from fleet.models import liverie, fleet, vehicleType
+from fleet.models import liverie, fleet, vehicleType, MBTOperator
 import requests
 from django.template.loader import render_to_string
 from django.db.models import Q
@@ -62,98 +62,92 @@ def get_changes(entry):
 
 
 def user_activity_view(request):
-    print("=== USER ACTIVITY VIEW ===")
-
     query_username = request.GET.get("username", "").strip()
-    query_model = request.GET.get("model", "").strip()
-    print("query_username:", query_username)
-    print("query_model:", query_model)
+    query_operator = request.GET.get("operator", "").strip()
 
-    # Build model dropdown list with REAL model references
-    historical_models = []  # (value, label)
-    model_map = {}  # value -> actual model class
+    user = None
+    operator = None
+    results = []
+
+    # Dropdowns
+    operators = MBTOperator.objects.all().order_by("operator_name")
+    historical_models = []
 
     for model in apps.get_models():
         try:
             hist = get_history_model_for_model(model)
-            value = f"{model._meta.app_label}.{model._meta.model_name}"
-            model_map[value] = model
-            historical_models.append((value, model._meta.verbose_name.title()))
-            historical_models.sort(key=lambda x: x[1])  # sort by label
-            print("Model added to dropdown:", value)
+            historical_models.append((f"{model._meta.app_label}.{model._meta.model_name}", model._meta.verbose_name.title()))
         except:
             continue
 
-    # No username yet → just show filter form
-    if not query_username:
-        print("No username entered yet.")
+    # Identify user filter
+    if query_username:
+        try:
+            user = User.objects.get(username=query_username)
+        except User.DoesNotExist:
+            user = None
+
+    # Identify operator filter
+    if query_operator:
+        try:
+            operator = MBTOperator.objects.get(id=query_operator)
+        except MBTOperator.DoesNotExist:
+            operator = None
+
+    # If neither selected → show blank page
+    if not user and not operator:
         return render(request, "user_activity.html", {
             "selected_user": None,
+            "operators": operators,
             "historical_models": historical_models,
-            "selected_model": query_model,
             "page_obj": None,
         })
 
-    try:
-        user = User.objects.get(username=query_username)
-        print("User found:", user)
-    except User.DoesNotExist:
-        print("User NOT FOUND!")
-        return render(request, "user_activity.html", {
-            "error": "User not found",
-            "historical_models": historical_models,
-        })
+    # Collect history across ALL models
+    for model in apps.get_models():
+        try:
+            hist_model = get_history_model_for_model(model)
+        except:
+            continue
 
-    # Require model selection to avoid timeout
-    if not query_model:
-        print("No model selected yet — waiting.")
-        return render(request, "user_activity.html", {
-            "selected_user": user,
-            "historical_models": historical_models,
-            "selected_model": "",
-            "page_obj": None,
-        })
+        qs = hist_model.objects.all()
 
-    if query_model not in model_map:
-        print("MODEL NOT FOUND IN MAP:", query_model)
-        return render(request, "user_activity.html", {
-            "selected_user": user,
-            "historical_models": historical_models,
-            "selected_model": query_model,
-            "page_obj": None,
-        })
+        if user:
+            qs = qs.filter(history_user_id=user.id)
 
-    selected_model = model_map[query_model]
-    hist_model = get_history_model_for_model(selected_model)
-    print("Querying history model:", hist_model.__name__)
+        if operator:
+            qs = qs.filter(operator_id=operator.id)
 
-    # **Important fix** — filter using history_user_id
-    qs = hist_model.objects.filter(history_user_id=user.id).order_by("-history_date")
-    print("History rows found:", qs.count())
+        if qs.exists():
+            results.extend(list(qs))
 
-    paginator = Paginator(qs, 50)
+    # Sort latest first
+    results.sort(key=lambda x: x.history_date, reverse=True)
+
+    # Paginate before diff (performance)
+    paginator = Paginator(results, 50)
     page_obj = paginator.get_page(request.GET.get('page', 1))
 
+    # Apply diffs now for visible rows
     for entry in page_obj:
-        instance = entry.instance if hasattr(entry, "instance") else None
+        instance = getattr(entry, "instance", None)
 
         if instance:
             entry.model_name = instance._meta.verbose_name.title()
             obj_id = instance.pk
         else:
-            entry.model_name = selected_model._meta.verbose_name.title()
+            entry.model_name = entry._meta.model._meta.verbose_name.title()
             obj_id = getattr(entry, entry._meta.pk.name, None)
 
         entry.changes = get_changes(entry)
-        entry.admin_user_url = f"/admin/auth/user/{user.id}/change/"
-        entry.history_url = f"/admin/{selected_model._meta.app_label}/{selected_model._meta.model_name}/{obj_id}/history/"
-
-        print("Entry:", entry.history_date, entry.history_type, entry.model_name, "obj:", obj_id)
+        entry.history_url = f"/admin/{instance._meta.app_label}/{instance._meta.model_name}/{obj_id}/history/" if instance else None
+        entry.user_url = f"/admin/auth/user/{entry.history_user_id}/change/" if entry.history_user_id else None
 
     return render(request, "user_activity.html", {
         "selected_user": user,
+        "selected_operator": operator,
+        "operators": operators,
         "historical_models": historical_models,
-        "selected_model": query_model,
         "page_obj": page_obj,
     })
 

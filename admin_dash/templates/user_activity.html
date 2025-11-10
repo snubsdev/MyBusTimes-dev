@@ -5,6 +5,7 @@
 
 <form method="get" action="" style="margin-bottom: 20px; display:flex; gap:8px; align-items:center;">
     <input type="text" name="username" placeholder="Search by username" value="{{ query_username }}" style="padding:6px; width:250px;">
+    <input type="text" name="operator" placeholder="Search by operator" value="{{ query_operator }}" style="padding:6px; width:250px;">
     <select name="model" style="padding:6px;">
     <option value="">All Models</option>
     {% for model_value, model_label in historical_models %}
