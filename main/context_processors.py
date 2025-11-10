@@ -63,6 +63,9 @@ def theme_settings(request):
 
     if (datetime.now().month == 10 and datetime.now().day == 31):
         theme_filename = 'Halloween_Dark.css'
+    
+    if (datetime.now().month == 11):
+        poppy = True
 
     #Header Logos
     if dark_mode == 'true' or dark_mode == 'True':
@@ -71,6 +74,8 @@ def theme_settings(request):
 	
         if spm:
             menu_logo = '/static/src/icons/MBT-Logo-White-SPM.png'
+        elif poppy:
+            menu_logo = 'https://raw.githubusercontent.com/NextStopLabs/MBT-Media-Kit/refs/heads/main/MBT%20Poppy%20Theme%20Asset%20Pack/Logo.svg'
         elif birthday:
             menu_logo = '/static/src/icons/MBT-Logo-White-BD.png'
         elif pride_month:
@@ -82,6 +87,8 @@ def theme_settings(request):
         burger_menu_logo = '/static/src/icons/Burger-Menu-Black.webp'
         if spm:
             menu_logo = '/static/src/icons/MBT-Logo-Black-SPM.png'
+        elif poppy:
+            menu_logo = 'https://raw.githubusercontent.com/NextStopLabs/MBT-Media-Kit/refs/heads/main/MBT%20Poppy%20Theme%20Asset%20Pack/Logo.svg'
         elif birthday:
             menu_logo = '/static/src/icons/MBT-Logo-Black-BD.png'
         elif pride_month:
@@ -91,6 +98,8 @@ def theme_settings(request):
 
     if spm:
         favicon_ico = favicon_svg = favicon_96x96 = favicon_touch = '/static/src/icons/favicon/MBTSPM.png'
+    elif poppy:
+        favicon_ico = favicon_svg = favicon_96x96 = favicon_touch = 'https://raw.githubusercontent.com/NextStopLabs/MBT-Media-Kit/refs/heads/main/MBT%20Poppy%20Theme%20Asset%20Pack/Square%20Small%20Icon.svg'
     else:
         favicon_ico = '/static/src/icons/favicon/favicon.ico'
         favicon_svg = '/static/src/icons/favicon/favicon.svg'
