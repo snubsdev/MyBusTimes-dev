@@ -88,12 +88,15 @@ def user_activity_view(request):
             user = None
 
     # Identify operator filter
-    if query_operator:
-        try:
-            operator = MBTOperator.objects.get(id=query_operator)
-        except MBTOperator.DoesNotExist:
-            operator = None
-
+    if operator:
+        # Check if ORIGINAL model has operator fk
+        original_fields = [f.name for f in model._meta.get_fields()]
+        if "operator" in original_fields:
+            qs = qs.filter(operator_id=operator.id)
+        else:
+            # This model does not relate to operator → skip operator filter
+            pass
+        
     # If neither selected → show blank page
     if not user and not operator:
         return render(request, "user_activity.html", {
