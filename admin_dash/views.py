@@ -88,6 +88,7 @@ def user_activity_view(request):
             hist = get_history_model_for_model(model)
             print("[FOUND HISTORY MODEL]", model)
             historical_models.append((f"{model._meta.app_label}.{model._meta.model_name}", model._meta.verbose_name.title()))
+            historical_models.sort(key=lambda x: x[1])
         except:
             pass
 
