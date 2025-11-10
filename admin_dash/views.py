@@ -29,6 +29,7 @@ from django.db.models.functions import TruncDate
 from django.db.models import Count
 from simple_history.utils import get_history_model_for_model
 import json
+from django.forms.models import model_to_dict
 
 def has_permission(user, perm_name):
     if user.is_superuser:
@@ -43,11 +44,26 @@ def has_permission(user, perm_name):
 
 def permission_denied(request):
     return render(request, 'now-access.html')
-def user_activity_view(request):
-    """
-    Search a user and show all of their actions across historical models.
-    """
 
+def get_changes(entry):
+    prev = entry.prev_record
+    if not prev:
+        return None
+
+    current_data = model_to_dict(entry.instance) if entry.instance else {}
+    prev_data = model_to_dict(prev.instance) if prev.instance else {}
+
+    changes = []
+    for field in current_data:
+        old = prev_data.get(field)
+        new = current_data.get(field)
+        if old != new:
+            changes.append((field, old, new))
+
+    return changes
+
+
+def user_activity_view(request):
     query_username = request.GET.get("username", "").strip()
     entries = []
     user = None
@@ -74,6 +90,7 @@ def user_activity_view(request):
     for entry in entries:
         model = entry.instance.__class__ if entry.instance else entry.history_model
         entry.model_name = model._meta.verbose_name.title()
+        entry.changes = get_changes(entry)
 
     paginator = Paginator(entries, 50)
     page_obj = paginator.get_page(request.GET.get('page', 1))
@@ -83,7 +100,6 @@ def user_activity_view(request):
         "query_username": query_username,
         "page_obj": page_obj,
     })
-
 
 def ban_user(request, user_id):
     if not has_permission(request.user, 'user_ban'):
