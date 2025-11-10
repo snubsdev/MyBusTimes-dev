@@ -112,11 +112,19 @@ def user_activity_view(request):
 
         qs = hist_model.objects.all()
 
+        # Filter by user (always safe)
         if user:
             qs = qs.filter(history_user_id=user.id)
 
+        # Filter by operator **only if model has operator relationship**
         if operator:
-            qs = qs.filter(operator_id=operator.id)
+            # Check if historical model has operator_id column
+            if "operator_id" in [f.name for f in hist_model._meta.get_fields()] \
+                or "operator" in [f.name for f in hist_model._meta.get_fields()]:
+                qs = qs.filter(operator_id=operator.id)
+            else:
+                # This model does not relate to operator → skip operator filter
+                pass
 
         if qs.exists():
             results.extend(list(qs))
