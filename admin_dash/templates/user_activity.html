@@ -3,50 +3,41 @@
 {% block content %}
 <h1>User Activity Viewer</h1>
 
-<form method="get" action="" style="margin-bottom: 20px;">
+<form method="get" action="">
     <input type="text" name="username" placeholder="Search username" value="{{ query_username }}">
     <button type="submit">Search</button>
 </form>
 
 {% if target_user %}
-    <h2>Activity for {{ target_user.username }}</h2>
+    <h2>Recent Actions for {{ target_user.username }}</h2>
 
-    <table class="adminlist" style="width:100%; border-collapse:collapse; font-size:14px;">
+    <table class="adminlist" style="width:100%; border-collapse:collapse;">
         <thead>
             <tr>
-                <th style="text-align:left; padding:6px;">Date</th>
-                <th style="text-align:left; padding:6px;">Action</th>
-                <th style="text-align:left; padding:6px;">Model</th>
-                <th style="text-align:left; padding:6px;">Object</th>
+                <th>Date</th>
+                <th>Action</th>
+                <th>Model</th>
+                <th>Object PK</th>
+                <th>Snapshot</th>
             </tr>
         </thead>
         <tbody>
         {% for entry in page_obj %}
             <tr>
-                <td style="padding:6px;">{{ entry.history_date|date:"Y-m-d H:i" }}</td>
-
-                <td style="padding:6px;">
-                    {% if entry.history_type == "+" %}
-                        Created
-                    {% elif entry.history_type == "~" %}
-                        Updated
-                    {% else %}
-                        Deleted
-                    {% endif %}
+                <td>{{ entry.history_date }}</td>
+                <td>
+                    {% if entry.history_type == "+" %}Created
+                    {% elif entry.history_type == "~" %}Updated
+                    {% else %}Deleted{% endif %}
                 </td>
-
-                <td style="padding:6px;">{{ entry.model_name|title }}</td>
-
-                <td style="padding:6px;">
-                    {{ entry.display }}
-                    {% if entry.instance %}
-                        <!-- Link to admin edit if object still exists -->
-                        <a href="/api-admin/{{ entry.instance._meta.app_label }}/{{ entry.instance._meta.model_name }}/{{ entry.instance.pk }}/change/" style="color:#06c; text-decoration:none;">(view)</a>
-                    {% endif %}
-                </td>
+                <td>{{ entry.model_name }}</td>
+                <td>{{ entry.pk }}</td>
+                <td>{{ entry }}</td>
             </tr>
         {% empty %}
-            <tr><td colspan="4" style="padding:6px;">No actions found.</td></tr>
+            <tr>
+                <td colspan="5">No actions found.</td>
+            </tr>
         {% endfor %}
         </tbody>
     </table>
