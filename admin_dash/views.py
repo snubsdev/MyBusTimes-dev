@@ -199,6 +199,7 @@ def user_activity_view(request):
     return render(request, "user_activity.html", {
         "selected_user": user,
         "selected_operator": operator,
+        "selected_model": selected_model,
         "operators": operators,
         "historical_models": historical_models,
         "page_obj": page_obj,
