@@ -246,7 +246,44 @@ $(document).ready(function () {
     },
     minimumInputLength: 0,
   });
+ $("#transportthing-livery").select2({
+    placeholder: "Select a livery",
+    allowClear: true,
+    width: "100%",
+    templateResult: formatLivery,
+    templateSelection: formatLivery,
+    ajax: {
+      url: "https://transportthing.uk/api/liveries/",
+      dataType: "json",
+      delay: 250,
+      data: function (params) {
+        return {
+          limit: 100,
+          offset: params.page ? params.page * 100 : 0,
+          name__icontains: params.term || "",
+        };
+      },
+      processResults: function (data, params) {
+        params.page = params.page || 0;
 
+        return {
+          results: data.results.map(function (livery) {
+            return {
+              id: livery.id,
+              text: livery.name,
+              left_css: livery.left_css,
+              right_css: livery.right_css,
+            };
+          }),
+          pagination: {
+            more: data.next !== null,
+          },
+        };
+      },
+      cache: true,
+    },
+    minimumInputLength: 0,
+  });
   const recolourContainer = document.querySelector(".livery-creator-recolour");
   const liverySelect = document.getElementById("livery");
   const bustimesSelect = document.getElementById("bustimes-livery");
@@ -406,6 +443,40 @@ $(document).ready(function () {
 
     updateCells();
   });
+  
+  $("#transportthing-livery").on("select2:select", function (e) {
+    const selectedOption = transportthingSelect.options[transportthingSelect.selectedIndex];
+
+    const selected = e.params.data;
+
+    const leftCss = selected.left_css || "";
+    const rightCss = selected.right_css || "";
+    const textColour = selected.text_colour || "";
+    const textStrokeColour = selected.stroke_colour || "";
+    const liveryName = selected.text || "";
+    const liveryColour = selected.livery_colour || "";
+
+
+    document.getElementById("text-colour").value = textColour;
+    document.getElementById("text-stroke-colour").value = textStrokeColour;
+    document.getElementById("livery-name").value = liveryName;
+    document.getElementById("livery-colour").value = liveryColour;
+
+    const leftHexes = extractHexColors(leftCss);
+    const rightHexes = extractHexColors(rightCss);
+
+    const existingInputs = document.querySelectorAll(".color-picker");
+    existingInputs.forEach((el) => el.remove());
+
+    const leftInputs = displayColorPickers(leftHexes, "left");
+    const rightInputs = displayColorPickers(rightHexes, "right");
+
+    complexLeft.value = leftCss;
+    complexRight.value = rightCss;
+
+    updateCells();
+  });
+
 
 
   $("#livery").on("select2:select", function (e) {
