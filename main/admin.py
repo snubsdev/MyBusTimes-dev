@@ -1,7 +1,14 @@
 from django.contrib import admin
 from simple_history.admin import SimpleHistoryAdmin
 from django.contrib.auth.admin import UserAdmin
+from django.contrib.admin.models import LogEntry
 from .models import *
+
+@admin.register(LogEntry)
+class LogEntryAdmin(admin.ModelAdmin):
+    list_display = ['action_time', 'user', 'content_type', 'object_repr', 'action_flag', 'change_message']
+    list_filter = ['action_flag', 'content_type', 'user']
+    search_fields = ['object_repr', 'change_message']
 
 @admin.register(region)
 class RegionAdmin(SimpleHistoryAdmin):
