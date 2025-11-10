@@ -75,16 +75,32 @@ def user_activity_view(request):
             entries = sorted(entries, key=lambda x: x.history_date, reverse=True)
 
     for entry in entries:
-        # model name already done above
         instance = entry.instance
 
-        if instance:
-            # Nice object display (uses __str__)
-            entry.display = str(instance)
-        else:
-            # If deleted, fallback to stored history values
-            entry.display = entry.history_object if hasattr(entry, "history_object") else "(deleted)"
+        # Default
+        entry.display = "(deleted)"
 
+        if instance:
+            # Try using __str__ normally
+            try:
+                entry.display = str(instance)
+                continue
+            except Exception:
+                pass
+
+        # If instance doesn't exist or __str__ failed,
+        # fall back to historical data stored by simple-history
+        try:
+            hist_obj = entry.history_object
+            # Try common readable fields
+            for field in ("name", "title", "id", "pk"):
+                if hasattr(hist_obj, field):
+                    value = getattr(hist_obj, field)
+                    if value not in (None, "", []):
+                        entry.display = str(value)
+                        break
+        except Exception:
+            entry.display = "(incomplete record)"
 
     # Pagination
     paginator = Paginator(entries, 50)  # 50 per page
