@@ -48,54 +48,63 @@ def has_permission(user, perm_name):
 def permission_denied(request):
     return render(request, 'now-access.html')
 
-
 def get_changes(entry):
     prev = entry.prev_record
     if not prev:
+        print(f"[NO PREV] entry={entry}")
         return None
     try:
         diff = entry.diff_against(prev)
     except Exception as e:
         print("diff_against failed:", e)
         return None
-    return [(c.field, c.old, c.new) for c in diff.changes]
+
+    changes = [(c.field, c.old, c.new) for c in diff.changes]
+    print(f"[CHANGES] {entry} -> {changes}")
+    return changes
 
 
 def user_activity_view(request):
+    print("=== user_activity_view CALLED ===")
     query_username = request.GET.get("username", "").strip()
     query_operator = request.GET.get("operator", "").strip()
+
+    print("QUERY username:", query_username, "operator:", query_operator)
 
     user = None
     operator = None
     results = []
 
-    # Dropdowns
     operators = MBTOperator.objects.all().order_by("operator_name")
     historical_models = []
 
+    print("[STEP] Collecting historical models")
     for model in apps.get_models():
         try:
             hist = get_history_model_for_model(model)
+            print("[FOUND HISTORY MODEL]", model)
             historical_models.append((f"{model._meta.app_label}.{model._meta.model_name}", model._meta.verbose_name.title()))
         except:
-            continue
+            pass
 
-    # Identify user filter
     if query_username:
         try:
             user = User.objects.get(username=query_username)
+            print("[USER FOUND]", user)
         except User.DoesNotExist:
+            print("[NO USER FOUND]")
             user = None
 
-    # Identify operator filter
     if query_operator:
         try:
             operator = MBTOperator.objects.get(id=query_operator)
+            print("[OPERATOR FOUND]", operator)
         except MBTOperator.DoesNotExist:
+            print("[NO OPERATOR FOUND]")
             operator = None
 
-    # If neither selected → show blank page
     if not user and not operator:
+        print("[NO FILTERS] Returning blank page")
         return render(request, "user_activity.html", {
             "selected_user": None,
             "operators": operators,
@@ -103,34 +112,46 @@ def user_activity_view(request):
             "page_obj": None,
         })
 
-    # Collect history across ALL models
+    print("[STEP] Collecting history entries")
     for model in apps.get_models():
         try:
             hist_model = get_history_model_for_model(model)
         except:
             continue
 
+        print(f"\n--- Checking model: {model._meta.label} ---")
         qs = hist_model.objects.all()
 
         if user:
+            print("→ Filtering by user:", user.id)
             qs = qs.filter(history_user_id=user.id)
 
         if operator:
-            # Skip models that do not relate to operator
-            if "operator" not in [f.name for f in model._meta.get_fields()]:
-                continue
-            qs = qs.filter(operator_id=operator.id)
+            # Ensure operator model history appears
+            if model is MBTOperator:
+                print("✓ Including operator's own history:", model._meta.label)
+                qs = qs.filter(id=operator.id)
 
-        # Append results without forcing exists()
-        results.extend(qs.only("history_date", "history_user_id", "id"))
-    # Sort latest first
+            else:
+                hist_fields = [f.attname for f in hist_model._meta.get_fields()]
+                if "operator_id" not in hist_fields:
+                    print("✗ No operator_id in", hist_model, "skipping")
+                    continue
+                print("→ Filtering by operator_id =", operator.id)
+                qs = qs.filter(operator_id=operator.id)
+
+        count = qs.count()
+        print(f"✔ Retrieved {count} rows")
+        if count:
+            results.extend(list(qs))
+
+    print("[STEP] Sorting results")
     results.sort(key=lambda x: x.history_date, reverse=True)
 
-    # Paginate before diff (performance)
     paginator = Paginator(results, 50)
     page_obj = paginator.get_page(request.GET.get('page', 1))
 
-    # Apply diffs now for visible rows
+    print("[STEP] Processing page results")
     for entry in page_obj:
         instance = getattr(entry, "instance", None)
 
@@ -141,9 +162,13 @@ def user_activity_view(request):
             entry.model_name = entry._meta.model._meta.verbose_name.title()
             obj_id = getattr(entry, entry._meta.pk.name, None)
 
+        print(f"[ENTRY] {entry.model_name} #{obj_id} by user={entry.history_user_id}")
         entry.changes = get_changes(entry)
-        entry.history_url = f"/admin/{instance._meta.app_label}/{instance._meta.model_name}/{obj_id}/history/" if instance else None
-        entry.user_url = f"/admin/auth/user/{entry.history_user_id}/change/" if entry.history_user_id else None
+
+        entry.history_url = f"/api-admin/{instance._meta.app_label}/{instance._meta.model_name}/{obj_id}/history/" if instance else None
+        entry.user_url = f"/api-admin/auth/user/{entry.history_user_id}/change/" if entry.history_user_id else None
+
+    print("=== DONE ===")
 
     return render(request, "user_activity.html", {
         "selected_user": user,
@@ -152,7 +177,6 @@ def user_activity_view(request):
         "historical_models": historical_models,
         "page_obj": page_obj,
     })
-
 
 def ban_user(request, user_id):
     if not has_permission(request.user, 'user_ban'):

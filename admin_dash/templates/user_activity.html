@@ -15,7 +15,8 @@
     <button type="submit" style="padding:6px 12px;">Search</button>
 </form>
 
-{% if selected_user %}
+{% if page_obj %}
+
 <h2>History for <a href="{{ page_obj.0.admin_user_url }}">{{ selected_user.username }}</a></h2>
 <table class="adminlist">
 <thead>
@@ -39,7 +40,7 @@
         Updated
         {% endif %}
   </td>
-  <td><a href="{{ entry.history_url }}">{{ entry.model }}</a></td>
+  <td><a href="{{ entry.history_url }}">{{ entry.model_name }}</a></td>
   <td>
       {% if entry.changes %}
       <ul>
