@@ -6,6 +6,8 @@ from django.http import JsonResponse
 from django.core.validators import validate_ipv46_address
 from django.core.exceptions import ValidationError
 from django.contrib.auth.decorators import login_required
+
+from fleet.views import operator
 from .forms import AdForm, LiveryForm, VehicleForm
 from .models import CustomModel
 from main.models import CustomUser, badge, ad, featureToggle, BannedIps, MBTTeam
@@ -33,6 +35,7 @@ from django.forms.models import model_to_dict
 from django.urls import reverse, NoReverseMatch
 from simple_history import utils
 from simple_history.models import HistoricalRecords
+from django.db.models import ManyToManyField, ForeignKey
 
 def has_permission(user, perm_name):
     if user.is_superuser:
@@ -127,18 +130,32 @@ def user_activity_view(request):
             qs = qs.filter(history_user_id=user.id)
 
         if operator:
-            # Ensure operator model history appears
-            if model is MBTOperator:
-                print("✓ Including operator's own history:", model._meta.label)
-                qs = qs.filter(id=operator.id)
+            model_fields = {f.name: f for f in model._meta.get_fields()}
+
+            # Case 1: direct FK to operator → filter history directly
+            fk_field = next(
+                (name for name, f in model_fields.items()
+                if isinstance(f, ForeignKey) and f.related_model == MBTOperator),
+                None
+            )
+            if fk_field:
+                qs = qs.filter(**{f"{fk_field}_id": operator.id})
 
             else:
-                hist_fields = [f.attname for f in hist_model._meta.get_fields()]
-                if "operator_id" not in hist_fields:
-                    print("✗ No operator_id in", hist_model, "skipping")
+                # Case 2: M2M to operator → must map to live objects first
+                m2m_field = next(
+                    (name for name, f in model_fields.items()
+                    if isinstance(f, ManyToManyField) and f.related_model == MBTOperator),
+                    None
+                )
+                if m2m_field:
+                    # Get live object IDs that match
+                    live_ids = model.objects.filter(**{f"{m2m_field}__id": operator.id}) \
+                                            .values_list("id", flat=True)
+                    qs = qs.filter(id__in=live_ids)
+                else:
+                    # No operator relationship → skip this model
                     continue
-                print("→ Filtering by operator_id =", operator.id)
-                qs = qs.filter(operator_id=operator.id)
 
         count = qs.count()
         print(f"✔ Retrieved {count} rows")

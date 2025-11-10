@@ -65,7 +65,7 @@
 <div class="pagination" style="margin-top: 20px; display:flex; gap:8px; align-items:center;">
 
     {% if page_obj.has_previous %}
-        <a href="?username={{ query_username }}&operator={{ query_operator }}&model={{ selected_model }}&page={{ page_obj.previous_page_number }}">
+        <a href="?username={{ selected_user }}&operator={{ selected_operator }}&model={{ selected_model }}&page={{ page_obj.previous_page_number }}">
             Previous
         </a>
     {% endif %}
@@ -73,7 +73,7 @@
     <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
 
     {% if page_obj.has_next %}
-        <a href="?username={{ query_username }}&operator={{ query_operator }}&model={{ selected_model }}&page={{ page_obj.next_page_number }}">
+        <a href="?username={{ selected_user }}&operator={{ selected_operator }}&model={{ selected_model }}&page={{ page_obj.next_page_number }}">
             Next
         </a>
     {% endif %}
