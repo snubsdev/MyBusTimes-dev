@@ -43,11 +43,9 @@ def has_permission(user, perm_name):
 
 def permission_denied(request):
     return render(request, 'now-access.html')
-
 def user_activity_view(request):
     """
-    View that allows searching a user and showing all of their actions
-    across all historical models, with pagination.
+    Search a user and show all of their actions across historical models.
     """
 
     query_username = request.GET.get("username", "").strip()
@@ -71,23 +69,21 @@ def user_activity_view(request):
                 if qs.exists():
                     entries.extend(qs)
 
-            # Sort by newest first
             entries = sorted(entries, key=lambda x: x.history_date, reverse=True)
 
     for entry in entries:
         model = entry.instance.__class__ if entry.instance else entry.history_model
         entry.model_name = model._meta.verbose_name.title()
 
-    # Pagination
-    paginator = Paginator(entries, 50)  # 50 per page
-    page = request.GET.get('page', 1)
-    page_obj = paginator.get_page(page)
+    paginator = Paginator(entries, 50)
+    page_obj = paginator.get_page(request.GET.get('page', 1))
 
     return render(request, "user_activity.html", {
         "target_user": user,
         "query_username": query_username,
         "page_obj": page_obj,
     })
+
 
 def ban_user(request, user_id):
     if not has_permission(request.user, 'user_ban'):
