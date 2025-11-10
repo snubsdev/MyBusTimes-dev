@@ -31,6 +31,7 @@ from simple_history.utils import get_history_model_for_model
 import json
 from django.forms.models import model_to_dict
 from simple_history import utils
+from simple_history.models import HistoricalRecords
 
 def has_permission(user, perm_name):
     if user.is_superuser:
@@ -49,9 +50,8 @@ def permission_denied(request):
 def get_changes(entry):
     prev = entry.prev_record
     if not prev:
-        return None  # Created entries have no previous version
+        return None
 
-    # Safely get current and previous field data
     try:
         current_data = model_to_dict(entry.instance) if entry.instance else {}
     except:
@@ -83,22 +83,27 @@ def user_activity_view(request):
             user = None
 
         if user:
-            # Query only history-enabled models (fast)
-            for hist_model in utils.get_history_models():
-                qs = hist_model.objects.filter(history_user=user)
-                if qs.exists():
-                    entries.extend(qs)
+            # Loop only through models that use HistoricalRecords (fast)
+            for model in apps.get_models():
+                if not hasattr(model, 'history'):
+                    continue
+                if not isinstance(model.history, HistoricalRecords):
+                    continue
 
-            # Sort by date
-            entries = sorted(entries, key=lambda x: x.history_date, reverse=True)
+                hist_model = model.history.model
 
-    # Annotate entry display fields
+                # Direct query - no `.exists()`, avoids double DB hit
+                entries.extend(hist_model.objects.filter(history_user=user))
+
+            # Sort once
+            entries.sort(key=lambda x: x.history_date, reverse=True)
+
+    # Add display data
     for entry in entries:
         model = entry.instance.__class__ if entry.instance else entry.history_model
         entry.model_name = model._meta.verbose_name.title()
         entry.changes = get_changes(entry)
 
-    # Pagination
     paginator = Paginator(entries, 50)
     page_obj = paginator.get_page(request.GET.get('page', 1))
 
