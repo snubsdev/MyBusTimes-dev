@@ -1,0 +1,58 @@
+{% extends 'adminbase.html' %}
+
+{% block content %}
+<h1>User Activity Viewer</h1>
+
+<form method="get" action="">
+    <input type="text" name="username" placeholder="Search username" value="{{ query_username }}">
+    <button type="submit">Search</button>
+</form>
+
+{% if target_user %}
+    <h2>Recent Actions for {{ target_user.username }}</h2>
+
+    <table class="adminlist" style="width:100%; border-collapse:collapse;">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Action</th>
+                <th>Model</th>
+                <th>Object PK</th>
+                <th>Snapshot</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for entry in page_obj %}
+            <tr>
+                <td>{{ entry.history_date }}</td>
+                <td>
+                    {% if entry.history_type == "+" %}Created
+                    {% elif entry.history_type == "~" %}Updated
+                    {% else %}Deleted{% endif %}
+                </td>
+                <td>{{ entry.model_name }}</td>
+                <td>{{ entry.pk }}</td>
+                <td>{{ entry }}</td>
+            </tr>
+        {% empty %}
+            <tr>
+                <td colspan="5">No actions found.</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    <div style="margin-top: 20px;">
+        {% if page_obj.has_previous %}
+            <a href="?username={{ query_username }}&page={{ page_obj.previous_page_number }}">Previous</a>
+        {% endif %}
+
+        <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+
+        {% if page_obj.has_next %}
+            <a href="?username={{ query_username }}&page={{ page_obj.next_page_number }}">Next</a>
+        {% endif %}
+    </div>
+
+{% endif %}
+{% endblock %}

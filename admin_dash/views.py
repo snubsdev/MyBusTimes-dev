@@ -20,12 +20,14 @@ from django.core.mail import send_mail
 from django.conf import settings
 import subprocess
 import logging
+from django.apps import apps
 from django.utils import timezone
 from datetime import timedelta
 from main.models import CustomUser as User
 from django.contrib import messages
 from django.db.models.functions import TruncDate
 from django.db.models import Count
+from simple_history.utils import get_history_model_for_model
 import json
 
 def has_permission(user, perm_name):
@@ -41,6 +43,51 @@ def has_permission(user, perm_name):
 
 def permission_denied(request):
     return render(request, 'now-access.html')
+
+def user_activity_view(request):
+    """
+    View that allows searching a user and showing all of their actions
+    across all historical models, with pagination.
+    """
+
+    query_username = request.GET.get("username", "").strip()
+    entries = []
+    user = None
+
+    if query_username:
+        try:
+            user = User.objects.get(username=query_username)
+        except User.DoesNotExist:
+            user = None
+
+        if user:
+            for model in apps.get_models():
+                try:
+                    hist_model = get_history_model_for_model(model)
+                except Exception:
+                    continue
+
+                qs = hist_model.objects.filter(history_user=user)
+                if qs.exists():
+                    entries.extend(qs)
+
+            # Sort by newest first
+            entries = sorted(entries, key=lambda x: x.history_date, reverse=True)
+
+    for entry in entries:
+        model = entry.instance.__class__ if entry.instance else entry.history_model
+        entry.model_name = model._meta.verbose_name.title()
+
+    # Pagination
+    paginator = Paginator(entries, 50)  # 50 per page
+    page = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page)
+
+    return render(request, "user_activity.html", {
+        "target_user": user,
+        "query_username": query_username,
+        "page_obj": page_obj,
+    })
 
 def ban_user(request, user_id):
     if not has_permission(request.user, 'user_ban'):

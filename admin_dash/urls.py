@@ -5,6 +5,7 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path('', dashboard_view, name='dashboard'),
+    path("user-activity/", user_activity_view, name="user_activity_view"),
     path('users-management/', users_view, name='users-management'),
     path('ads-management/', ads_view, name='ads-management'),
     path('feature-toggles-management/', feature_toggles_view, name='feature-toggles-management'),
