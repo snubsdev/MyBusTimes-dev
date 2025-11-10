@@ -4,8 +4,8 @@
 <h1>User Activity Viewer</h1>
 
 <form method="get" action="" style="margin-bottom: 20px; display:flex; gap:8px; align-items:center;">
-    <input type="text" name="username" placeholder="Search by username" value="{{ query_username }}" style="padding:6px; width:250px;">
-    <input type="text" name="operator" placeholder="Search by operator" value="{{ query_operator }}" style="padding:6px; width:250px;">
+    <input type="text" name="username" placeholder="Search by username" value="{{ selected_user.username|default:"" }}" style="padding:6px; width:250px;">
+    <input type="text" name="operator" placeholder="Search by operator" value="{{ selected_operator.id|default:"" }}" style="padding:6px; width:250px;">
     <select name="model" style="padding:6px;">
     <option value="">All Models</option>
     {% for model_value, model_label in historical_models %}
@@ -16,7 +16,7 @@
 </form>
 
 {% if page_obj %}
-
+{{ selected_operator }}
 <h2>History for <a href="{{ page_obj.0.admin_user_url }}">{{ selected_user.username }}</a></h2>
 <table class="adminlist">
 <thead>
@@ -65,7 +65,7 @@
 <div class="pagination" style="margin-top: 20px; display:flex; gap:8px; align-items:center;">
 
     {% if page_obj.has_previous %}
-        <a href="?username={{ selected_user|default:"" }}&operator={{ selected_operator|default:"" }}&model={{ selected_model|default:"" }}&page={{ page_obj.previous_page_number }}">
+        <a href="?username={{ selected_user.username|default:"" }}&operator={{ selected_operator.id|default:"" }}&model={{ selected_model|default:"" }}&page={{ page_obj.previous_page_number }}">
             Previous
         </a>
     {% endif %}
@@ -73,7 +73,7 @@
     <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
 
     {% if page_obj.has_next %}
-        <a href="?username={{ selected_user|default:"" }}&operator={{ selected_operator|default:"" }}&model={{ selected_model|default:"" }}&page={{ page_obj.next_page_number }}">
+        <a href="?username={{ selected_user.username|default:"" }}&operator={{ selected_operator.id|default:"" }}&model={{ selected_model|default:"" }}&page={{ page_obj.next_page_number }}">
             Next
         </a>
     {% endif %}

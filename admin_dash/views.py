@@ -71,6 +71,7 @@ def user_activity_view(request):
     print("=== user_activity_view CALLED ===")
     query_username = request.GET.get("username", "").strip()
     query_operator = request.GET.get("operator", "").strip()
+    selected_model = request.GET.get("model", "").strip()
 
     print("QUERY username:", query_username, "operator:", query_operator)
 
@@ -121,6 +122,14 @@ def user_activity_view(request):
             hist_model = get_history_model_for_model(model)
         except:
             continue
+
+        # MODEL FILTERING (fix)
+        if selected_model:
+            model_label = f"{model._meta.app_label}.{model._meta.model_name}"
+            if model_label != selected_model:
+                continue
+
+        qs = hist_model.objects.all()
 
         print(f"\n--- Checking model: {model._meta.label} ---")
         qs = hist_model.objects.all()
@@ -186,7 +195,7 @@ def user_activity_view(request):
         entry.user_url = f"/api-admin/auth/user/{entry.history_user_id}/change/" if entry.history_user_id else None
 
     print("=== DONE ===")
-
+    print(selected_model)
     return render(request, "user_activity.html", {
         "selected_user": user,
         "selected_operator": operator,
