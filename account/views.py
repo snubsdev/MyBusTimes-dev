@@ -348,7 +348,7 @@ def stripe_webhook(request):
         logger.error(f"Stripe webhook error: {e}")
         return HttpResponse(status=400)
 
-    if event['type'] in ['checkout.session.completed', 'checkout.session.async_payment_succeeded', 'payment_intent.succeeded']:
+    if event['type'] in ['checkout.session.completed', 'checkout.session.async_payment_succeeded', 'payment_intent.succeeded', 'invoice.paid']:
         session = event['data']['object']
         metadata = session.get('metadata', {})
         user_id = metadata.get('user_id')
@@ -368,7 +368,7 @@ def stripe_webhook(request):
                 channel_id=1437841324748312668,
                 title="Stripe Webhook Warning",
                 message=f"Invalid months value received in webhook for user_id={user_id}. Defaulting to 1 month. \n\n Metadata: {json.dumps(metadata)}",
-                colour=0xFFA500  # Orange color for warning
+                colour=0x3498DB  # Blue color for info
             )
             
 
@@ -413,7 +413,8 @@ def stripe_webhook(request):
             logger.error(
                 f"Stripe webhook failed: user not found for user_id={user_id} or gift_username={gift_username}"
             )
-    return HttpResponse(status=500, content="Unhandled event type", data=event)
+    return HttpResponse(f"Unhandled event type: {event['type']}", status=500)
+
 
 @login_required
 def payment_success(request):
