@@ -48,6 +48,36 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 
 debug = settings.DEBUG
 
+def send_to_discord_embed(channel_id, title, message, colour=0x00BFFF):
+    embed = {
+        "title": title,
+        "description": message,
+        "color": colour,
+        "fields": [
+            {
+                "name": "Time",
+                "value": datetime.now().strftime('%Y-%m-%d %H:%M'),
+                "inline": True
+            }
+        ],
+        "footer": {
+            "text": "MBT Logging System"
+        },
+        "timestamp": datetime.now().isoformat()
+    }
+
+    data = {
+        'channel_id': channel_id,
+        'embed': embed
+    }
+
+    response = requests.post(
+        f"{settings.DISCORD_BOT_API_URL}/send-embed",
+        json=data
+    )
+    response.raise_for_status()
+
+
 def validate_turnstile(token, remoteip=None):
     if debug:
         return {'success': True}
@@ -334,6 +364,13 @@ def stripe_webhook(request):
                 months = 1
         except (TypeError, ValueError):
             months = 1
+            send_to_discord_embed(
+                channel_id=1437841324748312668,
+                title="Stripe Webhook Warning",
+                message=f"Invalid months value received in webhook for user_id={user_id}. Defaulting to 1 month. \n\n Metadata: {json.dumps(metadata)}",
+                colour=0xFFA500  # Orange color for warning
+            )
+            
 
         # Adjust if plan is yearly
         if plan and plan.lower() == "yearly":
@@ -375,7 +412,8 @@ def stripe_webhook(request):
                 f"Stripe webhook failed: user not found for user_id={user_id} or gift_username={gift_username}"
             )
 
-    return HttpResponse(status=200)
+        return HttpResponse(status=200)
+    return HttpResponse(status=400)
 
 @login_required
 def payment_success(request):
