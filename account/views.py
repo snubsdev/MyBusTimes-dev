@@ -48,6 +48,8 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 
 debug = settings.DEBUG
 
+
+from datetime import datetime
 def send_to_discord_embed(channel_id, title, message, colour=0x00BFFF):
     embed = {
         "title": title,
@@ -335,6 +337,8 @@ def subscribe_ad_free(request):
     ).count()
 
     return render(request, 'subscribe.html', {'month_options': range(1, 13), 'current_sub_count': current_sub_count})
+
+from datetime import datetime
 @csrf_exempt
 def stripe_webhook(request):
     payload = request.body
