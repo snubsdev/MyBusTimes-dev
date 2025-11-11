@@ -28,6 +28,10 @@
         display: inline-block;
     }
 
+    :root {
+        --background-color: #fff;
+        --text-color: #222;
+    }
   </style>
 {% endblock %}
 
@@ -53,93 +57,17 @@
 {% endif %}
 
 <div class="subscription-options">
-    <h3>Choose your plan</h3>
-    <div class="price_group_container">
-
-        <!-- Monthly -->
-        <form method="POST">
-            {% csrf_token %}
-            <div class="price_group">
-                <h3>£1<small>/mon</small></h3>
-                <p>This will get you 1 month of ad-free MBT.</p>
-                <input type="hidden" name="plan" value="monthly">
-                <button type="submit" class="btn">Go Ad-Free | Monthly</button><br>
-                <small class="cancel-anytime"><a href="{{ STRIPE_BILLING_PORTAL_URL }}">Cancel anytime</a></small>
-            </div>
-        </form>
-
-        <!-- Yearly -->
-        <form method="POST">
-            {% csrf_token %}
-            <div class="price_group">
-                <h3>£10<small>/yr</small></h3>
-                <h4>83p<small>/mon</small></h4>
-                <div class="badge best-value">Best Value</div><br>
-                <p style="margin-bottom: 0;">This will get you 1 year of ad-free MBT.</p>
-                <input type="hidden" name="plan" value="yearly">
-                <button type="submit" class="btn">Go Ad-Free | Yearly</button><br>
-                <small class="cancel-anytime">Save 17% vs monthly</small>
-                <small class="cancel-anytime"><a href="{{ STRIPE_BILLING_PORTAL_URL }}">Cancel anytime</a></small>
-            </div>
-        </form>
-    </div>
+    <script async src="https://js.stripe.com/v3/pricing-table.js"></script>
+    <stripe-pricing-table pricing-table-id="prctbl_1SSKrGEo24QE6dJiPjLcEuZt"
+    publishable-key="pk_live_51RUrCVEo24QE6dJiEvre4Yvdrk0CNzznpfUJxmD8J0yi4a3cGzmI1uh9WltGv60onJ9CS3yO3TbuxJwg8Hij7BKt005P2OgFu5">
+    </stripe-pricing-table>
     <br>
     <p style="text-align: center;">Join {{ current_sub_count }} other members in supporting MyBusTimes!</p>
     <a style="text-align: center;width: 100%;display: block;" href="https://www.mybustimes.cc/climate">🌱 Our climate promise</a>
-    {% if themeDark == "True" %}
-        <img src="{% static 'src/icons/secure-white.png' %}" alt="Pay with PayPal" style="max-height: 100px; margin: 0 auto;display: block;width: 100%;object-fit: contain;">
-    {% else %}
+
         <img src="{% static 'src/icons/secure-black.png' %}" alt="Pay with PayPal" style="max-height: 100px; margin: 0 auto;display: block;width: 100%;object-fit: contain;">
-    {% endif %}
 </div>
 <br>
-<br>
-<div class="subscription-options">
-    <h3>Other options</h3>
-    <div class="price_group_container">
-        <!-- Custom -->
-        <form method="POST">
-            {% csrf_token %}
-            <div class="price_group">
-                <h3>Custom</h3>
-                <p>Choose your own duration for ad-free MBT.</p>
-                <select name="custom_months" id="custom_months_1" onchange="updateTotal('1')">
-                    {% for i in month_options %}
-                        <option value="{{ i }}">{{ i }} month{{ i|pluralize }}</option>
-                    {% endfor %}
-                </select>
-                <p>Total: <span id="total_price_1">£1.00</span></p>
-                <input type="hidden" name="plan" value="custom">
-                <button type="submit" class="btn small">Start Custom</button>
-            </div>
-        </form>
-
-        <!-- Gift -->
-        <form method="POST">
-            {% csrf_token %}
-            <div class="price_group">
-                <h3>Gift</h3>
-                <p>Gift someone ad-free MBT for up to a year.</p>
-                <input type="text" name="gift_username" placeholder="Username"
-                       value="{{ gift_username_value|default:'' }}"
-                       {% if gift_username_error %}style="border: 2px solid red;"{% endif %} required>
-                {% if gift_username_error %}
-                    <p style="color: red;">{{ error_message }}</p>
-                {% endif %}
-
-                <select name="custom_months" id="custom_months_2" onchange="updateTotal('2')">
-                    {% for i in month_options %}
-                        <option value="{{ i }}">{{ i }} month{{ i|pluralize }}</option>
-                    {% endfor %}
-                </select>
-                <p>Total: <span id="total_price_2">£1.00</span></p>
-                <input type="hidden" name="plan" value="gift">
-                <button type="submit" class="btn small">Send Gift</button>
-            </div>
-        </form>
-
-    </div>
-</div>
 
 <div class="note">
     <p>You’re directly helping keep MyBusTimes fast and focused on buses – not ads.</p>
