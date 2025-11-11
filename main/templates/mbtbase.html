@@ -53,6 +53,11 @@
   {% include "extra/css.html" %}
 </head>
 
+{% if silence %}
+<h1>2 minuates silence</h1>
+{% else %}
+
+
 <body>
   <div class="dumb-ass-meta-data">
     <p style="display: none;">
@@ -268,3 +273,4 @@
 </body>
 
 </html>
+{% endif %}
