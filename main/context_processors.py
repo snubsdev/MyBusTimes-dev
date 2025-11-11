@@ -64,7 +64,7 @@ def theme_settings(request):
     if (datetime.now().month == 10 and datetime.now().day == 31):
         theme_filename = 'Halloween_Dark.css'
 
-    silence = True
+    silence = False
 
     if (datetime.now().month == 11):
         poppy = True
