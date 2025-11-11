@@ -65,7 +65,7 @@ def theme_settings(request):
         theme_filename = 'Halloween_Dark.css'
         
     current_time = datetime.now()
-    silence = True
+    silence = False
     if current_time.month == 11 and current_time.day == 11 and current_time.hour == 11 and current_time.minute in [0, 1]:
         silence = True
 
