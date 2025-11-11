@@ -335,86 +335,128 @@ def subscribe_ad_free(request):
     ).count()
 
     return render(request, 'subscribe.html', {'month_options': range(1, 13), 'current_sub_count': current_sub_count})
-
 @csrf_exempt
 def stripe_webhook(request):
     payload = request.body
     sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
     endpoint_secret = settings.STRIPE_WEBHOOK_SECRET
 
+    # Log raw payload for debugging
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
-    except (ValueError, stripe.error.SignatureVerificationError) as e:
-        logger.error(f"Stripe webhook error: {e}")
+    except Exception as e:
+        logger.error(f"Stripe webhook signature verification failed: {e}")
+        send_to_discord_embed(
+            channel_id=1437841324748312668,
+            title="Stripe Webhook ERROR",
+            message=f"Signature verification failed.\n\nError: `{e}`",
+            colour=0xFF0000
+        )
         return HttpResponse(status=400)
 
-    if event['type'] in ['checkout.session.completed', 'checkout.session.async_payment_succeeded', 'payment_intent.succeeded', 'invoice.paid']:
-        session = event['data']['object']
-        metadata = session.get('metadata', {})
-        user_id = metadata.get('user_id')
-        gift_username = metadata.get('gift_username')
-        plan = metadata.get('plan')
-        amount_paid = session.get('amount_total', 0) / 100.0  # Convert cents to GBP
-        months = metadata.get('months')
+    event_type = event.get("type")
+    data = event["data"]["object"]
 
-        # Ensure months is a valid integer
-        try:
-            months = int(months) if months else 1
-            if months < 1:
-                months = 1
-        except (TypeError, ValueError):
+    send_to_discord_embed(
+        channel_id=1437841324748312668,
+        title="Stripe Webhook Received",
+        message=f"Event Type: `{event_type}`\nID: `{event['id']}`",
+        colour=0x5865F2
+    )
+
+    # Only handle events that actually relate to your system
+    if event_type not in [
+        'checkout.session.completed',
+        'checkout.session.async_payment_succeeded',
+        'payment_intent.succeeded',
+        'invoice.paid'
+    ]:
+        send_to_discord_embed(
+            channel_id=1437841324748312668,
+            title="Webhook Ignored",
+            message=f"Unhandled Event Type: `{event_type}`",
+            colour=0x808080
+        )
+        return HttpResponse("Ignored", status=200)
+
+    # Invoice events contain the subscription and amount differently
+    if event_type == "invoice.paid":
+        metadata = data.get("lines", {}).get("data", [{}])[0].get("metadata", {})
+        amount_paid = data.get('amount_paid', 0) / 100
+        subscription_id = data.get("subscription")
+    else:
+        metadata = data.get("metadata", {})
+        amount_paid = data.get('amount_total', 0) / 100
+        subscription_id = data.get("subscription")
+
+    user_id = metadata.get('user_id')
+    gift_username = metadata.get('gift_username')
+    plan = metadata.get('plan')
+    months = metadata.get('months')
+
+    # Validate months
+    try:
+        months = int(months) if months else 1
+        if months < 1:
             months = 1
-            send_to_discord_embed(
-                channel_id=1437841324748312668,
-                title="Stripe Webhook Warning",
-                message=f"Invalid months value received in webhook for user_id={user_id}. Defaulting to 1 month. \n\n Metadata: {json.dumps(metadata)}",
-                colour=0x3498DB  # Blue color for info
-            )
-            
-
-        # Adjust if plan is yearly
-        if plan and plan.lower() == "yearly":
-            months = 12 * months
-
-        now = timezone.now()
-        expires_datetime = now + relativedelta(months=months)
-
-        print(
-            f"Webhook received for user_id={user_id}, gift_username={gift_username}, "
-            f"amount_paid={amount_paid}, plan={plan}, months={months}, "
-            f"expires_at={expires_datetime}"
+    except Exception:
+        months = 1
+        send_to_discord_embed(
+            channel_id=1437841324748312668,
+            title="Invalid Months Metadata",
+            message=f"Metadata: `{json.dumps(metadata)}`\nDefaulted to 1 month.",
+            colour=0xFFA500
         )
 
-        try:
-            target_user = (
-                User.objects.get(username=gift_username)
-                if gift_username
-                else User.objects.get(id=user_id)
-            )
+    # Yearly plan → multiply by 12
+    if plan and plan.lower() == "yearly":
+        months *= 12
 
-            # Extend or set ad-free period correctly
-            if target_user.ad_free_until and target_user.ad_free_until > now:
-                target_user.ad_free_until += relativedelta(months=months)
-            else:
-                target_user.ad_free_until = expires_datetime
+    now = timezone.now()
+    expires_datetime = now + relativedelta(months=months)
 
-            target_user.save()
-            print(f"Set ad-free for user {target_user.username} until {target_user.ad_free_until}")
+    try:
+        target_user = (
+            User.objects.get(username=gift_username)
+            if gift_username else
+            User.objects.get(id=user_id)
+        )
+    except User.DoesNotExist:
+        send_to_discord_embed(
+            channel_id=1437841324748312668,
+            title="Webhook FAILED - User Not Found",
+            message=f"user_id:`{user_id}` gift_username:`{gift_username}`",
+            colour=0xFF0000
+        )
+        return HttpResponse(status=500)
 
-            # Save subscription ID if applicable
-            subscription_id = session.get('subscription')
-            if subscription_id:
-                target_user.stripe_subscription_id = subscription_id
-                target_user.save()
+    # Apply ad-free duration
+    old_expiry = target_user.ad_free_until
+    if old_expiry and old_expiry > now:
+        target_user.ad_free_until += relativedelta(months=months)
+    else:
+        target_user.ad_free_until = expires_datetime
 
-            return HttpResponse(status=200, content=f"Added ad-free for {target_user.username} until {target_user.ad_free_until}, amount paid: £{amount_paid}")
+    if subscription_id:
+        target_user.stripe_subscription_id = subscription_id
 
-        except User.DoesNotExist:
-            logger.error(
-                f"Stripe webhook failed: user not found for user_id={user_id} or gift_username={gift_username}"
-            )
-    return HttpResponse(f"Unhandled event type: {event['type']}", status=500)
+    target_user.save()
 
+    send_to_discord_embed(
+        channel_id=1437841324748312668,
+        title="Ad-Free Applied Successfully",
+        message=(
+            f"User: **{target_user.username}**\n"
+            f"Amount Paid: £{amount_paid}\n"
+            f"Plan: {plan}\n"
+            f"Months Added: {months}\n"
+            f"Old Expiry: {old_expiry}\n"
+            f"New Expiry: {target_user.ad_free_until}"
+        ),
+        colour=0x00FF00
+    )
+
+    return HttpResponse(status=200)
 
 @login_required
 def payment_success(request):
