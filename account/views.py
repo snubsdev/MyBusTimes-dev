@@ -348,7 +348,7 @@ def stripe_webhook(request):
         logger.error(f"Stripe webhook error: {e}")
         return HttpResponse(status=400)
 
-    if event['type'] in ['checkout.session.completed', 'checkout.session.async_payment_succeeded']:
+    if event['type'] in ['checkout.session.completed', 'checkout.session.async_payment_succeeded', 'payment_intent.succeeded']:
         session = event['data']['object']
         metadata = session.get('metadata', {})
         user_id = metadata.get('user_id')
