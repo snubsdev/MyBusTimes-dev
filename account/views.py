@@ -407,13 +407,13 @@ def stripe_webhook(request):
                 target_user.stripe_subscription_id = subscription_id
                 target_user.save()
 
+            return HttpResponse(status=200, content=f"Added ad-free for {target_user.username} until {target_user.ad_free_until}, amount paid: £{amount_paid}")
+
         except User.DoesNotExist:
             logger.error(
                 f"Stripe webhook failed: user not found for user_id={user_id} or gift_username={gift_username}"
             )
-
-        return HttpResponse(status=200, content=f"Added ad-free for {target_user.username} until {target_user.ad_free_until}, amount paid: £{amount_paid}")
-    return HttpResponse(status=400)
+    return HttpResponse(status=500, content="Unhandled event type")
 
 @login_required
 def payment_success(request):
