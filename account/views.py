@@ -413,7 +413,7 @@ def stripe_webhook(request):
             logger.error(
                 f"Stripe webhook failed: user not found for user_id={user_id} or gift_username={gift_username}"
             )
-    return HttpResponse(status=500, content="Unhandled event type")
+    return HttpResponse(status=500, content="Unhandled event type", data=event)
 
 @login_required
 def payment_success(request):
