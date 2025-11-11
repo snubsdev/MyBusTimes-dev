@@ -63,9 +63,15 @@ def theme_settings(request):
 
     if (datetime.now().month == 10 and datetime.now().day == 31):
         theme_filename = 'Halloween_Dark.css'
-    
+
+    silence = True
+
     if (datetime.now().month == 11):
         poppy = True
+        if dark_mode == 'true' or dark_mode == 'True':
+            theme_filename = 'Poppy_Dark.css'
+        else:
+            theme_filename = 'Poppy_Light.css'
 
     #Header Logos
     if dark_mode == 'true' or dark_mode == 'True':
@@ -197,5 +203,6 @@ def theme_settings(request):
         'favicon_ico': favicon_ico,
         'favicon_svg': favicon_svg,
         'favicon_96x96': favicon_96x96,
-        'favicon_touch': favicon_touch
+        'favicon_touch': favicon_touch,
+        'silence': silence,
     }
