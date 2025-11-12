@@ -45,6 +45,7 @@ class ThemeAdmin(SimpleHistoryAdmin):
 class StripeSubscriptionAdmin(SimpleHistoryAdmin):
     list_display = ('user',)
     search_fields = ('user__username',)
+    auto_complete_fields = ('user',)
 
 @admin.register(CustomUser)
 class CustomUserAdmin(UserAdmin):
