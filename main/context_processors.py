@@ -71,10 +71,10 @@ def theme_settings(request):
 
     if (datetime.now().month == 11):
         poppy = True
-        if dark_mode == 'true' or dark_mode == 'True':
-            theme_filename = 'rddark.css'
-        else:
-            theme_filename = 'rdlight.css'
+        #if dark_mode == 'true' or dark_mode == 'True':
+        #    theme_filename = 'rddark.css'
+        #else:
+        #    theme_filename = 'rdlight.css'
 
     #Header Logos
     if dark_mode == 'true' or dark_mode == 'True':
