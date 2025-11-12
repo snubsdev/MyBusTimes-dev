@@ -124,6 +124,21 @@ class CustomUser(AbstractUser):
     
 User = get_user_model()
 
+class StripeSubscription(models.Model):
+    # When subscription starts and ends
+    start_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True)
+
+    # Optional product name
+    product_name = models.CharField(max_length=200, null=True, blank=True)
+
+    # Link subscription to a user in Django
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True)
+
+    # Stripe identifiers
+    subscription_id = models.CharField(max_length=100, null=True)
+    customer_id = models.CharField(max_length=100, null=True)
+
 class BannedIps(models.Model):
     ip_address = models.GenericIPAddressField(unique=True)
     reason = models.TextField(blank=True, null=True)

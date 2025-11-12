@@ -130,6 +130,8 @@ def theme_settings(request):
         media_path = settings.MEDIA_URL + a['ad_img']  # "/media/images/Poly_Bus.webp"
         a['ad_img'] = request.build_absolute_uri(media_path)
 
+    
+
     if user.is_authenticated and user.ad_free_until and user.ad_free_until > timezone.now() or ads_enabled == False:  
         ads_enabled = False
         google_ads_enabled = False

@@ -21,6 +21,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.contrib import messages
 from django.contrib.auth import logout
+from rest_framework.decorators import api_view
 
 # Third-party imports
 import stripe
@@ -37,7 +38,7 @@ from dateutil.relativedelta import relativedelta
 # Local imports
 from .forms import CustomUserCreationForm, AccountSettingsForm
 from fleet.models import MBTOperator, fleetChange, helper, liverie
-from main.models import CustomUser, UserKeys, badge
+from main.models import CustomUser, UserKeys, badge, StripeSubscription
 from a.models import AffiliateLink
 
 import requests
@@ -253,83 +254,6 @@ def cancel_subscription(request):
 
 @login_required
 def subscribe_ad_free(request):
-    if request.method == 'POST':
-        plan = request.POST.get('plan')
-        user = request.user
-        now = timezone.now()
-
-        if plan == 'monthly':
-            months = 1
-        elif plan == 'yearly':
-            months = 12
-        else:
-            months = 1
-
-        months = 1
-        if plan in ['custom', 'gift']:
-            try:
-                months = int(request.POST.get('custom_months', 1))
-                if months < 1:
-                    raise ValueError
-            except ValueError:
-                return render(request, 'subscribe.html', {
-                    'error_message': 'Invalid number of months',
-                    'month_options': range(1, 13),
-                })
-
-        gift_username = None
-        if plan == 'gift':
-            gift_username = request.POST.get('gift_username', '').strip()
-            if not gift_username:
-                return render(request, 'subscribe.html', {
-                    'error_message': 'Gift username is required',
-                    'gift_username_error': True,
-                    'month_options': range(1, 13),
-                })
-
-            if not User.objects.filter(username=gift_username).exists():
-                return render(request, 'subscribe.html', {
-                    'error_message': 'User not found. Please check the username.',
-                    'gift_username_error': True,
-                    'gift_username_value': gift_username,
-                    'month_options': range(1, 13),
-                })
-
-        try:
-            line_items = [{
-                'price': price_ids['custom'] if plan in ['custom', 'gift'] else price_ids[plan],
-                'quantity': months if plan in ['custom', 'gift'] else 1,
-            }]
-
-            metadata = {
-                'user_id': str(user.id),
-                'plan': plan,
-                'months': str(months),
-            }
-            if gift_username:
-                metadata['gift_username'] = gift_username
-
-            session = stripe.checkout.Session.create(
-                payment_method_types=['card'],
-                line_items=line_items,
-                mode='payment' if plan in ['custom', 'gift'] else 'subscription',
-                success_url=request.build_absolute_uri(
-                    reverse('payment_success')
-                ) + f'?plan={plan}&months={months}&gift_username={gift_username}',
-                cancel_url=request.build_absolute_uri(reverse('payment_cancel')),
-                customer_email=user.email,
-                client_reference_id=str(user.id),
-                metadata=metadata,
-            )
-            return redirect(session.url, code=303)
-
-        except Exception as e:
-            logger.error(f"Stripe session error: {e}")
-            return render(request, 'subscribe.html', {
-                'error_message': f'Error creating Stripe session: {str(e)}',
-                'month_options': range(1, 13),
-            })
-
     today = timezone.now()
     current_sub_count = CustomUser.objects.filter(
         ad_free_until__gt=today,
@@ -337,130 +261,6 @@ def subscribe_ad_free(request):
     ).count()
 
     return render(request, 'subscribe.html', {'month_options': range(1, 13), 'current_sub_count': current_sub_count})
-
-from datetime import datetime
-@csrf_exempt
-def stripe_webhook(request):
-    payload = request.body
-    sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
-    endpoint_secret = settings.STRIPE_WEBHOOK_SECRET
-
-    # Log raw payload for debugging
-    try:
-        event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
-    except Exception as e:
-        logger.error(f"Stripe webhook signature verification failed: {e}")
-        send_to_discord_embed(
-            channel_id=1437841324748312668,
-            title="Stripe Webhook ERROR",
-            message=f"Signature verification failed.\n\nError: `{e}`",
-            colour=0xFF0000
-        )
-        return HttpResponse(status=400)
-
-    event_type = event.get("type")
-    data = event["data"]["object"]
-
-    send_to_discord_embed(
-        channel_id=1437841324748312668,
-        title="Stripe Webhook Received",
-        message=f"Event Type: `{event_type}`\nID: `{event['id']}`",
-        colour=0x5865F2
-    )
-
-    # Only handle events that actually relate to your system
-    if event_type not in [
-        'checkout.session.completed',
-        'checkout.session.async_payment_succeeded',
-        'payment_intent.succeeded',
-        'invoice.paid'
-    ]:
-        send_to_discord_embed(
-            channel_id=1437841324748312668,
-            title="Webhook Ignored",
-            message=f"Unhandled Event Type: `{event_type}`",
-            colour=0x808080
-        )
-        return HttpResponse("Ignored", status=200)
-
-    # Invoice events contain the subscription and amount differently
-    if event_type == "invoice.paid":
-        metadata = data.get("lines", {}).get("data", [{}])[0].get("metadata", {})
-        amount_paid = data.get('amount_paid', 0) / 100
-        subscription_id = data.get("subscription")
-    else:
-        metadata = data.get("metadata", {})
-        amount_paid = data.get('amount_total', 0) / 100
-        subscription_id = data.get("subscription")
-
-    user_id = metadata.get('user_id')
-    gift_username = metadata.get('gift_username')
-    plan = metadata.get('plan')
-    months = metadata.get('months')
-
-    # Validate months
-    try:
-        months = int(months) if months else 1
-        if months < 1:
-            months = 1
-    except Exception:
-        months = 1
-        send_to_discord_embed(
-            channel_id=1437841324748312668,
-            title="Invalid Months Metadata",
-            message=f"Metadata: `{json.dumps(metadata)}`\nDefaulted to 1 month.",
-            colour=0xFFA500
-        )
-
-    # Yearly plan → multiply by 12
-    if plan and plan.lower() == "yearly":
-        months *= 12
-
-    now = timezone.now()
-    expires_datetime = now + relativedelta(months=months)
-
-    try:
-        target_user = (
-            User.objects.get(username=gift_username)
-            if gift_username else
-            User.objects.get(id=user_id)
-        )
-    except User.DoesNotExist:
-        send_to_discord_embed(
-            channel_id=1437841324748312668,
-            title="Webhook FAILED - User Not Found",
-            message=f"user_id:`{user_id}` gift_username:`{gift_username}`",
-            colour=0xFF0000
-        )
-        return HttpResponse(status=500)
-
-    # Apply ad-free duration
-    old_expiry = target_user.ad_free_until
-    if old_expiry and old_expiry > now:
-        target_user.ad_free_until += relativedelta(months=months)
-    else:
-        target_user.ad_free_until = expires_datetime
-
-    if subscription_id:
-        target_user.stripe_subscription_id = subscription_id
-
-    target_user.save()
-
-    send_to_discord_embed(
-        channel_id=1437841324748312668,
-        title="Ad-Free Applied Successfully",
-        message=(
-            f"User: **{target_user.username}**\n"
-            f"Amount Paid: £{amount_paid}\n"
-            f"Plan: {plan}\n"
-            f"Months Added: {months}\n"
-            f"Old Expiry: {old_expiry}\n"
-            f"New Expiry: {target_user.ad_free_until}"
-        ),
-        colour=0x00FF00
-    )
-
-    return HttpResponse(status=200)
 
 @login_required
 def payment_success(request):
@@ -470,60 +270,166 @@ def payment_success(request):
 def payment_cancel(request):
     return render(request, 'payment_cancel.html')
 
-def create_checkout_session(request):
-    YOUR_DOMAIN = 'https://www.mybustimes.cc'
-    plan = request.POST.get('plan', 'monthly')
-    months = int(request.POST.get('custom_months', 1))  # for custom/gift quantity
-    gift_username = request.POST.get("gift_username", "").strip()
+import datetime
 
-    # Select username based on plan
-    username = gift_username if plan == 'gift' else request.POST.get("username_form", "").strip()
 
-    # Check if user exists in CustomUsers model
-    if plan == 'gift':
-        queryset = CustomUser.objects.all()
-        user_exists = queryset.filter(username=username).exists()
-        if not user_exists:
-            # Redirect to an error page or back with a message
-            #return render(request, 'subscribe.html', {'gift_username_error': True})
-            return render(request, 'subscribe.html', {
-                    'error_message': 'User not found. Please check the username and try again.',
-                    'gift_username_error': True,
-                    'gift_username_value': gift_username,
-                    'month_options': range(1, 13),
-                })
+class stripe_webhook(APIView):
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
 
-    else:
-        # For other plans, you may want to verify user in the default User model or skip
-        queryset = CustomUser.objects.all()
-        user_exists = queryset.filter(username=username).exists()
-        if not user_exists:
-            return redirect("/account/login/?next=/account/subscribe/")
+    SUPPORTED_EVENTS = [
+        "checkout.session.completed",
+        "invoice.payment_succeeded",
+    ]
 
-    try:
-        session = stripe.checkout.Session.create(
-            payment_method_types=['card'],
-            line_items=[{
-                'price': price_ids['custom'] if plan in ['custom', 'gift'] else price_ids[plan],
-                'quantity': months if plan in ['custom', 'gift'] else 1,
-            }],
-            mode='payment' if plan in ['custom', 'gift'] else 'subscription',
-            success_url=YOUR_DOMAIN + f'/account/subscribe/success/?plan={plan}&months={months}&gift_username={gift_username}',
-            cancel_url=YOUR_DOMAIN + '/account/subscribe/',
-            customer_email=request.user.email if request.user.is_authenticated else None,
-            metadata={
-                'user_id': str(request.user.id),
-                'plan': plan,
-                'months': str(months),
-                'gift_username': gift_username,
+    def handle_checkout_session_completed(self, event_data_obj):
+        print("Handling checkout.session.completed event")
+        """Triggered when user completes a new subscription checkout."""
+        session = event_data_obj.get("data", {}).get("object", {})
+
+        # Extract details from event
+        user_id = session.get("client_reference_id")  # you set this to the Django user id
+        customer_id = session.get("customer")
+        subscription_id = session.get("subscription")
+        email = session.get("customer_details", {}).get("email")
+        name = session.get("customer_details", {}).get("name")
+
+        if not user_id or not customer_id or not subscription_id:
+            return Response({"error": "Missing required fields"}, status=400)
+
+        # Get the user
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({"error": "User not found"}, status=404)
+
+        # Check if subscription already exists
+        sub, created = StripeSubscription.objects.get_or_create(
+            subscription_id=subscription_id,
+            defaults={
+                "user": user,
+                "customer_id": customer_id,
+                "product_name": "Ad free",
+                "start_date": timezone.now().date(),
             },
         )
 
-        return redirect(session.url, code=303)
+        if not created:
+            # Update existing record if re-subscribed
+            sub.user = user
+            sub.customer_id = customer_id
+            sub.start_date = timezone.now().date()
+            sub.save(update_fields=["user", "customer_id", "start_date"])
+
+        return Response({"success": True, "created": created})
+    
+    def handle_invoice_payment_succeeded(self, event_data_obj):
+        """Triggered on renewal payments or initial invoices."""
+        invoice = event_data_obj.get("data", {}).get("object", {})
+        customer_id = invoice.get("customer")
+
+        if not customer_id:
+            return Response({"error": "Missing customer_id"}, status=400)
+
+        stripe_sub = StripeSubscription.objects.filter(customer_id=customer_id).first()
+        if not stripe_sub or not stripe_sub.user:
+            return Response({"error": "No linked user"}, status=404)
+
+        user = stripe_sub.user
+
+        # Get the invoice’s first line item
+        line_items = invoice.get("lines", {}).get("data", [])
+        if not line_items:
+            return Response({"error": "No line items"}, status=400)
+
+        line = line_items[0]
+        period = line.get("period", {})
+        period_end = period.get("end")
+
+        if not period_end:
+            return Response({"error": "Missing period end"}, status=400)
+
+        # ✅ Correct, working conversion:
+        ad_free_until = datetime.datetime.fromtimestamp(period_end, tz=datetime.timezone.utc)
+
+        # Only extend forward
+        if not user.ad_free_until or ad_free_until > user.ad_free_until:
+            user.ad_free_until = ad_free_until
+            user.save(update_fields=["ad_free_until"])
+
+        return Response({"success": True})
+
+    def post(self, request):
+        payload = request.body
+        sig_header = request.META.get("HTTP_STRIPE_SIGNATURE")
+
+        try:
+            event = stripe.Webhook.construct_event(
+                payload,
+                sig_header,
+                settings.STRIPE_WEBHOOK_SECRET,
+                api_key=settings.STRIPE_SECRET_KEY
+            )
+        except (ValueError, stripe.error.SignatureVerificationError):
+            return Response({}, status=400)
+
+        event_type = event["type"]
+
+        # Handle only relevant events
+        if event_type == "invoice.payment_succeeded":
+            return self.handle_invoice_payment_succeeded(event)
+        elif event_type == "checkout.session.completed":
+            return self.handle_checkout_session_completed(event)
+
+        return Response({}, status=200)
+    
+@api_view(["POST"])
+def create_checkout_session(request):
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+    try:
+        user_id = request.user.id
+        product_type = request.data.get("product_type")  # 'monthly', 'yearly', or 'custom'
+        months = int(request.data.get("months", 1))      # for 'custom' product type
+
+        print('Creating checkout session for user:', user_id, 'product_type:', product_type, 'months:', months)
+
+        # Pick the correct price ID from your Stripe config
+        if product_type == "monthly":
+            price_id = settings.STRIPE_MONTHLY_PRICE_ID
+            quantity = 1
+        elif product_type == "yearly":
+            price_id = settings.STRIPE_YEARLY_PRICE_ID
+            quantity = 1
+        elif product_type == "custom":
+            price_id = settings.STRIPE_CUSTOM_PRICE_ID
+            quantity = months
+        else:
+            return Response({"error": "Invalid product type"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # URLs required by Stripe
+        success_url = request.build_absolute_uri('/u/subscribe/success/')
+        cancel_url = request.build_absolute_uri('/u/subscribe/cancel/')
+
+        # Create checkout session
+        checkout_session = stripe.checkout.Session.create(
+            success_url=success_url,
+            cancel_url=cancel_url,
+            line_items=[{"price": price_id, "quantity": quantity}],
+            mode="subscription",
+            client_reference_id=str(user_id),
+            allow_promotion_codes=True,
+            payment_method_types=["card"],
+        )
+
+        return redirect(checkout_session.url)
 
     except Exception as e:
-        return render(request, 'error.html', {'message': str(e)})
-    
+        logger.exception("Unable to create stripe checkout session")
+        return Response(
+            {"error": f"Unable to create checkout session: {str(e)}"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
 from io import BytesIO
 from django.core.files.base import ContentFile
 from PIL import Image

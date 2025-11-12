@@ -4,35 +4,6 @@
 
 {% block extra_css %}
   <link rel="stylesheet" href="{% static 'css/narrow.css' %}">
-  <style>
-    .price_group h4 {
-        margin-top: -30px;
-        display: block ruby;
-        margin-bottom: -7px;
-    }
-    .price_group h4 small {
-        font-size: 0.6em;
-        opacity: 0.7;
-    }
-    .cancel-anytime {
-        margin-top: 0;
-        margin-bottom: 0;
-    }
-    .best-value {
-        background: #2ecc71;
-        color: white;
-        font-size: 0.75rem;
-        padding: 3px 6px;
-        border-radius: 6px;
-        margin-bottom: 5px;
-        display: inline-block;
-    }
-
-    :root {
-        --background-color: #fff;
-        --text-color: #222;
-    }
-  </style>
 {% endblock %}
 
 {% block title %}Subscribe{% endblock %}
@@ -57,15 +28,16 @@
 {% endif %}
 
 <div class="subscription-options">
-    <script async src="https://js.stripe.com/v3/pricing-table.js"></script>
-    <stripe-pricing-table pricing-table-id="prctbl_1SSKrGEo24QE6dJiPjLcEuZt"
-    publishable-key="pk_live_51RUrCVEo24QE6dJiEvre4Yvdrk0CNzznpfUJxmD8J0yi4a3cGzmI1uh9WltGv60onJ9CS3yO3TbuxJwg8Hij7BKt005P2OgFu5">
-    </stripe-pricing-table>
+    {% include 'stripe/pricing_table.html' %}
     <br>
     <p style="text-align: center;">Join {{ current_sub_count }} other members in supporting MyBusTimes!</p>
     <a style="text-align: center;width: 100%;display: block;" href="https://www.mybustimes.cc/climate">🌱 Our climate promise</a>
 
+    {% if themeDark %}
+        <img src="{% static 'src/icons/secure-white.png' %}" alt="Pay with PayPal" style="max-height: 100px; margin: 0 auto;display: block;width: 100%;object-fit: contain;">
+    {% else %}
         <img src="{% static 'src/icons/secure-black.png' %}" alt="Pay with PayPal" style="max-height: 100px; margin: 0 auto;display: block;width: 100%;object-fit: contain;">
+    {% endif %}
 </div>
 <br>
 

@@ -41,6 +41,11 @@ class ThemeAdmin(SimpleHistoryAdmin):
     search_fields = ('theme_name',)
     list_filter = ('dark_theme',)
 
+@admin.register(StripeSubscription)
+class StripeSubscriptionAdmin(SimpleHistoryAdmin):
+    list_display = ('user',)
+    search_fields = ('user__username',)
+
 @admin.register(CustomUser)
 class CustomUserAdmin(UserAdmin):
     list_display = ('username', 'email', 'discord_username', 'join_date', 'banned', 'ad_free_until', 'last_active')
