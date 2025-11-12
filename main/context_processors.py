@@ -84,7 +84,7 @@ def theme_settings(request):
         if spm:
             menu_logo = '/static/src/icons/MBT-Logo-White-SPM.png'
         elif poppy:
-            menu_logo = 'https://raw.githubusercontent.com/NextStopLabs/MBT-Media-Kit/refs/heads/main/MBT%20Poppy%20Theme%20Asset%20Pack/Logo.svg'
+            menu_logo = 'https://raw.githubusercontent.com/NextStopLabs/MBT-Media-Kit/refs/heads/main/MBT%20Poppy%20Theme%20Asset%20Pack/Logo%20Light.svg'
         elif birthday:
             menu_logo = '/static/src/icons/MBT-Logo-White-BD.png'
         elif pride_month:
@@ -97,7 +97,7 @@ def theme_settings(request):
         if spm:
             menu_logo = '/static/src/icons/MBT-Logo-Black-SPM.png'
         elif poppy:
-            menu_logo = 'https://raw.githubusercontent.com/NextStopLabs/MBT-Media-Kit/refs/heads/main/MBT%20Poppy%20Theme%20Asset%20Pack/Logo.svg'
+            menu_logo = 'https://raw.githubusercontent.com/NextStopLabs/MBT-Media-Kit/refs/heads/main/MBT%20Poppy%20Theme%20Asset%20Pack/Logo%20Dark.svg'
         elif birthday:
             menu_logo = '/static/src/icons/MBT-Logo-Black-BD.png'
         elif pride_month:
