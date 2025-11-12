@@ -44,9 +44,9 @@
   </td>
     <td>
         {% if entry.user_url %}
-        <a href="{{ entry.user_url }}">{{ entry.changed_by }}</a>
+        <a href="{{ entry.user_url }}">{{ entry.history_changed_by }}</a>
         {% else %}
-        {{ entry.history_user_username|default:"System" }}
+        {{ entry.history_changed_by|default:"System" }}
         {% endif %}
   </td>
     <td><a href="{{ entry.entry_url }}">{{ entry }}</a></td>
