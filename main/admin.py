@@ -48,7 +48,7 @@ class StripeSubscriptionAdmin(SimpleHistoryAdmin):
     autocomplete_fields = ('user',)    
 
 @admin.register(CustomUser)
-class CustomUserAdmin(UserAdmin):
+class CustomUserAdmin(SimpleHistoryAdmin, UserAdmin):
     list_display = ('username', 'email', 'discord_username', 'join_date', 'banned', 'ad_free_until', 'last_active')
     list_filter = ('banned', 'is_staff', 'is_superuser', 'ad_free_until', 'theme', 'last_active')
     search_fields = ('username', 'email', 'last_ip', 'last_login_ip', 'discord_username')
