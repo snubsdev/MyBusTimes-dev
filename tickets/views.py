@@ -60,6 +60,8 @@ def resend_ticket_to_discord(request, ticket_id):
         f"---\n"
     )
 
+    print("Resending ticket to Discord:\n", header)
+
     # Build full message log
     messages = ticket.messages.all().order_by("created_at")
     full_message = header + "\n".join([
