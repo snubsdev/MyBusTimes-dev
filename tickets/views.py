@@ -210,7 +210,16 @@ def create_ticket_api_key_auth(request):
 
         response = requests.post("http://localhost:8080/create-channel", data=data)
 
-        ticket.discord_channel_id = response.json().get("channel_id")
+        try:
+            resp_json = response.json()
+        except ValueError:
+            print("❌ Discord bot returned non-JSON:", response.text)
+            return JsonResponse(
+                {"error": "Discord bot returned invalid JSON", "raw": response.text},
+                status=500
+            )
+
+        ticket.discord_channel_id = resp_json.get("channel_id")
         ticket.save()
 
         data = {
