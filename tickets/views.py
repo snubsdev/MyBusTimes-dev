@@ -109,7 +109,7 @@ def rebuild_ticket_channel(request, ticket_id):
                 "file": (msg.files.name, open(msg.files.path, "rb"))
             }
 
-            text += f"\n\n{msg.files.url}"
+            text += f"\n\nhttps://www.mybustimes.cc{msg.files.url}"
 
         try:
             requests.post(
