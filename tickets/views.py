@@ -105,8 +105,11 @@ def rebuild_ticket_channel(request, ticket_id):
 
         file_payload = {}
 
+        # Attach file if exists
         if msg.files:
-            file_payload = {"files": open(msg.files.path, "rb")}
+            file_payload = {
+                "files": open(msg.files.path, "rb")  # FIXED
+            }
 
         try:
             requests.post(
@@ -114,7 +117,7 @@ def rebuild_ticket_channel(request, ticket_id):
                 data={
                     "channel_id": new_channel_id,
                     "send_by": sender,
-                    "message": text,
+                    "message": text,  # FIX: no username here
                 },
                 files=file_payload
             )
