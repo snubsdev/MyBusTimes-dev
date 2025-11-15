@@ -209,6 +209,7 @@ def create_ticket_api_key_auth(request):
         }
 
         response = requests.post("http://localhost:8080/create-channel", data=data)
+        print("RAW DISCORD RESPONSE >>>", repr(response.text))
 
         try:
             resp_json = response.json()
@@ -428,6 +429,7 @@ def create_ticket(request):
             }
 
             response = requests.post("http://localhost:8080/create-channel", data=data)
+            print("RAW DISCORD RESPONSE >>>", repr(response.text))
 
             ticket.discord_channel_id = response.json().get("channel_id")
             ticket.save()
