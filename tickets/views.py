@@ -38,19 +38,47 @@ class TicketMessageForm(forms.ModelForm):
         widgets = {
             'content': forms.Textarea(attrs={'rows': 3, 'placeholder': 'Type your message...'})
         }
-
+        
 @login_required
-def resend_ticket_to_discord(request, ticket_id):
-    if request.user.is_authenticated and not request.user.is_superuser:
-        return redirect('home')
-    ticket = get_object_or_404(Ticket, id=ticket_id)
-
+def rebuild_ticket_channel(request, ticket_id):
     if not request.user.is_superuser:
         return JsonResponse({"error": "Not allowed"}, status=403)
 
-    # Prepare the ticket header
+    ticket = get_object_or_404(Ticket, id=ticket_id)
+
+    # ---- 1. Delete old channel (optional but recommended) ----
+    if ticket.discord_channel_id:
+        try:
+            requests.post("http://localhost:8070/delete-channel", data={
+                "channel_id": ticket.discord_channel_id
+            }, timeout=5)
+        except Exception as e:
+            print("Failed to delete old channel:", e)
+
+    # ---- 2. Create new channel ----
+    create_payload = {
+        "channel_name": f"mbt-ticket-{ticket.id}",
+        "category_id": ticket.ticket_type.discord_category_id,
+    }
+
+    resp = requests.post("http://localhost:8070/create-channel", data=create_payload)
+    print("RAW CREATE RESPONSE:", resp.text)
+
+    try:
+        json_resp = resp.json()
+        new_channel_id = json_resp.get("channel_id")
+    except Exception:
+        return JsonResponse({"error": "Bot returned invalid JSON", "raw": resp.text}, status=500)
+
+    if not new_channel_id:
+        return JsonResponse({"error": "Bot did not return a channel ID"}, status=500)
+
+    ticket.discord_channel_id = new_channel_id
+    ticket.save()
+
+    # ---- 3. Rebuild full ticket message history ----
     header = (
-        f"📝 **TICKET RESEND**\n"
+        f"🛠 **TICKET CHANNEL REBUILT**\n"
         f"Ticket ID: {ticket.id}\n"
         f"Status: {ticket.get_status_display()}\n"
         f"Priority: {ticket.get_priority_display()}\n"
@@ -60,27 +88,41 @@ def resend_ticket_to_discord(request, ticket_id):
         f"---\n"
     )
 
-    print("Resending ticket to Discord:\n", header)
-
-    # Build full message log
-    messages = ticket.messages.all().order_by("created_at")
-    full_message = header + "\n".join([
-        f"**{msg.username if msg.username else msg.sender}:** {strip_tags(msg.content)}"
-        f"{' (' + msg.files.url + ')' if msg.files else ''}"
-        for msg in messages
-    ])
-
-    # Discord payload
-    data = {
-        "channel_id": ticket.discord_channel_id,
+    # Send header first
+    requests.post("http://localhost:8070/send-message", data={
+        "channel_id": new_channel_id,
         "send_by": "SYSTEM",
-        "message": full_message,
-    }
+        "message": header,
+    })
 
-    # Send to Discord
-    resp = requests.post("http://localhost:8070/send-message", data=data)
+    # ---- 4. Send each message individually (better formatting, supports files) ----
+    messages = ticket.messages.all().order_by("created_at")
 
-    return redirect('ticket_detail', ticket_id=ticket.id)
+    for msg in messages:
+        text = f"**{msg.username if msg.username else msg.sender}:**\n{strip_tags(msg.content)}"
+
+        file_payload = {}
+
+        # Attach file if exists
+        if msg.files:
+            file_payload = {
+                "file": open(msg.files.path, "rb")
+            }
+
+        try:
+            requests.post(
+                "http://localhost:8070/send-message",
+                data={
+                    "channel_id": new_channel_id,
+                    "send_by": msg.username if msg.username else msg.sender,
+                    "message": text,
+                },
+                files=file_payload
+            )
+        except Exception as e:
+            print("Failed to resend message:", e)
+
+    return redirect("ticket_detail", ticket_id=ticket.id)
 
 @csrf_exempt
 def ticket_list_api(request):
