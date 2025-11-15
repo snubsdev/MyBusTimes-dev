@@ -78,12 +78,7 @@ def resend_ticket_to_discord(request, ticket_id):
     # Send to Discord
     resp = requests.post("http://localhost:8070/send-message", data=data)
 
-    return render(request, "ticket_resend_result.html", {
-        "ticket": ticket,
-        "sent": resp.status_code == 200,
-        "discord_status": resp.status_code,
-        "discord_response": resp.text,
-    })
+    return redirect('ticket_detail', ticket_id=ticket.id)
 
 @csrf_exempt
 def ticket_list_api(request):
