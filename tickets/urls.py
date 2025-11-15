@@ -9,5 +9,6 @@ urlpatterns = [
     path("<int:ticket_id>/", views.ticket_detail, name="ticket_detail"),  # detail view placeholder
     path("<int:ticket_id>/meta/", views.ticket_meta_details, name="ticket_meta"),  # meta view placeholder
     path("<int:ticket_id>/close/", views.close_ticket, name="ticket_close"),  # close ticket view
+    path("<int:ticket_id>/resend/", views.resend_ticket_to_discord, name="resend_ticket_to_discord"),
     path('banned/', views.ticket_banned, name='ticket_banned'),
 ]

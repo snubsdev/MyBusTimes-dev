@@ -66,6 +66,14 @@ img {
   <p><strong>Type:</strong> {{ ticket.ticket_type.type_name }}</p>
   <p><strong>Status:</strong> {{ ticket.get_status_display }}</p>
 
+  {% if user.is_superuser %}
+  <form method="POST" action="{% url 'resend_ticket_to_discord' ticket.id %}">
+      {% csrf_token %}
+      <button class="btn btn-danger">Resend To Discord</button>
+  </form>
+  {% endif %}
+  <br>
+
   {% if is_admin %}
   <br>
   <form action="" method="post">

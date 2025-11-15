@@ -9,6 +9,7 @@ from django.db.models import Q
 from django.views.decorators.csrf import csrf_exempt
 from main.models import UserKeys, CustomUser
 from django_ratelimit.decorators import ratelimit
+from django.utils.html import strip_tags
 import requests
 import json
 
@@ -37,6 +38,52 @@ class TicketMessageForm(forms.ModelForm):
         widgets = {
             'content': forms.Textarea(attrs={'rows': 3, 'placeholder': 'Type your message...'})
         }
+
+@login_required
+def resend_ticket_to_discord(request, ticket_id):
+    if request.user.is_authenticated and not request.user.is_superuser:
+        return redirect('home')
+    ticket = get_object_or_404(Ticket, id=ticket_id)
+
+    if not request.user.is_superuser:
+        return JsonResponse({"error": "Not allowed"}, status=403)
+
+    # Prepare the ticket header
+    header = (
+        f"📝 **TICKET RESEND**\n"
+        f"Ticket ID: {ticket.id}\n"
+        f"Status: {ticket.get_status_display()}\n"
+        f"Priority: {ticket.get_priority_display()}\n"
+        f"Type: {ticket.ticket_type.type_name}\n"
+        f"Opened By: {ticket.user.username if ticket.user else ticket.sender_email}\n"
+        f"Assigned Team: {ticket.assigned_team.name if ticket.assigned_team else 'None'}\n"
+        f"---\n"
+    )
+
+    # Build full message log
+    messages = ticket.messages.all().order_by("created_at")
+    full_message = header + "\n".join([
+        f"**{msg.username if msg.username else msg.sender}:** {strip_tags(msg.content)}"
+        f"{' (' + msg.files.url + ')' if msg.files else ''}"
+        for msg in messages
+    ])
+
+    # Discord payload
+    data = {
+        "channel_id": ticket.discord_channel_id,
+        "send_by": "SYSTEM",
+        "message": full_message,
+    }
+
+    # Send to Discord
+    resp = requests.post("http://localhost:8070/send-message", data=data)
+
+    return render(request, "ticket_resend_result.html", {
+        "ticket": ticket,
+        "sent": resp.status_code == 200,
+        "discord_status": resp.status_code,
+        "discord_response": resp.text,
+    })
 
 @csrf_exempt
 def ticket_list_api(request):
