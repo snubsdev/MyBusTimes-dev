@@ -36,7 +36,7 @@ DISCORD_TYPE_REQUEST_WEBHOOK=https://discord.com/api/webhooks/
 DISCORD_FOR_SALE_WEBHOOK=https://discord.com/api/webhooks/
 DISCORD_WEB_ERROR_WEBHOOK=https://discord.com/api/webhooks/
 DISCORD_404_ERROR_WEBHOOK=https://discord.com/api/webhooks/
-DISCORD_BOT_API_URL=http://localhost:8080
+DISCORD_BOT_API_URL=http://localhost:8070
 
 DISCORD_GUILD_ID=
 DISCORD_BOT_API_TOKEN=

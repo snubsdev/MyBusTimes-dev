@@ -129,7 +129,7 @@ def ticket_messages_api(request, ticket_id):
             }
 
             files = {}
-            response = requests.post("http://localhost:8080/send-message", data=data, files=files)
+            response = requests.post("http://localhost:8070/send-message", data=data, files=files)
 
             return JsonResponse({"status": "ok", "discord_status": response.status_code})
         return JsonResponse({"status": "ok"})
@@ -208,7 +208,7 @@ def create_ticket_api_key_auth(request):
             "category_id": ticket.ticket_type.discord_category_id,
         }
 
-        response = requests.post("http://localhost:8080/create-channel", data=data)
+        response = requests.post("http://localhost:8070/create-channel", data=data)
         print("RAW DISCORD RESPONSE >>>", repr(response.text))
 
         try:
@@ -231,7 +231,7 @@ def create_ticket_api_key_auth(request):
 
         files = {}
 
-        response = requests.post("http://localhost:8080/send-message", data=data, files=files)
+        response = requests.post("http://localhost:8070/send-message", data=data, files=files)
 
         return JsonResponse({"status": "ok"})
 
@@ -328,7 +328,7 @@ def close_ticket(request, ticket_id):
 
     try:
         requests.post(
-            "http://localhost:8080/delete-channel",
+            "http://localhost:8070/delete-channel",
             data={"channel_id": ticket.discord_channel_id},
             timeout=5
         )
@@ -428,7 +428,7 @@ def create_ticket(request):
                 "category_id": ticket.ticket_type.discord_category_id,
             }
 
-            response = requests.post("http://localhost:8080/create-channel", data=data)
+            response = requests.post("http://localhost:8070/create-channel", data=data)
             print("RAW DISCORD RESPONSE >>>", repr(response.text))
 
             ticket.discord_channel_id = response.json().get("channel_id")
@@ -442,7 +442,7 @@ def create_ticket(request):
 
             files = {}
 
-            response = requests.post("http://localhost:8080/send-message", data=data, files=files)
+            response = requests.post("http://localhost:8070/send-message", data=data, files=files)
 
             return redirect("ticket_detail", ticket_id=ticket.id)
         else:
