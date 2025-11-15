@@ -100,15 +100,13 @@ def rebuild_ticket_channel(request, ticket_id):
 
     for msg in messages:
         sender = msg.username if msg.username else msg.sender
-
         text = strip_tags(msg.content)
 
-        file_payload = {}
+        file_payload = None
 
-        # Attach file if exists
         if msg.files:
             file_payload = {
-                "files": open(msg.files.path, "rb")  # FIXED
+                "file": (msg.files.name, open(msg.files.path, "rb"))
             }
 
         try:
@@ -117,13 +115,12 @@ def rebuild_ticket_channel(request, ticket_id):
                 data={
                     "channel_id": new_channel_id,
                     "send_by": sender,
-                    "message": text,  # FIX: no username here
+                    "message": text,
                 },
                 files=file_payload
             )
         except Exception as e:
             print("Failed to resend message:", e)
-
 
     return redirect("ticket_detail", ticket_id=ticket.id)
 
