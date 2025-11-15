@@ -38,7 +38,7 @@ class TicketMessageForm(forms.ModelForm):
         widgets = {
             'content': forms.Textarea(attrs={'rows': 3, 'placeholder': 'Type your message...'})
         }
-        
+
 @login_required
 def rebuild_ticket_channel(request, ticket_id):
     if not request.user.is_superuser:
@@ -99,28 +99,28 @@ def rebuild_ticket_channel(request, ticket_id):
     messages = ticket.messages.all().order_by("created_at")
 
     for msg in messages:
-        text = f"**{msg.username if msg.username else msg.sender}:**\n{strip_tags(msg.content)}"
+        sender = msg.username if msg.username else msg.sender
+
+        text = strip_tags(msg.content)
 
         file_payload = {}
 
-        # Attach file if exists
         if msg.files:
-            file_payload = {
-                "file": open(msg.files.path, "rb")
-            }
+            file_payload = {"files": open(msg.files.path, "rb")}
 
         try:
             requests.post(
                 "http://localhost:8070/send-message",
                 data={
                     "channel_id": new_channel_id,
-                    "send_by": msg.username if msg.username else msg.sender,
+                    "send_by": sender,
                     "message": text,
                 },
                 files=file_payload
             )
         except Exception as e:
             print("Failed to resend message:", e)
+
 
     return redirect("ticket_detail", ticket_id=ticket.id)
 
