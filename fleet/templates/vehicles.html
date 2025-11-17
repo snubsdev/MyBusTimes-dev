@@ -223,7 +223,7 @@
                         <div class="livery-cell" style="background: {{ item.colour }};" title="{{ item.branding }}">
                              <svg height="24" width="36" style="line-height:24px;font-size:24px;background:{{ item.colour }}">
                                 {% if item.last_trip_route %}
-                                <text x="50%" y="75%" fill="#000000" text-anchor="middle" style="font-size:18px;">{{ item.last_trip_route }}</text>
+                                <!--<text x="50%" y="75%" fill="#000000" text-anchor="middle" style="font-size:18px;">{{ item.last_trip_route }}</text>-->
                                 {% endif %} 
                             </svg>
                         </div>
@@ -233,7 +233,7 @@
                     <div class="livery-cell" style="background: {{ item.livery__left_css }};" title="{{ item.livery__name|default:"" }}">
                         <svg height="24" width="36" style="line-height:24px;font-size:24px;background:{{ item.livery__left_css }}">
                             {% if item.last_trip_route %}
-                            <text x="50%" y="75%" fill="{{ item.livery__text_colour }}" text-anchor="middle" style="stroke:{{ item.livery__stroke_colour|default:"#0000" }};font-size:18px;stroke-width:2px;paint-order:stroke">{{ item.last_trip_route }}</text>
+                            <!--<text x="50%" y="75%" fill="{{ item.livery__text_colour }}" text-anchor="middle" style="stroke:{{ item.livery__stroke_colour|default:"#0000" }};font-size:18px;stroke-width:2px;paint-order:stroke">{{ item.last_trip_route }}</text>-->
                             {% endif %}
                         </svg>
                     </div>
