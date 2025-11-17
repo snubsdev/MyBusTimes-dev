@@ -106,9 +106,6 @@
   </div>
   <button id="dismiss-btn" style="float: right;">X</button>
   <main>
-    <div class="top-ad-container" style="position:sticky;top:0px;z-index:101;width:100%;height:100px;padding: 20px 0 10px 0px;">
-      <div id="AFM_top_ad" style="margin:auto;"></div>
-    </div>
     <div class="breadcrumb" style="margin-top: -1.5em;">
       <ol>
         {% for item in breadcrumbs %}
@@ -128,6 +125,9 @@
         {% endfor %}
       </ol>
     </div>
+      <div class="top-ad-container" style="position:sticky;top:0px;z-index:101;width:100%;height:100px;padding: 20px 0 10px 0px;">
+        <div id="AFM_top_ad" style="margin:auto;"></div>
+      </div>
     <div class="content">
       {% if messages %}
       <div class="messages">
