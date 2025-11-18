@@ -12,8 +12,8 @@ class LiveryForm(forms.ModelForm):
         model = liverie
         fields = '__all__'
         widgets = {
-            'left_css': forms.TextInput(attrs={'class': 'color-input', 'oninput': 'updatePreview(this)'}),
-            'right_css': forms.TextInput(attrs={'class': 'color-input', 'oninput': 'updatePreview(this)'}),
+            'left_css': forms.Textarea(attrs={'class': 'color-input', 'oninput': 'updatePreview(this)'}),
+            'right_css': forms.Textarea(attrs={'class': 'color-input', 'oninput': 'updatePreview(this)'}),
             'text_colour': forms.TextInput(attrs={'class': 'color-input', 'oninput': 'updatePreview(this)'}),
             'stroke_colour': forms.TextInput(attrs={'class': 'color-input', 'oninput': 'updatePreview(this)'}),
             'colour': forms.TextInput(attrs={'class': 'color-input', 'oninput': 'updatePreview(this)'}),
