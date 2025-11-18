@@ -85,7 +85,7 @@
     <small>Hold <strong>Ctrl</strong> (or <strong>Cmd</strong> on Mac) to select multiple routes</small>
 
     <label for="route_operators">Route Operators:</label>
-    <select id="route_operators" name="route_operators" multiple>
+    <select id="route_operators" name="route_operators" multiple required>
       {% for operator in allowedOperators %}
         <option value="{{ operator.id }}"
           {% if operator.id in selectedOperators %}selected{% endif %}>
