@@ -650,7 +650,7 @@ def publish_livery(request, livery_id):
     
     page_number = request.GET.get('page')
     livery = liverie.objects.get(id=livery_id)
-    checkDuplicate = liverie.objects.filter(name=livery.name).exclude(id=livery_id).exists()
+    checkDuplicate = liverie.objects.filter(name=livery.name).exclude(id=livery_id, declined=True).exists()
     if not checkDuplicate or force == True:
         livery.published = True
         livery.aproved_by = request.user
