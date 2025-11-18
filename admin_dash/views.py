@@ -657,7 +657,7 @@ def publish_livery(request, livery_id):
         livery.save()
         return redirect('/admin/livery-management/pending/?page=' + str(page_number))
 
-    return render(request, 'dupe_livery_check.html', {'livery': livery, 'other_liveries': liverie.objects.filter(name=livery.name).exclude(id=livery_id)})
+    return render(request, 'dupe_livery_check.html', {'livery': livery, 'other_liveries': liverie.objects.filter(name=livery.name).exclude(id=livery_id, declined=True)})
 
 @login_required(login_url='/admin/login/')
 def publish_vehicle(request, vehicle_id):
