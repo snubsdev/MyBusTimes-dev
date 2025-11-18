@@ -79,15 +79,15 @@
 <div class="pagination mt-3">
     <ul class="pagination">
         {% if page_obj.has_previous %}
-        <li class="page-item"><a class="page-link" href="?page=1&q={{ request.GET.q }}">First</a></li>
-        <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ request.GET.q }}">Previous</a></li>
+        <li class="page-item"><a class="page-link" href="?page=1&q={{ request.GET.q|default:'' }}">First</a></li>
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ request.GET.q|default:'' }}">Previous</a></li>
         {% endif %}
 
         <li class="page-item active"><span class="page-link">{{ page_obj.number }}</span></li>
 
         {% if page_obj.has_next %}
-        <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ request.GET.q }}">Next</a></li>
-        <li class="page-item"><a class="page-link" href="?page={{ page_obj.paginator.num_pages }}&q={{ request.GET.q }}">Last</a></li>
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ request.GET.q|default:'' }}">Next</a></li>
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.paginator.num_pages }}&q={{ request.GET.q|default:'' }}">Last</a></li>
         {% endif %}
     </ul>
 </div>
