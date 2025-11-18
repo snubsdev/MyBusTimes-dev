@@ -650,14 +650,14 @@ def publish_livery(request, livery_id):
     
     page_number = request.GET.get('page')
     livery = liverie.objects.get(id=livery_id)
-    checkDuplicate = liverie.objects.filter(name=livery.name).exclude(id=livery_id, declined=True).exists()
+    checkDuplicate = liverie.objects.filter(name=livery.name).exclude(id=livery_id).exclude(declined=True).exists()
     if not checkDuplicate or force == True:
         livery.published = True
         livery.aproved_by = request.user
         livery.save()
         return redirect('/admin/livery-management/pending/?page=' + str(page_number))
 
-    return render(request, 'dupe_livery_check.html', {'livery': livery, 'other_liveries': liverie.objects.filter(name=livery.name).exclude(id=livery_id, declined=True)})
+    return render(request, 'dupe_livery_check.html', {'livery': livery, 'other_liveries': liverie.objects.filter(name=livery.name).exclude(id=livery_id).exclude(declined=True)})
 
 @login_required(login_url='/admin/login/')
 def publish_vehicle(request, vehicle_id):
