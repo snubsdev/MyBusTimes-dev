@@ -4,6 +4,11 @@
 {% block content %}
 <input type="text" id="search-box" placeholder="Search liveries..." class="form-control mb-3">
 
+<script>
+    let search = document.getElementById('search-box')
+    search.value = new URLSearchParams(window.location.search).get('q') || '';
+</script>
+
 {% if not approver %}
 <a href="{% url 'livery-approver' %}" class="btn btn-primary mb-3">Pending Approvals</a>
 {% else %}
