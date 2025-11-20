@@ -34,21 +34,6 @@
     body {
       overflow:visible;
     }
-
-    .drawBorder {
-      border-width: 2px;
-        border-bottom-width: 2px;
-      border-color: #7CB5E7;
-        border-bottom-color: rgb(124, 181, 231);
-      border-style: solid;
-        border-bottom-style: solid;
-      border-bottom: 0;
-      -webkit-box-shadow: 0px 0px 20px 0px rgba(0,0,0,0.63);
-      -moz-box-shadow: 0px 0px 20px 0px rgba(0,0,0,0.63);
-      box-shadow: 0px 0px 20px 0px rgba(0,0,0,0.63);
-      display: inline-block;
-      background-color: white;
-    }
   </style>
 
   <script src="/static/js/jquery-3.6.0.min.js"></script>
@@ -147,7 +132,7 @@
       </ol>
     </div>
     {% if ads_enabled %}
-    <div class="top-ad-container drawBorder" style="position:sticky;top:0px;z-index:101;width:100%;max-width: 100% !important;height:100px;border:">
+    <div class="top-ad-container top-ad-border" style="position:sticky;top:0px;z-index:101;height:100px;border:">
       <div id="AFM_top_ad" style="margin:auto;"></div>
     </div>
     {% endif %}

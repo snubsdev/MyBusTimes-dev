@@ -4,74 +4,29 @@
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/narrow.css' %}">
 <style>
-  .page {
-    width: 100%;
-  }
-
-  @media (min-width: 48em) {
-    .chips {
-      grid-template-columns: none;
-    }
-
-    .panes {
-      justify-content: space-between;
-      margin: -1em 0;
-      display: flex;
-    }
-
-    .pane {
-      width: calc(50% - 10px);
-    }
-
-.discord-widget {
-  width: 300px;
-  max-height: 400px;
-  margin: 20px auto;
-  padding: 10px;
-  background: #243447;
-  border-radius: 10px;
-  box-shadow: 0 0 5px rgba(0,0,0,0.2);
-  overflow-y: auto;
+ .in-page-ad {
+    width: 100vw;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    margin-left: calc(50% - 50vw);
+    text-align: center;
 }
 
-.discord-widget h2 {
-  text-align: center;
-  margin-bottom: 12px;
-  font-size: 1.2em;
-  color: #aad4ff;
+.top-ad-border {
+    border-width: 2px;
+    border-color: #7CB5E7;
+    border-style: solid;
+    border-top: 0;
+    -webkit-box-shadow: 0px 0px 20px 0px rgba(0, 0, 0, 0.63);
+    -moz-box-shadow: 0px 0px 20px 0px rgba(0,0,0,0.63);
+    box-shadow: 0px 0px 20px 0px rgba(0, 0, 0, 0.63);
+    display: inline-block;
+    background-color: white;
 }
 
-.member-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.ad-box {
+  display: block;
 }
-
-.member {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: #2f4a5a;
-  padding: 6px 8px;
-  border-radius: 6px;
-}
-
-.member img {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  border: 1px solid #aad4ff;
-}
-
-.member span {
-  font-size: 0.85em;
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-  }
 </style>
 {% endblock %}
 
@@ -148,7 +103,7 @@
   Note: MyBusTimes is a fictional and community-run transport database.<br>
   All data shown here is user generated and not real world data <a href="/about">more info</a>.
 </p>
-<div class="ad-box" id="body-ad-2">
+<div class="ad-box in-page-ad" id="body-ad-2">
   <div class="incontent-ad-container" style="height:100px;">
     <div id="AFM_inContent_ad" style="margin:auto;"></div>
   </div>
