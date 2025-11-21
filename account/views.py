@@ -195,6 +195,7 @@ def user_profile(request, username):
 
     # Check if viewing own profile
     owner = request.user == profile_user
+    now = timezone.now();
 
     online = False
     if profile_user.last_active and profile_user.last_active > timezone.now() - timedelta(minutes=5):
@@ -208,6 +209,7 @@ def user_profile(request, username):
         'owner': owner,
         'online': online,
         'user_edits': user_edits,
+        'now': now,
     }
 
     return render(request, 'profile.html', context)
