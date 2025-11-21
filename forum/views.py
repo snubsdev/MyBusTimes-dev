@@ -193,6 +193,17 @@ def thread_details_api(request, thread_id):
         else:
             user_badges = []
 
+        if user and user.ad_free_until and user.ad_free_until > timezone.now():
+            user_badges.append({
+                "fields": {
+                    "badge_name": "Supported",
+                    "badge_backgroud": "#22a1a1",
+                    "badge_text_color": "#ffffff",
+                    "additional_css": "box-shadow: 0 0 7px 0px #64bbbbab;"
+                }
+            })
+
+        
         unformated_html_post = post.content
         formated_html_post = markdown.markdown(unformated_html_post)
 

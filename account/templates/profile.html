@@ -73,6 +73,9 @@
     <div class="badges">
         {% if profile_user.badges %}
         <ul>
+            {% if profile_user.ad_free_until and profile_user..ad_free_until > timezone.now()%}
+                <li class="badge" style="background: #22a1a1; color: #ffffff; box-shadow: 0 0 7px 0px #64bbbbab;">Supported</li>
+            {% endif %}
             {% for badge in profile_user.badges.all %}
             <li class="badge"
                 style="background: {{ badge.badge_backgroud }}; color: {{ badge.badge_text_color }}; {{ badge.additional_css }}">
