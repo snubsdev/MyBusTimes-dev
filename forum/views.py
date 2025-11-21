@@ -193,7 +193,7 @@ def thread_details_api(request, thread_id):
         else:
             user_badges = []
 
-        if user and user.ad_free_until and user.ad_free_until > timezone.now() and not user.is_staff:
+        if user and user.ad_free_until and user.ad_free_until > timezone.now():
             user_badges.append({
                 "fields": {
                     "badge_name": "Supporter",
