@@ -57,7 +57,7 @@ def link_discord_account(request):
         user.save()
 
         counter = Link.objects.filter(pk=16).first()
-        counter.count += 1
+        counter.clicks += 1
         counter.save()
 
         return render(request, 'link_discord.html', {'error': 'success'})
