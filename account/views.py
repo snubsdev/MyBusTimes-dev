@@ -39,7 +39,7 @@ from dateutil.relativedelta import relativedelta
 from .forms import CustomUserCreationForm, AccountSettingsForm
 from fleet.models import MBTOperator, fleetChange, helper, liverie
 from main.models import CustomUser, UserKeys, badge, StripeSubscription
-from a.models import AffiliateLink
+from a.models import AffiliateLink, Link
 
 import requests
 
@@ -55,6 +55,11 @@ def link_discord_account(request):
         user = request.user
         user.discord_username = discord_username
         user.save()
+
+        counter = Link.objects.filter(pk=16).first()
+        counter.count += 1
+        counter.save()
+
         return render(request, 'link_discord.html', {'error': 'success'})
 
     return render(request, 'link_discord.html')
