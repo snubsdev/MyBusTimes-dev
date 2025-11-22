@@ -49,6 +49,15 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 
 debug = settings.DEBUG
 
+def link_discord_account(request):
+    discord_username = request.GET.get('username', '').strip()
+    if discord_username:
+        user = request.user
+        user.discord_username = discord_username
+        user.save()
+        return render(request, 'link_discord.html', {'error': 'success'})
+
+    return render(request, 'link_discord.html')
 
 from datetime import datetime
 def send_to_discord_embed(channel_id, title, message, colour=0x00BFFF):
