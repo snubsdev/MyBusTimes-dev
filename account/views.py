@@ -49,6 +49,7 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 
 debug = settings.DEBUG
 
+@login_required
 def link_discord_account(request):
     discord_username = request.GET.get('username', '').strip()
     if discord_username:
