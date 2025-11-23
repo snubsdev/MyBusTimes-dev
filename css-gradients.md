@@ -82,7 +82,23 @@ With CSS gradients we have 2 main options for defining there there directions
 2.1 Radial gradients allow us to make ellipse and circles and can stacked in the same way as a linear gradient.<br>
 You can also stack any type of gradient on top of any other types
 
-Example:
+Examples:
 ```CSS
 radial-gradient(circle, red 30%, yellow 30% 40%, green 40%)
 ```
+
+```CSS
+radial-gradient(circle, red 30%, yellow 30% 40%, #0000 40%),
+linear-gradient(to left, #ffffff 45%, #ff0000 45% 55%, #ffffff 55%)
+```
+
+Breakdown:
+```CSS
+radial-gradient(
+circle,         /*Define the share of the gradient*/
+at 10% 10%,     /*Define the position of the gradient*/
+red 30%,        /*Define the colour red from 0% to 30%*/
+yellow 30% 40%, /*Define the colour yello from 30% to 40%*/
+green 40%)      /*Define the colour green from 40% to 100%*/
+```
+
