@@ -22,6 +22,7 @@ from django.views.decorators.http import require_POST
 from django.contrib import messages
 from django.contrib.auth import logout
 from rest_framework.decorators import api_view
+from django.db.models import Q
 
 # Third-party imports
 import stripe
@@ -40,7 +41,7 @@ from .forms import CustomUserCreationForm, AccountSettingsForm
 from fleet.models import group, MBTOperator, fleetChange, helper, liverie
 from main.models import CustomUser, UserKeys, badge, StripeSubscription
 from a.models import AffiliateLink, Link
-
+from group.models import Group
 import requests
 
 logger = logging.getLogger(__name__)
@@ -202,7 +203,7 @@ def user_profile(request, username):
     # Operators owned by this user
     operators = MBTOperator.objects.filter(owner=profile_user).order_by('operator_slug')
 
-    groups = group.objects.filter(group_owner=profile_user).order_by('group_name')
+    groups = Group.objects.filter(group_owner=profile_user).order_by('group_name')
 
     # Operators the user helps with
     helper_operator_links = helper.objects.filter(helper=profile_user).order_by('operator__operator_name')
@@ -227,6 +228,7 @@ def user_profile(request, username):
         'online': online,
         'user_edits': user_edits,
         'now': now,
+        'groups': groups,
     }
 
     return render(request, 'profile.html', context)
