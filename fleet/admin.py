@@ -365,6 +365,12 @@ class FleetAdmin(SimpleHistoryAdmin):
             {"form": form, "vehicles": queryset, "title": "Transfer Vehicles"},
         )
 
+from django.contrib import admin
+from django.db.models import Count
+from simple_history.admin import SimpleHistoryAdmin
+from .models import group, MBTOperator
+
+# Filter for groups with zero operators
 class ZeroOperatorFilter(admin.SimpleListFilter):
     title = 'Operators'
     parameter_name = 'zero_operators'
@@ -376,23 +382,25 @@ class ZeroOperatorFilter(admin.SimpleListFilter):
 
     def queryset(self, request, queryset):
         if self.value() == '0':
-            return queryset.annotate(op_count=Count('mbtoperator_set')).filter(op_count=0)
+            # Use the correct related_name
+            return queryset.annotate(op_count=Count('mbtoperator')).filter(op_count=0)
         return queryset
 
+@admin.register(group)
 class groupAdmin(SimpleHistoryAdmin):
     list_display = ('group_name', 'group_owner', 'private', 'operator_count')
     search_fields = ['group_name', 'group_owner__username']
-    list_filter = ('private', ZeroOperatorFilter)  # Add custom filter here
+    list_filter = ('private', ZeroOperatorFilter)
     autocomplete_fields = ('group_owner',)
 
-def get_queryset(self, request):
-    qs = super().get_queryset(request)
-    # Use correct related_name
-    return qs.annotate(_operator_count=Count('mbtoperator'))
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        # Annotate number of operators for sorting
+        return qs.annotate(_operator_count=Count('mbtoperator'))
 
     def operator_count(self, obj):
         return obj._operator_count
-    operator_count.admin_order_field = '_operator_count'
+    operator_count.admin_order_field = '_operator_count'  # makes it sortable
     operator_count.short_description = 'Number of Operators'
 
 
