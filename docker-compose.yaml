@@ -11,7 +11,7 @@ services:
     env_file: mybustimes/.env
     restart: always
     depends_on:
-      - external-db
+      - mybustimes-db
     volumes:
       - static:/MyBusTimes/staticfiles
       - media:/MyBusTimes/media
