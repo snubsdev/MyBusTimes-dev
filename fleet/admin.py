@@ -365,6 +365,7 @@ class FleetAdmin(SimpleHistoryAdmin):
             {"form": form, "vehicles": queryset, "title": "Transfer Vehicles"},
         )
 
+@admin.register(group)
 class groupAdmin(SimpleHistoryAdmin):
     list_display = ('group_name', 'group_owner', 'private', 'operator_count')
     search_fields = ['group_name', 'group_owner__username']
@@ -373,14 +374,15 @@ class groupAdmin(SimpleHistoryAdmin):
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        # Annotate each group with number of operators
-        qs = qs.annotate(operator_count=Count('mbtoperator_set'))  # Replace 'mbtoperator_set' with your related_name if you set one
+        # Annotate number of operators
+        qs = qs.annotate(_operator_count=Count('mbtoperator_set'))  # or your related_name
         return qs
 
-    # You can use the annotated field directly in list_display
-    operator_count.admin_order_field = 'operator_count'
-    operator_count.short_description = 'Number of Operators'
+    def operator_count(self, obj):
+        return obj._operator_count
 
+    operator_count.admin_order_field = '_operator_count'  # makes it sortable
+    operator_count.short_description = 'Number of Operators'
 
 class organisationAdmin(SimpleHistoryAdmin):
     search_fields = ['organisation_name']
