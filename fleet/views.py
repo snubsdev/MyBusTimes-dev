@@ -1395,8 +1395,14 @@ def vehicles_trip_edit(request, operator_slug, vehicle_id, trip_id):
     trip = get_object_or_404(Trip, trip_id=trip_id, trip_vehicle=vehicle)
 
     userPerms = get_helper_permissions(request.user, operator)
+
+    operator = trip.trip_vehicle.operator
+
+    if trip.trip_vehicle.loan_operator != trip.trip_vehicle.operator:
+        operator = trip.trip_vehicle.loan_operator
+
     allRoutes = route.objects.filter(route_operators=operator).order_by('route_num')
-    allVehicles = fleet.objects.filter(operator=operator).order_by('fleet_number_sort')
+    allVehicles = fleet.objects.filter(Q(operator=operator) | Q(loan_operator=operator)).order_by('fleet_number_sort')
 
     if request.user != operator.owner and 'Edit Trips' not in userPerms and not request.user.is_superuser:
         return redirect(f'/operator/{operator_slug}/vehicles/{vehicle_id}/')
