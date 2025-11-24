@@ -223,12 +223,12 @@ def user_profile(request, username):
         'breadcrumbs': breadcrumbs,
         'profile_user': profile_user,
         'operators': operators,
-        'Groups': groups,
         'helper_operators_list': helper_operators_list,
         'owner': owner,
         'online': online,
         'user_edits': user_edits,
         'now': now,
+        'groups': groups,
     }
 
     return render(request, 'profile.html', context)
