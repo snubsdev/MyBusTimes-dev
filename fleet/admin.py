@@ -13,7 +13,6 @@ from django.contrib.admin.sites import site
 from simple_history.admin import SimpleHistoryAdmin
 from django.utils.safestring import mark_safe
 from django.utils.crypto import get_random_string
-from fleet.models import MBTOperator
 
 @admin.action(description='Approve selected changes')
 def approve_changes(modeladmin, request, queryset):
@@ -365,7 +364,7 @@ class FleetAdmin(SimpleHistoryAdmin):
             {"form": form, "vehicles": queryset, "title": "Transfer Vehicles"},
         )
 
-@admin.register(group)
+
 class groupAdmin(SimpleHistoryAdmin):
     list_display = ('group_name', 'group_owner', 'private', 'operator_count')
     search_fields = ['group_name', 'group_owner__username']
