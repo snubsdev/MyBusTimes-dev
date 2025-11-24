@@ -1387,9 +1387,19 @@ def vehicles_trip_edit(request, operator_slug, vehicle_id, trip_id):
     vehicle = get_object_or_404(fleet, id=vehicle_id, operator=operator)
     trip = get_object_or_404(Trip, trip_id=trip_id, trip_vehicle=vehicle)
 
-    userPerms = get_helper_permissions(request.user, operator)
-    allRoutes = route.objects.filter(route_operators=operator).order_by('route_num')
-    allVehicles = fleet.objects.filter(operator=operator).order_by('fleet_number_sort')
+userPerms = get_helper_permissions(request.user, operator)
+
+# Detect which operator's routes should be shown (home operator or loan operator)
+route_operator = operator  # default: use home operator
+
+selected_vehicle_id = request.GET.get("vehicle") or request.POST.get("vehicle")
+if selected_vehicle_id:
+    v = fleet.objects.filter(id=selected_vehicle_id).first()
+    if v and v.loan_operator:
+        route_operator = v.loan_operator  # switch to loan operator routes
+
+allRoutes = route.objects.filter(route_operators=route_operator).order_by('route_num')
+allVehicles = fleet.objects.filter(operator=operator).order_by('fleet_number_sort')
 
     if request.user != operator.owner and 'Edit Trips' not in userPerms and not request.user.is_superuser:
         return redirect(f'/operator/{operator_slug}/vehicles/{vehicle_id}/')
