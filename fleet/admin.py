@@ -13,6 +13,7 @@ from django.contrib.admin.sites import site
 from simple_history.admin import SimpleHistoryAdmin
 from django.utils.safestring import mark_safe
 from django.utils.crypto import get_random_string
+from django.db.models import Count
 
 @admin.action(description='Approve selected changes')
 def approve_changes(modeladmin, request, queryset):
