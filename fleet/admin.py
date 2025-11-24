@@ -364,15 +364,34 @@ class FleetAdmin(SimpleHistoryAdmin):
             {"form": form, "vehicles": queryset, "title": "Transfer Vehicles"},
         )
 
+class ZeroOperatorFilter(admin.SimpleListFilter):
+    title = 'Operators'
+    parameter_name = 'zero_operators'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('0', 'No Operators'),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == '0':
+            return queryset.annotate(op_count=Count('mbtoperator_set')).filter(op_count=0)
+        return queryset
+
 class groupAdmin(SimpleHistoryAdmin):
     list_display = ('group_name', 'group_owner', 'private', 'operator_count')
     search_fields = ['group_name', 'group_owner__username']
-    list_filter = ('private',)
+    list_filter = ('private', ZeroOperatorFilter)  # Add custom filter here
     autocomplete_fields = ('group_owner',)
 
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        # Annotate number of operators for sorting
+        return qs.annotate(_operator_count=Count('mbtoperator_set'))
+
     def operator_count(self, obj):
-        # Count the number of operators in this group
-        return MBTOperator.objects.filter(group=obj).count()
+        return obj._operator_count
+    operator_count.admin_order_field = '_operator_count'
     operator_count.short_description = 'Number of Operators'
 
 
