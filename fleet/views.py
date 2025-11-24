@@ -2847,8 +2847,12 @@ def vehicle_mass_add(request, operator_slug):
         for i in range(1, number_of_vehicles + 1):
             fleet_number = request.POST.get(f'fleet_number_{i}', '').strip()
             reg = request.POST.get(f'reg_{i}', '').strip()
-            if not fleet_number:
-                continue  # skip incomplete rows
+
+            if fleet_number == "":
+                fleet_number = ""
+                
+            if reg == "":
+                reg = ""
 
             vehicle = fleet()
             vehicle.fleet_number = fleet_number
