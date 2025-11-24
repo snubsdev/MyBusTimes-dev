@@ -1004,10 +1004,17 @@ def vehicle_detail(request, operator_slug, vehicle_id):
 
     trips_json = serialize('json', trips)
 
+    bread_operator = {'name': operator.operator_name, 'url': f'/operator/{operator.operator_slug}/'}
+
+    if vehicle.loan_operator and vehicle.loan_operator != operator:
+        bread_operator = {'name': f"{vehicle.loan_operator.operator_name} (on loan from {operator.operator_name})", 'url': f'/operator/{operator.operator_slug}/'}
+
+    bread_operator_slug = vehicle.loan_operator.operator_slug if vehicle.loan_operator and vehicle.loan_operator != operator else operator.operator_slug
+
     breadcrumbs = [
         {'name': 'Home', 'url': '/'},
-        {'name': operator.operator_name, 'url': f'/operator/{operator.operator_slug}/'},
-        {'name': 'Vehicles', 'url': f'/operator/{operator.operator_slug}/vehicles#{vehicle.fleet_number}-{vehicle.operator.operator_code}'},
+        bread_operator,
+        {'name': 'Vehicles', 'url': f'/operator/{bread_operator_slug}/vehicles#{vehicle.fleet_number}-{vehicle.operator.operator_code}'},
         {'name': f'{vehicle.fleet_number} - {vehicle.reg}', 'url': f'/operator/{operator.operator_slug}/vehicles/{vehicle_id}/'}
     ]
 
@@ -2309,9 +2316,15 @@ def log_trip(request, operator_slug, vehicle_id):
     response = feature_enabled(request, "log_trips")
     if response:
         return response
-    
-    operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
-    vehicle = get_object_or_404(fleet, id=vehicle_id, operator=operator)
+
+    vehicle = get_object_or_404(fleet, id=vehicle_id)
+
+    operator = None
+
+    if vehicle.operator != vehicle.loan_operator:
+        operator = get_object_or_404(MBTOperator, operator_slug=vehicle.loan_operator.operator_slug)
+    else:
+        operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
 
     userPerms = get_helper_permissions(request.user, operator)
 
@@ -5157,7 +5170,7 @@ def mass_log_trips(request, operator_slug):
     # Load data for GET
     duties = duty.objects.filter(duty_operator=operator, board_type='duty').order_by('duty_name')
     running_boards = duty.objects.filter(duty_operator=operator, board_type='running-boards').order_by('duty_name')
-    vehicles = fleet.objects.filter(operator=operator).order_by('fleet_number')
+    vehicles = fleet.objects.filter(Q(operator=operator ) | Q(loan_operator=operator)).order_by('fleet_number')
     routes = route.objects.filter(route_operators=operator).order_by('route_num')
 
     breadcrumbs = [

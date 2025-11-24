@@ -14,6 +14,7 @@ from django.contrib import admin
 import requests
 from datetime import timedelta
 from django.conf import settings
+from django.db.models import Q
 
 class TripFromTimetableForm(forms.ModelForm):
     trip_route = forms.ModelChoiceField(
@@ -47,7 +48,7 @@ class TripFromTimetableForm(forms.ModelForm):
 
         if self.operator:
             self.fields['trip_route'].queryset = route.objects.filter(route_operators=self.operator)
-            self.fields['trip_vehicle'].queryset = fleet.objects.filter(operator=self.operator)
+            self.fields['trip_vehicle'].queryset = fleet.objects.filter(Q(operator=self.operator ) | Q(loan_operator=self.operator))
             self.debug_info["init"]["route_count"] = self.fields['trip_route'].queryset.count()
             self.debug_info["init"]["vehicle_count"] = self.fields['trip_vehicle'].queryset.count()
 
@@ -192,7 +193,7 @@ class ManualTripForm(forms.ModelForm):
 
         super().__init__(*args, **kwargs)
         if self.operator:
-            self.fields['trip_vehicle'].queryset = fleet.objects.filter(operator=self.operator)
+            self.fields['trip_vehicle'].queryset = fleet.objects.filter(Q(operator=self.operator ) | Q(loan_operator=self.operator))
             self.fields['trip_route'].queryset = route.objects.filter(route_operators=self.operator)
 
         if self.vehicle:
