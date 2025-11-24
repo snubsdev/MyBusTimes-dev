@@ -2361,7 +2361,7 @@ def operator_edit(request, operator_slug):
     operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
 
     # Make these available to both POST and GET
-    groups = group.objects.filter(Q(group_owner=request.user) | Q(private=False))
+    groups = group.objects.filter(Q(group_owner=request.user) | Q(private=False)).order_by('name')
     games = game.objects.filter(active=True).order_by('game_name')
     organisations = organisation.objects.filter(organisation_owner=request.user)
     operator_types = operatorType.objects.filter(published=True).order_by('operator_type_name')
