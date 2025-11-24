@@ -2327,7 +2327,7 @@ def log_trip(request, operator_slug, vehicle_id):
 
     operator = None
 
-    if vehicle.operator != vehicle.loan_operator:
+    if vehicle.operator != vehicle.loan_operator and vehicle.loan_operator is not None:
         operator = get_object_or_404(MBTOperator, operator_slug=vehicle.loan_operator.operator_slug)
     else:
         operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
