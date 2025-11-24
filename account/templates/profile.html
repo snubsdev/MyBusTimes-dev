@@ -135,19 +135,19 @@
                     <table class="user-groups" border="0" cellpadding="10" cellspacing="0">
                         <thead>
                             <tr>
-                                <th colspan="2">groups</th>
+                                <th colspan="2">Groups</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for operator in operators %}
+                            {% for groups in groups %}
                             <tr>
-                                <td class="operator-name">
-                                    <a href="/operator/{{ operator.operator_slug }}">{{ operator.operator_name }}</a>
+                                <td class="group-name">
+                                    <a href="/groups/{{ operator.operator_slug }}">{{ operator.operator_name }}</a>
                                 </td>
                                 {% if owner %}
                                 <td><a href="/operator/{{ operator.operator_slug }}/edit/">Edit</a></td>
                                 {% else %}
-                                <td><a href="/operator/{{ operator.operator_slug }}">{{ operator.operator_code }}</a>
+                                <td><a href="/operator/{{ groups.operator_slug }}">{{ operator.operator_code }}</a>
                                 </td>
                                 {% endif %}
                             </tr>
