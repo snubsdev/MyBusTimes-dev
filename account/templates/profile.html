@@ -141,13 +141,13 @@
                         <tbody>
                             {% for groups in groups %}
                             <tr>
-                                <td class="group-name">
-                                    <a href="/groups/{{ operator.operator_slug }}">{{ operator.operator_name }}</a>
+                                <td class="operator-name">
+                                <a href="/group/{{ group.group_name }}/">{{ group.group_name }}</a>
                                 </td>
                                 {% if owner %}
-                                <td><a href="/operator/{{ operator.operator_slug }}/edit/">Edit</a></td>
+                                <td><a href="/group/{{ group.group_name }}/edit/">Edit</a></td>
                                 {% else %}
-                                <td><a href="/operator/{{ groups.operator_slug }}">{{ operator.operator_code }}</a>
+                                <td><a href="/operator/{{ .operator_slug }}">{{ operator.operator_code }}</a>
                                 </td>
                                 {% endif %}
                             </tr>
