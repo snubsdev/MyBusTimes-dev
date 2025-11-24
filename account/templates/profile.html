@@ -126,6 +126,39 @@
                 <p>No operator data found</p>
                 {% endif %}
             </div>
+            <div class="operator-data">
+                <span class="operator-data-title user-description-tags">
+                    <h2>Owned Groups</h2>{% if owner %}<small><a href="/group/create/">Create New Group</a></small>{% endif %}
+                </span>
+                {% if groups %}
+                <div class="table-wrapper operator-data-table">
+                    <table class="user-groups" border="0" cellpadding="10" cellspacing="0">
+                        <thead>
+                            <tr>
+                                <th colspan="2">groups</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for operator in operators %}
+                            <tr>
+                                <td class="operator-name">
+                                    <a href="/operator/{{ operator.operator_slug }}">{{ operator.operator_name }}</a>
+                                </td>
+                                {% if owner %}
+                                <td><a href="/operator/{{ operator.operator_slug }}/edit/">Edit</a></td>
+                                {% else %}
+                                <td><a href="/operator/{{ operator.operator_slug }}">{{ operator.operator_code }}</a>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p>No operator data found</p>
+                {% endif %}
+            </div>
             <div class="ad-box" id="body-ad-2"></div>
             <div class="operator-data">
                 {% if helper_operators_list %}
