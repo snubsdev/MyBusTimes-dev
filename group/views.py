@@ -61,7 +61,8 @@ def group_view(request, group_name):
         'livery__name', 'livery__left_css', 'open_top',
         'vehicleType__type_name', 'type_details', 'operator__operator_name',
         'operator__operator_slug', 'operator__operator_code', 'in_service'
-    ).order_by('fleet_number_sort')
+    ).order_by('operator__operator_name', 'fleet_number_sort')
+
 
     show_livery   = qs.filter(Q(livery__isnull=False) | Q(colour__isnull=False)).exists()
     show_branding = qs.filter(Q(branding__isnull=False) & Q(livery__isnull=False)).exists()
