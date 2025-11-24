@@ -385,10 +385,10 @@ class groupAdmin(SimpleHistoryAdmin):
     list_filter = ('private', ZeroOperatorFilter)  # Add custom filter here
     autocomplete_fields = ('group_owner',)
 
-    def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        # Annotate number of operators for sorting
-        return qs.annotate(_operator_count=Count('mbtoperator_set'))
+def get_queryset(self, request):
+    qs = super().get_queryset(request)
+    # Use correct related_name
+    return qs.annotate(_operator_count=Count('mbtoperator'))
 
     def operator_count(self, obj):
         return obj._operator_count
