@@ -203,7 +203,7 @@ def user_profile(request, username):
     # Operators owned by this user
     operators = MBTOperator.objects.filter(owner=profile_user).order_by('operator_slug')
 
-    groups = group.objects.filter(group_owner=profile_user).order_by('group_name')
+    groups = Group.objects.filter(group_owner=profile_user).order_by('group_name')
 
     # Operators the user helps with
     helper_operator_links = helper.objects.filter(helper=profile_user).order_by('operator__operator_name')
