@@ -390,7 +390,7 @@ class ZeroOperatorFilter(admin.SimpleListFilter):
 class groupAdmin(SimpleHistoryAdmin):
     list_display = ('group_name', 'group_owner', 'private', 'operator_count')
     search_fields = ['group_name', 'group_owner__username']
-    list_filter = ('private', ZeroOperatorFilter)
+    list_filter = ('private', "ZeroOperatorFilter")
     autocomplete_fields = ('group_owner',)
 
     def get_queryset(self, request):
@@ -402,7 +402,6 @@ class groupAdmin(SimpleHistoryAdmin):
         return obj._operator_count
     operator_count.admin_order_field = '_operator_count'  # makes it sortable
     operator_count.short_description = 'Number of Operators'
-
 
 class organisationAdmin(SimpleHistoryAdmin):
     search_fields = ['organisation_name']
