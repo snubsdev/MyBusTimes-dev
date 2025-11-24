@@ -13,6 +13,7 @@ from django.contrib.admin.sites import site
 from simple_history.admin import SimpleHistoryAdmin
 from django.utils.safestring import mark_safe
 from django.utils.crypto import get_random_string
+from fleet.models import MBTOperator
 
 @admin.action(description='Approve selected changes')
 def approve_changes(modeladmin, request, queryset):
@@ -365,7 +366,15 @@ class FleetAdmin(SimpleHistoryAdmin):
         )
 
 class groupAdmin(SimpleHistoryAdmin):
-    search_fields = ['group_name']
+    list_display = ('group_name', 'group_owner', 'private', 'operator_count')
+    search_fields = ['group_name', 'group_owner__username']
+    list_filter = ('private',)
+    autocomplete_fields = ('group_owner',)
+
+    def operator_count(self, obj):
+        # Count the number of operators in this group
+        return MBTOperator.objects.filter(group=obj).count()
+    operator_count.short_description = 'Number of Operators'
 
 class organisationAdmin(SimpleHistoryAdmin):
     search_fields = ['organisation_name']
