@@ -366,7 +366,6 @@ class FleetAdmin(SimpleHistoryAdmin):
         )
 
 class groupAdmin(SimpleHistoryAdmin):
-class groupAdmin(SimpleHistoryAdmin):
     list_display = ('group_name', 'group_owner', 'private', 'operator_count')
     search_fields = ['group_name', 'group_owner__username']
     list_filter = ('group_owner', 'private')
