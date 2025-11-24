@@ -366,10 +366,21 @@ class FleetAdmin(SimpleHistoryAdmin):
         )
 
 class groupAdmin(SimpleHistoryAdmin):
+class groupAdmin(SimpleHistoryAdmin):
     list_display = ('group_name', 'group_owner', 'private', 'operator_count')
     search_fields = ['group_name', 'group_owner__username']
     list_filter = ('group_owner', 'private')
     autocomplete_fields = ('group_owner',)
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        # Annotate each group with number of operators
+        qs = qs.annotate(operator_count=Count('mbtoperator_set'))  # Replace 'mbtoperator_set' with your related_name if you set one
+        return qs
+
+    # You can use the annotated field directly in list_display
+    operator_count.admin_order_field = 'operator_count'
+    operator_count.short_description = 'Number of Operators'
 
 
 class organisationAdmin(SimpleHistoryAdmin):
