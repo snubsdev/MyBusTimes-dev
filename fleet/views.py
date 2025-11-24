@@ -1398,7 +1398,7 @@ def vehicles_trip_edit(request, operator_slug, vehicle_id, trip_id):
 
     operator = trip.trip_vehicle.operator
 
-    if trip.trip_vehicle.loan_operator != trip.trip_vehicle.operator:
+    if trip.trip_vehicle.loan_operator != trip.trip_vehicle.operator and trip.trip_vehicle.loan_operator is not None:
         operator = trip.trip_vehicle.loan_operator
 
     allRoutes = route.objects.filter(route_operators=operator).order_by('route_num')
