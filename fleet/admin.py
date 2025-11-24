@@ -386,10 +386,16 @@ class ZeroOperatorFilter(admin.SimpleListFilter):
             return queryset.annotate(op_count=Count('mbtoperator')).filter(op_count=0)
         return queryset
 
+@admin.action(description='Set selected groups to private')
+def set_private(modeladmin, request, queryset):
+    queryset.update(private=True)
+    modeladmin.message_user(request, f"{queryset.count()} group(s) set to private.")
+
 class groupAdmin(SimpleHistoryAdmin):
     list_display = ('group_name', 'group_owner', 'private', 'operator_count')
     search_fields = ['group_name', 'group_owner__username']
     list_filter = ('private', ZeroOperatorFilter)
+    actions = [set_private]
     autocomplete_fields = ('group_owner',)
 
     def get_queryset(self, request):
