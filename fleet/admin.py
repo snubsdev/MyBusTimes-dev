@@ -371,10 +371,6 @@ class groupAdmin(SimpleHistoryAdmin):
     list_filter = ('group_owner', 'private')
     autocomplete_fields = ('group_owner',)
 
-    def operator_count(self, obj):
-        return MBTOperator.objects.filter(group=obj).count()
-    operator_count.short_description = 'Number of Operators'
-
 
 class organisationAdmin(SimpleHistoryAdmin):
     search_fields = ['organisation_name']
