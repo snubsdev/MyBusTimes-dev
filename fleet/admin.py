@@ -369,7 +369,6 @@ class groupAdmin(SimpleHistoryAdmin):
     list_display = ('group_name', 'group_owner', 'private', 'operator_count')
     list_filter = ('group_name', 'group_owner', 'private', 'operator_count')
     search_fields = ['group_name', 'group_owner__username']
-    list_filter = ('private',)
     autocomplete_fields = ('group_owner',)
 
     def operator_count(self, obj):
