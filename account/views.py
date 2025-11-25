@@ -40,6 +40,7 @@ from .forms import CustomUserCreationForm, AccountSettingsForm
 from fleet.models import group, MBTOperator, fleetChange, helper, liverie
 from main.models import CustomUser, UserKeys, badge, StripeSubscription
 from a.models import AffiliateLink, Link
+from main.models import featureToggle
 import requests
 
 logger = logging.getLogger(__name__)
@@ -147,6 +148,11 @@ class CustomLoginView(LoginView):
         return response
     
 def register_view(request):
+    feature = featureToggle.objects.get(name="disable_register")
+    if feature.enabled:
+        # Feature is enabled, so just return None to let the view continue
+        return None
+
     if request.method == 'POST':
         form = CustomUserCreationForm(request.POST)
         if form.is_valid():
