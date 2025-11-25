@@ -62,7 +62,8 @@ def get_changes(entry):
         print("diff_against failed:", e)
         return None
 
-    changes = [(c.field, c.old, c.new) for c in diff.changes]
+    # Filter out IP address fields from changes
+    changes = [(c.field, c.old, c.new) for c in diff.changes if 'ip' not in c.field.lower()]
     print(f"[CHANGES] {entry} -> {changes}")
     return changes
 
