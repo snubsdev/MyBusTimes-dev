@@ -152,6 +152,8 @@ def register_view(request):
     if feature.enabled:
         # Feature is enabled, so just return None to let the view continue
         return None
+    else:
+        return render(request, 'feature_disabled.html', {'feature_name': "disable_register"}, status=200)
 
     if request.method == 'POST':
         form = CustomUserCreationForm(request.POST)
