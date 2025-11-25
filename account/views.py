@@ -148,9 +148,9 @@ class CustomLoginView(LoginView):
         return response
     
 def register_view(request):
-    feature = featureToggle.objects.get(name="disable_register")
+    feature = featureToggle.objects.get(name="register")
     if not feature.enabled:
-        return render(request, 'feature_disabled.html', {'feature_name': "disable_register"}, status=200)
+        return render(request, 'feature_disabled.html', {'feature_name': "register"}, status=200)
 
     if request.method == 'POST':
         form = CustomUserCreationForm(request.POST)
