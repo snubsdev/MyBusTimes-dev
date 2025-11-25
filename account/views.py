@@ -149,10 +149,7 @@ class CustomLoginView(LoginView):
     
 def register_view(request):
     feature = featureToggle.objects.get(name="disable_register")
-    if feature.enabled:
-        # Feature is enabled, so just return None to let the view continue
-        return None
-    else:
+    if not feature.enabled:
         return render(request, 'feature_disabled.html', {'feature_name': "disable_register"}, status=200)
 
     if request.method == 'POST':
