@@ -66,7 +66,7 @@ urlpatterns = [
 
     path("tickets/", ratelimit(key='ip', method='GET', rate='2/s')(ticket_list_api), name="ticket_list_api"),
 
-    path("", ratelimit(key='ip', method='GET', rate='2/s')(api_root), name='home'),
+    path("", ratelimit(key='ip', method='GET', rate='100/s')(api_root), name='home'),
 
     path("key-auth/create-ticket/", ratelimit(key='ip', method='GET', rate='1/m')(create_ticket_api_key_auth), name="create_ticket_api_key_auth"),
     path("key-auth/<int:ticket_id>/messages/", ratelimit(key='ip', method='GET', rate='1/s')(ticket_messages_api_key_auth), name="ticket_messages_api_key_auth"),
