@@ -29,7 +29,7 @@ urlpatterns = [
 
     path("get_random_community_image/", ratelimit(key='ip', method='GET', rate='2/s')(get_random_community_image), name="get_random_community_image"),
 
-    path("thread/<int:thread_id>/", ratelimit(key='ip', method='GET', rate='2/s')(thread_details_api), name="thread_details_api"),
+    path("thread/<int:thread_id>/", ratelimit(key='ip', method='GET', rate='500/s')(thread_details_api), name="thread_details_api"),
 
     path('operator/fleet/', ratelimit(key='ip', method='GET', rate='2/s')(fleetListView.as_view()), name='fleet-list'),
     path('operator/fleet/<int:pk>/', ratelimit(key='ip', method='GET', rate='2/s')(fleetDetailView.as_view()), name='fleet-detail'),
@@ -66,7 +66,7 @@ urlpatterns = [
 
     path("tickets/", ratelimit(key='ip', method='GET', rate='2/s')(ticket_list_api), name="ticket_list_api"),
 
-    path("", ratelimit(key='ip', method='GET', rate='2/s')(api_root), name='home'),
+    path("", ratelimit(key='ip', method='GET', rate='100/s')(api_root), name='home'),
 
     path("key-auth/create-ticket/", ratelimit(key='ip', method='GET', rate='1/m')(create_ticket_api_key_auth), name="create_ticket_api_key_auth"),
     path("key-auth/<int:ticket_id>/messages/", ratelimit(key='ip', method='GET', rate='1/s')(ticket_messages_api_key_auth), name="ticket_messages_api_key_auth"),

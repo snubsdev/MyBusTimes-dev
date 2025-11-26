@@ -1004,10 +1004,17 @@ def vehicle_detail(request, operator_slug, vehicle_id):
 
     trips_json = serialize('json', trips)
 
+    bread_operator = {'name': operator.operator_name, 'url': f'/operator/{operator.operator_slug}/'}
+
+    if vehicle.loan_operator and vehicle.loan_operator != operator:
+        bread_operator = {'name': f"{vehicle.loan_operator.operator_name} (on loan from {operator.operator_name})", 'url': f'/operator/{operator.operator_slug}/'}
+
+    bread_operator_slug = vehicle.loan_operator.operator_slug if vehicle.loan_operator and vehicle.loan_operator != operator else operator.operator_slug
+
     breadcrumbs = [
         {'name': 'Home', 'url': '/'},
-        {'name': operator.operator_name, 'url': f'/operator/{operator.operator_slug}/'},
-        {'name': 'Vehicles', 'url': f'/operator/{operator.operator_slug}/vehicles#{vehicle.fleet_number}-{vehicle.operator.operator_code}'},
+        bread_operator,
+        {'name': 'Vehicles', 'url': f'/operator/{bread_operator_slug}/vehicles#{vehicle.fleet_number}-{vehicle.operator.operator_code}'},
         {'name': f'{vehicle.fleet_number} - {vehicle.reg}', 'url': f'/operator/{operator.operator_slug}/vehicles/{vehicle_id}/'}
     ]
 
@@ -1388,8 +1395,14 @@ def vehicles_trip_edit(request, operator_slug, vehicle_id, trip_id):
     trip = get_object_or_404(Trip, trip_id=trip_id, trip_vehicle=vehicle)
 
     userPerms = get_helper_permissions(request.user, operator)
+
+    operator = trip.trip_vehicle.operator
+
+    if trip.trip_vehicle.loan_operator != trip.trip_vehicle.operator and trip.trip_vehicle.loan_operator is not None:
+        operator = trip.trip_vehicle.loan_operator
+
     allRoutes = route.objects.filter(route_operators=operator).order_by('route_num')
-    allVehicles = fleet.objects.filter(operator=operator).order_by('fleet_number_sort')
+    allVehicles = fleet.objects.filter(Q(operator=operator) | Q(loan_operator=operator)).order_by('fleet_number_sort')
 
     if request.user != operator.owner and 'Edit Trips' not in userPerms and not request.user.is_superuser:
         return redirect(f'/operator/{operator_slug}/vehicles/{vehicle_id}/')
@@ -2309,9 +2322,15 @@ def log_trip(request, operator_slug, vehicle_id):
     response = feature_enabled(request, "log_trips")
     if response:
         return response
-    
-    operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
-    vehicle = get_object_or_404(fleet, id=vehicle_id, operator=operator)
+
+    vehicle = get_object_or_404(fleet, id=vehicle_id)
+
+    operator = None
+
+    if vehicle.operator != vehicle.loan_operator and vehicle.loan_operator is not None:
+        operator = get_object_or_404(MBTOperator, operator_slug=vehicle.loan_operator.operator_slug)
+    else:
+        operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
 
     userPerms = get_helper_permissions(request.user, operator)
 
@@ -2361,7 +2380,7 @@ def operator_edit(request, operator_slug):
     operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
 
     # Make these available to both POST and GET
-    groups = group.objects.filter(Q(group_owner=request.user) | Q(private=False))
+    groups = group.objects.filter(Q(group_owner=request.user) | Q(private=False)).order_by('group_name')
     games = game.objects.filter(active=True).order_by('game_name')
     organisations = organisation.objects.filter(organisation_owner=request.user)
     operator_types = operatorType.objects.filter(published=True).order_by('operator_type_name')
@@ -2847,8 +2866,12 @@ def vehicle_mass_add(request, operator_slug):
         for i in range(1, number_of_vehicles + 1):
             fleet_number = request.POST.get(f'fleet_number_{i}', '').strip()
             reg = request.POST.get(f'reg_{i}', '').strip()
-            if not fleet_number or not reg:
-                continue  # skip incomplete rows
+
+            if fleet_number == "":
+                fleet_number = ""
+                
+            if reg == "":
+                reg = ""
 
             vehicle = fleet()
             vehicle.fleet_number = fleet_number
@@ -3684,7 +3707,7 @@ def create_operator(request):
     if response:
         return response
     
-    groups = group.objects.filter(Q(group_owner=request.user) | Q(private=False))
+    groups = group.objects.filter(Q(group_owner=request.user) | Q(private=False)).order_by('group_name')
     organisations = organisation.objects.filter(organisation_owner=request.user)
     operator_types = operatorType.objects.filter(published=True).order_by('operator_type_name')
     games = game.objects.filter(active=True).order_by('game_name')
@@ -5153,7 +5176,7 @@ def mass_log_trips(request, operator_slug):
     # Load data for GET
     duties = duty.objects.filter(duty_operator=operator, board_type='duty').order_by('duty_name')
     running_boards = duty.objects.filter(duty_operator=operator, board_type='running-boards').order_by('duty_name')
-    vehicles = fleet.objects.filter(operator=operator).order_by('fleet_number')
+    vehicles = fleet.objects.filter(Q(operator=operator ) | Q(loan_operator=operator)).order_by('fleet_number')
     routes = route.objects.filter(route_operators=operator).order_by('route_num')
 
     breadcrumbs = [

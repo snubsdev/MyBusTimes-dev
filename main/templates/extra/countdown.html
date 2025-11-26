@@ -149,8 +149,18 @@
           totalUsersEl.textContent = data.total_mbt_members ?? "—";
           discordOnlineEl.textContent = data.online_discord_members ?? "—";
           discordTotalEl.textContent = data.total_discord_members ?? "—";
-          websiteGoalEl.textContent = `${websitememberstogo} Website members to go`  
-          discordGoalEl.textContent = `${discordmemberstogo} Discord members to go`
+
+          if (websitememberstogo < 0) {
+            websiteGoalEl.textContent = `Website member goal reached! 🎉`
+          } else {
+            websiteGoalEl.textContent = `${websitememberstogo} Website members to go`
+          }
+
+          if (discordmemberstogo < 0) {
+            discordGoalEl.textContent = `Discord member goal reached! 🎉`
+          } else {
+            discordGoalEl.textContent = `${discordmemberstogo} Discord members to go`
+          }
         })
         .catch(error => console.error("Fetch error:", error));
     </script>

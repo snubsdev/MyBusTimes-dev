@@ -13,6 +13,7 @@ from django.contrib.admin.sites import site
 from simple_history.admin import SimpleHistoryAdmin
 from django.utils.safestring import mark_safe
 from django.utils.crypto import get_random_string
+from django.db.models import Count
 
 @admin.action(description='Approve selected changes')
 def approve_changes(modeladmin, request, queryset):
@@ -364,8 +365,48 @@ class FleetAdmin(SimpleHistoryAdmin):
             {"form": form, "vehicles": queryset, "title": "Transfer Vehicles"},
         )
 
+from django.contrib import admin
+from django.db.models import Count
+from simple_history.admin import SimpleHistoryAdmin
+from .models import group, MBTOperator
+
+# Filter for groups with zero operators
+class ZeroOperatorFilter(admin.SimpleListFilter):
+    title = 'Operators'
+    parameter_name = 'zero_operators'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('0', 'No Operators'),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == '0':
+            # Use the correct related_name
+            return queryset.annotate(op_count=Count('mbtoperator')).filter(op_count=0)
+        return queryset
+
+@admin.action(description='Set selected groups to private')
+def set_private(modeladmin, request, queryset):
+    queryset.update(private=True)
+    modeladmin.message_user(request, f"{queryset.count()} group(s) set to private.")
+
 class groupAdmin(SimpleHistoryAdmin):
-    search_fields = ['group_name']
+    list_display = ('group_name', 'group_owner', 'private', 'operator_count')
+    search_fields = ['group_name', 'group_owner__username']
+    list_filter = ('private', ZeroOperatorFilter)
+    actions = [set_private]
+    autocomplete_fields = ('group_owner',)
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        # Annotate number of operators for sorting
+        return qs.annotate(_operator_count=Count('mbtoperator'))
+
+    def operator_count(self, obj):
+        return obj._operator_count
+    operator_count.admin_order_field = '_operator_count'  # makes it sortable
+    operator_count.short_description = 'Number of Operators'
 
 class organisationAdmin(SimpleHistoryAdmin):
     search_fields = ['organisation_name']

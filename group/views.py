@@ -22,27 +22,32 @@ from fleet.views import vehicles
 def create_group(request):
     if request.method == "POST":
         group_name = request.POST.get('group_name', '').strip()
-        group_description = request.POST.get('group_description', '').strip()
-        group_private = request.POST.get('group_private') == 'on'
+        group_order_by = request.POST.get('order_by', 'fleet_number')
+        group_private = request.POST.get('private') == 'on'
 
         if not group_name:
             messages.error(request, "Group name cannot be empty.")
-            return redirect('/create-group/')
+            return redirect('/group/create/')
 
         if group.objects.filter(group_name=group_name).exists():
             messages.error(request, "A group with this name already exists.")
-            return redirect('/create-group/')
+            return redirect('/group/create/')
 
         new_group = group.objects.create(
             group_name=group_name,
             private=group_private,
+            order_by=group_order_by,
             group_owner=request.user
         )
 
         messages.success(request, "Group created successfully.")
         return redirect(f'/group/{new_group.group_name}/')
+    
+    order_by_choices = group.OrderBy.choices
 
-    return render(request, 'create_group.html')
+    return render(request, 'create_group.html', {
+        'order_by_choices': order_by_choices,
+    })
 
 def group_view(request, group_name):
     grp = get_object_or_404(group, group_name=group_name)
@@ -61,7 +66,15 @@ def group_view(request, group_name):
         'livery__name', 'livery__left_css', 'open_top',
         'vehicleType__type_name', 'type_details', 'operator__operator_name',
         'operator__operator_slug', 'operator__operator_code', 'in_service'
-    ).order_by('fleet_number_sort')
+    )
+
+    if grp.order_by == group.OrderBy.FLEET_NUMBER:
+        qs = qs.order_by('fleet_number_sort')
+    elif grp.order_by == group.OrderBy.OPERATOR_NAME:
+        qs = qs.order_by('operator__operator_name', 'fleet_number_sort')
+    else:
+        qs = qs.order_by('fleet_number_sort')
+
 
     show_livery   = qs.filter(Q(livery__isnull=False) | Q(colour__isnull=False)).exists()
     show_branding = qs.filter(Q(branding__isnull=False) & Q(livery__isnull=False)).exists()
@@ -236,6 +249,7 @@ def organisation_view(request, organisation_name):
 @login_required
 @require_http_methods(["GET", "POST"])
 def group_edit(request, group_name):
+    order_by_choices = group.OrderBy.choices
     group_instance = get_object_or_404(group, group_name=group_name)
 
     if request.user != group_instance.group_owner:
@@ -246,6 +260,7 @@ def group_edit(request, group_name):
         new_group_name = request.POST.get('group_name', '').strip()
         new_group_description = request.POST.get('group_description', '').strip()
         new_private = request.POST.get('group_private') == 'on'
+        new_order_by = request.POST.get('order_by', '').strip()
 
         if not new_group_name:
             messages.error(request, "Group name cannot be empty.")
@@ -258,13 +273,15 @@ def group_edit(request, group_name):
         group_instance.group_name = new_group_name
         group_instance.group_description = new_group_description
         group_instance.private = new_private
+        group_instance.order_by = new_order_by
         group_instance.save()
 
         messages.success(request, "Group updated successfully.")
         return redirect(f'/group/{group_instance.group_name}/')
 
     context = {
-        'group': group_instance
+        'group': group_instance,
+        'order_by_choices': order_by_choices,
     }
     return render(request, 'group_edit.html', context)
 

@@ -37,7 +37,7 @@
                 <option value="{{ group.id }}" {% if operatorGroup == group.id|stringformat:"s" %}selected{% endif %}>{{ group.group_name }}</option>
             {% endfor %}
         </select>
-        <small class="create-link"><a href="/group/create">Create A New Group</a></small>
+        <small class="create-link-select2"><a href="/group/create">Create A New Group</a></small>
 
         {% if organisations %}
         <label for="operator-organisation">Operator Organisation:</label>
@@ -98,6 +98,21 @@
         </script>
     </form>
 </div>
+
+<script>
+  $(document).ready(function() {
+    $('#operator-group').select2({
+      placeholder: 'Select a group',
+      allowClear: true,
+      width: '100%'
+    });
+    $('#operator-type').select2({
+      placeholder: 'Select a type',
+      allowClear: true,
+      width: '100%'
+    });
+  });
+</script>
 {% endblock %}
 
 {% block extra_css %}

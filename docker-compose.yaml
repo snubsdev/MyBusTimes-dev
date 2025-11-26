@@ -1,0 +1,23 @@
+services:
+  web:
+    build: ./MyBusTimes
+    container_name: mybustimes
+    command: >
+      gunicorn mybustimes.asgi:application
+      --workers 10
+      --worker-class uvicorn.workers.UvicornWorker
+      --bind 0.0.0.0:8000
+      --log-level info
+    env_file: mybustimes/.env
+    restart: always
+    depends_on:
+      - coolify-db
+    volumes:
+      - static:/MyBusTimes/staticfiles
+      - media:/MyBusTimes/media
+    ports:
+      - "6060:8000"
+
+volumes:
+  static:
+  media:

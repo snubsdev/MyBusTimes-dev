@@ -46,7 +46,7 @@ STRIPE_CUSTOM_PRICE_ID = os.environ["PRICE_ID_CUSTOM"]
 STRIPE_BILLING_PORTAL_URL = os.environ["STRIPE_BILLING_PORTAL_URL"]
 
 CSRF_TRUSTED_ORIGINS = [
-    'https://dev.mybustimes.cc',
+    'https://test.mybustimes.cc',
     'https://www.mybustimes.cc',
     'https://www.myfleets.cc',
     'https://local-dev.mybustimes.cc',
