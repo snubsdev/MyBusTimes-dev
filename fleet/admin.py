@@ -309,6 +309,7 @@ class FleetAdmin(SimpleHistoryAdmin):
         FleetVehicleTypeFilter,
         FleetOperatorFilter,
         FleetLiveryFilter,
+        "livery"
     )
     autocomplete_fields = ["operator", "loan_operator", "livery", "vehicleType", "last_modified_by"]
     actions = [
