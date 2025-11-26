@@ -806,6 +806,14 @@ def for_sale(request):
         if vehicle.operator:
             operators.add(vehicle.operator.operator_name)
 
+        # ⭐ SORT HERE — least vehicles for sale first
+        operators_with_vehicles = dict(
+        sorted(
+        operators_with_vehicles.items(),
+        key=lambda item: len(item[1])
+            )
+        )   
+
     breadcrumbs = [{'name': 'Home', 'url': '/'}, {'name': 'For Sale', 'url': '/for-sale/'}]
 
     context = {
