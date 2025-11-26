@@ -181,7 +181,13 @@ class FleetLiveryFilter(AutocompleteFilter):
         qs = super().get_queryset(request)
         return qs.order_by("livery__name")
 
+class FleetLiveryFilter(SimpleListFilter):
+    title = "Livery"
+    field_name = "livery"
 
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.order_by("livery__name")
 # ---------------------------
 # Custom Form for Transfers
 # ---------------------------
