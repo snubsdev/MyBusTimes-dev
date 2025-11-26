@@ -173,13 +173,15 @@ class FleetVehicleTypeFilter(AutocompleteFilter):
         qs = super().get_queryset(request)
         return qs.order_by("vehicleType__type_name")
 
-class FleetLiveryFilter(SimpleListFilter):
+class FleetLiveryFilter(AutocompleteFilter):
     title = "Livery"
     field_name = "livery"
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         return qs.order_by("livery__name")
+
+
 # ---------------------------
 # Custom Form for Transfers
 # ---------------------------
@@ -306,7 +308,7 @@ class FleetAdmin(SimpleHistoryAdmin):
         "for_sale",
         FleetVehicleTypeFilter,
         FleetOperatorFilter,
-        "livery",
+        FleetLiveryFilter,
     )
     autocomplete_fields = ["operator", "loan_operator", "livery", "vehicleType", "last_modified_by"]
     actions = [
