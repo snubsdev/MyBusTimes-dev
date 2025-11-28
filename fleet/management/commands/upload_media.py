@@ -6,20 +6,26 @@ import os
 
 
 class Command(BaseCommand):
-    help = "Upload MEDIA_ROOT and STATIC_ROOT folders to S3-compatible storage."
+    help = "Upload folders to S3-compatible storage.\n\n" \
+           "Usage:\n" \
+           "  python manage.py upload static <folder>\n" \
+           "  python manage.py upload media <folder>"
 
-    def upload_folder(self, root_path, storage, label):
-        if not os.path.isdir(root_path):
-            self.stdout.write(self.style.WARNING(f"{label} does not exist — skipping."))
+    def add_arguments(self, parser):
+        parser.add_argument("type", choices=["static", "media"], help="Type of upload")
+        parser.add_argument("folder", help="Folder to upload")
+
+    def upload_folder(self, folder_path, storage, label):
+        if not os.path.isdir(folder_path):
+            self.stdout.write(self.style.ERROR(f"{folder_path} does not exist."))
             return
 
-        self.stdout.write(self.style.SUCCESS(f"\nUploading {label} from: {root_path}\n"))
+        self.stdout.write(self.style.SUCCESS(f"\nUploading {label} from: {folder_path}\n"))
 
-        for root, dirs, files in os.walk(root_path):
+        for root, dirs, files in os.walk(folder_path):
             for file in files:
                 local_path = os.path.join(root, file)
-
-                relative_path = os.path.relpath(local_path, root_path)
+                relative_path = os.path.relpath(local_path, folder_path)
 
                 self.stdout.write(f"Uploading {label}: {relative_path}...")
 
@@ -27,19 +33,16 @@ class Command(BaseCommand):
                     storage.save(relative_path, f)
 
     def handle(self, *args, **options):
-        # --- Upload media ---
-        self.upload_folder(
-            settings.MEDIA_ROOT,
-            default_storage,
-            "MEDIA",
-        )
+        upload_type = options["type"]
+        folder = options["folder"]
 
-        # --- Upload static ---
-        static_root = settings.STATIC_ROOT
-        self.upload_folder(
-            static_root,
-            staticfiles_storage,
-            "STATIC",
-        )
+        if upload_type == "media":
+            storage = default_storage
+            label = "MEDIA"
+        else:
+            storage = staticfiles_storage
+            label = "STATIC"
 
-        self.stdout.write(self.style.SUCCESS("\nAll media and static files uploaded successfully!"))
+        self.upload_folder(folder, storage, label)
+
+        self.stdout.write(self.style.SUCCESS(f"\n{label} upload completed!"))
