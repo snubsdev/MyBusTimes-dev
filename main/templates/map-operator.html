@@ -214,13 +214,13 @@
   const stopsBtn = document.getElementById('stopsToggle');
 
   stopsBtn.addEventListener('click', () => {
-    stopsVisible = !stopsVisible;
+    showStops = !showStops;
 
     document.querySelectorAll('.maplibregl-marker').forEach(el => {
-      el.style.display = stopsVisible ? "block" : "none";
+      el.style.display = showStops ? "block" : "none";
     });
 
-    stopsBtn.textContent = stopsVisible ? "Hide Stops" : "Show Stops";
+    stopsBtn.textContent = showStops ? "Hide Stops" : "Show Stops";
   });
   map.on('load', () => loadOperatorRoutes(currentDirection));
 </script>
