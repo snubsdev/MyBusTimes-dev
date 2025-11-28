@@ -29,6 +29,7 @@ urlpatterns = [
     path("map/", live_map, name='map'),
     path("map/stops/", stop_map, name='map_stops'),
     path("map/simple/", live_map_simple, name='map_simple'),
+    path("map/operator/<str:operator_slug>/", operator_route_map, name='map_operator'),
     path("map/vehicle/<int:vehicle_id>/", live_vehicle_map, name='map_vehicle'),
     path("map/route/<int:route_id>/", live_route_map, name='map_route'),
     path("map/trip/<int:trip_id>/", trip_map, name='map_trip'),

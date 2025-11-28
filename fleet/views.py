@@ -238,6 +238,9 @@ def generate_tabs(active, operator, count=None):
     tab_name = f"{route_count} routes" if active == "routes" else "Routes"
     tabs.append({"name": tab_name, "url": f"/operator/{operator.operator_slug}/", "active": active == "routes"})
 
+    tab_name = "Map"
+    tabs.append({"name": tab_name, "url": f"/map/operator/{operator.operator_slug}/", "active": active == "map"})
+
     tab_name = f"{vehicle_count} vehicles" if active == "vehicles" else "Vehicles"
     tabs.append({"name": tab_name, "url": f"/operator/{operator.operator_slug}/vehicles/", "active": active == "vehicles"})
 
