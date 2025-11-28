@@ -3047,9 +3047,9 @@ def vehicle_mass_edit(request, operator_slug):
     path = "JSON/features.json"
 
     with default_storage.open(path, "r") as f:
-        data = json.load(f)
-        features_json = data.load(f)
-        features_list = features_json.get("features", [])
+        features_json = json.load(f)
+
+    features_list = features_json.get("features", [])
 
     if request.method == "POST":
         updated_count = 0
