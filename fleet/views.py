@@ -2002,7 +2002,7 @@ def duty_add(request, operator_slug):
             'titles': titles,  # Pass the plural title for the duties/running boards
             'title': title,  # Pass the singular title for the duty/running board
         }
-        return render(request, 'add_duty.html', context)
+        return render(request, 'duties.html', context)
 
 @login_required
 @require_http_methods(["GET", "POST"])
