@@ -35,7 +35,7 @@ urlpatterns = [
     path('operator/fleet/<int:pk>/', ratelimit(key='ip', method='GET', rate='10/s')(fleetDetailView.as_view()), name='fleet-detail'),
     path('operator/', ratelimit(key='ip', method='GET', rate='10/s')(operatorListView.as_view()), name='operator-list'),
     path('operator/<int:pk>/', ratelimit(key='ip', method='GET', rate='10/s')(operatorDetailView.as_view()), name='operator-detail'),
-    path('operator/route/', ratelimit(key='ip', method='GET', rate='10/s')(routesListView.as_view()), name='operator-routes'),
+    path('operator/route/', ratelimit(key='ip', method='GET', rate='100/s')(routesListView.as_view()), name='operator-routes'),
     path('operator/route/<int:pk>/', ratelimit(key='ip', method='GET', rate='10/s')(routesDetailView.as_view()), name='operator-route-detail'),
     path('operator/ticket/', ratelimit(key='ip', method='GET', rate='10/s')(ticketListView.as_view()), name='operator-tickets'),
     path('operator/tickle/<int:pk>/', ratelimit(key='ip', method='GET', rate='10/s')(ticketDetailView.as_view()), name='operator-ticket-detail'),
