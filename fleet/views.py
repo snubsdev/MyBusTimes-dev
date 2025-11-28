@@ -34,6 +34,7 @@ from django.http import Http404
 from django.core.paginator import Paginator
 from django.utils.dateparse import parse_time
 from simple_history.models import HistoricalRecords
+from django.core.files.storage import default_storage
 
 # Django REST Framework imports
 from rest_framework.exceptions import NotFound
@@ -1098,10 +1099,12 @@ def vehicle_edit(request, operator_slug, vehicle_id):
             Q(id__in=helper_operator_ids) | Q(owner=request.user)
         ).distinct().order_by('operator_name')
 
-    features_path = os.path.join(settings.MEDIA_URL, 'JSON', 'features.json')
-    with open(features_path, 'r') as f:
-        features_json = json.load(f)
-        features_list = features_json.get("features", [])
+    path = "JSON/features.json"
+
+    with default_storage.open(path, "r") as f:
+        data = json.load(f)  # loads the entire JSON file into a dict
+
+    features_list = data.get("features", [])
 
     if request.method == "POST":
         current_operator = vehicle.operator
@@ -2659,10 +2662,12 @@ def vehicle_add(request, operator_slug):
             Q(id__in=helper_operator_ids) | Q(owner=request.user)
         ).distinct().order_by('operator_name')
 
-    features_path = os.path.join(settings.MEDIA_URL, 'JSON', 'features.json')
-    with open(features_path, 'r') as f:
-        features_json = json.load(f)
-        features_list = features_json.get("features", [])
+    path = "JSON/features.json"
+
+    with default_storage.open(path, "r") as f:
+        data = json.load(f)  # loads the entire JSON file into a dict
+
+    features_list = data.get("features", [])
 
     if request.method == "POST":
         vehicle = fleet()  # <--- Create a new vehicle instance
@@ -2798,10 +2803,12 @@ def vehicle_mass_add(request, operator_slug):
         ).distinct().order_by('operator_name')
 
 
-    features_path = os.path.join(settings.MEDIA_URL, 'JSON', 'features.json')
-    with open(features_path, 'r') as f:
-        features_json = json.load(f)
-        features_list = features_json.get("features", [])
+    path = "JSON/features.json"
+
+    with default_storage.open(path, "r") as f:
+        data = json.load(f)  # loads the entire JSON file into a dict
+
+    features_list = data.get("features", [])
 
     if request.method == "POST":
         try:
@@ -3037,9 +3044,11 @@ def vehicle_mass_edit(request, operator_slug):
             Q(id__in=helper_operator_ids) | Q(owner=request.user)
         ).distinct().order_by('operator_name')
 
-    features_path = os.path.join(settings.MEDIA_URL, 'JSON', 'features.json')
-    with open(features_path, 'r') as f:
-        features_json = json.load(f)
+    path = "JSON/features.json"
+
+    with default_storage.open(path, "r") as f:
+        data = json.load(f)
+        features_json = data.load(f)
         features_list = features_json.get("features", [])
 
     if request.method == "POST":
