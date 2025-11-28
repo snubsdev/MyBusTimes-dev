@@ -84,7 +84,7 @@ def theme_settings(request):
         if spm:
             menu_logo = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/MBT-Logo-White-SPM.png'
         elif poppy:
-            menu_logo = 'https://raw.githubusercontent.com/NextStopLabs/MBT-Media-Kit/refs/heads/main/MBT%20Poppy%20Theme%20Asset%20Pack/Logo%20Light.svg'
+            menu_logo = 'https://cdn.mybustimes.cc/mybustimes/Logo%20Light.svg'
         elif birthday:
             menu_logo = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/MBT-Logo-White-BD.png'
         elif pride_month:
@@ -97,7 +97,7 @@ def theme_settings(request):
         if spm:
             menu_logo = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/MBT-Logo-Black-SPM.png'
         elif poppy:
-            menu_logo = 'https://raw.githubusercontent.com/NextStopLabs/MBT-Media-Kit/refs/heads/main/MBT%20Poppy%20Theme%20Asset%20Pack/Logo%20Dark.svg'
+            menu_logo = 'https://cdn.mybustimes.cc/mybustimes/Logo%20Dark.svg'
         elif birthday:
             menu_logo = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/MBT-Logo-Black-BD.png'
         elif pride_month:
@@ -106,14 +106,14 @@ def theme_settings(request):
             menu_logo = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/MBT-Logo-Black_200.webp'
 
     if spm:
-        favicon_ico = favicon_svg = favicon_96x96 = favicon_touch = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/favicon/MBTSPM.png'
+        favicon_ico = favicon_svg = favicon_96x96 = favicon_touch = 'https://cdn.mybustimes.cc/mybustimes/assets/favicon/MBTSPM.png'
     elif poppy:
-        favicon_ico = favicon_svg = favicon_96x96 = favicon_touch = 'https://raw.githubusercontent.com/NextStopLabs/MBT-Media-Kit/refs/heads/main/MBT%20Poppy%20Theme%20Asset%20Pack/Square%20Small%20Icon.svg'
+        favicon_ico = favicon_svg = favicon_96x96 = favicon_touch = 'https://cdn.mybustimes.cc/mybustimes/Square%20Small%20Icon.svg'
     else:
-        favicon_ico = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/favicon/favicon.ico'
-        favicon_svg = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/favicon/favicon.svg'
-        favicon_96x96 = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/favicon/favicon-96x96.png'
-        favicon_touch = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/favicon/apple-touch-icon.png'
+        favicon_ico = 'https://cdn.mybustimes.cc/mybustimes/assets/favicon/favicon.ico'
+        favicon_svg = 'https://cdn.mybustimes.cc/mybustimes/assets/favicon/favicon.svg'
+        favicon_96x96 = 'https://cdn.mybustimes.cc/mybustimes/assets/favicon/favicon-96x96.png'
+        favicon_touch = 'https://cdn.mybustimes.cc/mybustimes/assets/favicon/apple-touch-icon.png'
 
     live_ads = list(ad.objects.filter(ad_live=True).values('ad_name', 'ad_img', 'ad_link', 'ad_img_overide'))
     google_ads = {g.ad_place_id: g.ad_id for g in google_ad.objects.all()}
