@@ -1098,7 +1098,7 @@ def vehicle_edit(request, operator_slug, vehicle_id):
             Q(id__in=helper_operator_ids) | Q(owner=request.user)
         ).distinct().order_by('operator_name')
 
-    features_path = os.path.join(settings.MEDIA_ROOT, 'JSON', 'features.json')
+    features_path = os.path.join(settings.MEDIA_URL, 'JSON', 'features.json')
     with open(features_path, 'r') as f:
         features_json = json.load(f)
         features_list = features_json.get("features", [])
@@ -2659,7 +2659,7 @@ def vehicle_add(request, operator_slug):
             Q(id__in=helper_operator_ids) | Q(owner=request.user)
         ).distinct().order_by('operator_name')
 
-    features_path = os.path.join(settings.MEDIA_ROOT, 'JSON', 'features.json')
+    features_path = os.path.join(settings.MEDIA_URL, 'JSON', 'features.json')
     with open(features_path, 'r') as f:
         features_json = json.load(f)
         features_list = features_json.get("features", [])
@@ -2798,7 +2798,7 @@ def vehicle_mass_add(request, operator_slug):
         ).distinct().order_by('operator_name')
 
 
-    features_path = os.path.join(settings.MEDIA_ROOT, 'JSON', 'features.json')
+    features_path = os.path.join(settings.MEDIA_URL, 'JSON', 'features.json')
     with open(features_path, 'r') as f:
         features_json = json.load(f)
         features_list = features_json.get("features", [])
@@ -3037,7 +3037,7 @@ def vehicle_mass_edit(request, operator_slug):
             Q(id__in=helper_operator_ids) | Q(owner=request.user)
         ).distinct().order_by('operator_name')
 
-    features_path = os.path.join(settings.MEDIA_ROOT, 'JSON', 'features.json')
+    features_path = os.path.join(settings.MEDIA_URL, 'JSON', 'features.json')
     with open(features_path, 'r') as f:
         features_json = json.load(f)
         features_list = features_json.get("features", [])

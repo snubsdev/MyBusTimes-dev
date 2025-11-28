@@ -86,7 +86,7 @@ class FleetModelTests(TestCase):
         self.assertIn("Not Approved", str(reserved))
 
     def test_reserved_operator_name_validation(self):
-        json_dir = Path(settings.MEDIA_ROOT) / "JSON"
+        json_dir = Path(settings.MEDIA_URL) / "JSON"
         json_dir.mkdir(parents=True, exist_ok=True)
         forbidden_file = json_dir / "non-reservable-names.json"
         forbidden_file.write_text(json.dumps(["badword", "test"]))

@@ -40,6 +40,7 @@ from collections import defaultdict
 from django.http import HttpResponse, Http404
 from django.http import FileResponse
 from datetime import timedelta
+from django.core.files.storage import default_storage
 from django.contrib.auth import authenticate
 
 from rest_framework.decorators import api_view, permission_classes
@@ -218,8 +219,9 @@ def index(request):
     # Load mod.json messages as before
     for_sale_vehicles = fleet.objects.filter(for_sale=True).order_by('fleet_number').count()
 
-    mod_path = os.path.join(settings.MEDIA_ROOT, 'JSON', 'mod.json')
-    with open(mod_path, 'r', encoding='utf-8') as f:
+    path = "JSON/mod.json"
+
+    with default_storage.open(path, "r") as f:
         data = json.load(f)
     messages = data.get('messages', [])
     message = random.choice(messages) if messages else "Welcome!"
@@ -263,8 +265,9 @@ def adfirst_test(request):
     # Load mod.json messages as before
     for_sale_vehicles = fleet.objects.filter(for_sale=True).order_by('fleet_number').count()
 
-    mod_path = os.path.join(settings.MEDIA_ROOT, 'JSON', 'mod.json')
-    with open(mod_path, 'r', encoding='utf-8') as f:
+    path = "JSON/mod.json"
+
+    with default_storage.open(path, "r") as f:
         data = json.load(f)
     messages = data.get('messages', [])
     message = random.choice(messages) if messages else "Welcome!"

@@ -11,4 +11,4 @@ urlpatterns = [
     path('tiles/<str:game>/json', GameTilesJSONDetailView.as_view(), name='get_game_tiles_json'),
     path('<str:game_name>/', RouteDataView.as_view(), name='get_route_data'),
     path('<str:game_name>/Dests', RouteDestsDataView.as_view(), name='get_route_data'),
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_URL)

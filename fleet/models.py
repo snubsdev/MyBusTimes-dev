@@ -346,7 +346,7 @@ class reservedOperatorName(models.Model):
 
     @classmethod
     def is_name_reservable(cls, operator_name):
-        json_path = Path(settings.MEDIA_ROOT) / 'JSON' / 'non-reservable-names.json'
+        json_path = Path(settings.MEDIA_URL) / 'JSON' / 'non-reservable-names.json'
         with open(json_path, 'r') as file:
             non_reservable_names = json.load(file)
 
