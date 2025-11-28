@@ -1,30 +1,45 @@
 from django.core.management.base import BaseCommand
 from django.conf import settings
 from django.core.files.storage import default_storage
+from django.contrib.staticfiles.storage import staticfiles_storage
 import os
 
+
 class Command(BaseCommand):
-    help = "Upload the entire MEDIA_ROOT folder to your S3-compatible storage"
+    help = "Upload MEDIA_ROOT and STATIC_ROOT folders to S3-compatible storage."
 
-    def handle(self, *args, **options):
-        media_root = settings.MEDIA_ROOT
-
-        if not os.path.isdir(media_root):
-            self.stdout.write(self.style.ERROR("MEDIA_ROOT does not exist."))
+    def upload_folder(self, root_path, storage, label):
+        if not os.path.isdir(root_path):
+            self.stdout.write(self.style.WARNING(f"{label} does not exist — skipping."))
             return
 
-        self.stdout.write(self.style.SUCCESS(f"Uploading media from: {media_root}"))
+        self.stdout.write(self.style.SUCCESS(f"\nUploading {label} from: {root_path}\n"))
 
-        for root, dirs, files in os.walk(media_root):
+        for root, dirs, files in os.walk(root_path):
             for file in files:
                 local_path = os.path.join(root, file)
 
-                # Relative path inside the bucket
-                relative_path = os.path.relpath(local_path, media_root)
+                relative_path = os.path.relpath(local_path, root_path)
 
-                self.stdout.write(f"Uploading {relative_path}...")
+                self.stdout.write(f"Uploading {label}: {relative_path}...")
 
                 with open(local_path, "rb") as f:
-                    default_storage.save(relative_path, f)
+                    storage.save(relative_path, f)
 
-        self.stdout.write(self.style.SUCCESS("All media files uploaded successfully!"))
+    def handle(self, *args, **options):
+        # --- Upload media ---
+        self.upload_folder(
+            settings.MEDIA_ROOT,
+            default_storage,
+            "MEDIA",
+        )
+
+        # --- Upload static ---
+        static_root = settings.STATIC_ROOT
+        self.upload_folder(
+            static_root,
+            staticfiles_storage,
+            "STATIC",
+        )
+
+        self.stdout.write(self.style.SUCCESS("\nAll media and static files uploaded successfully!"))

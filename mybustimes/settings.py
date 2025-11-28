@@ -1,3 +1,4 @@
+from boto3.s3.transfer import TransferConfig
 from dotenv import load_dotenv
 from pathlib import Path
 import os
@@ -311,6 +312,14 @@ AWS_S3_CONFIG = {
 AWS_LOCATION = "mybustimes/staticfiles"
 AWS_S3_CHECKSUM = False
 AWS_S3_USE_THREADS = False
+AWS_S3_CHECKSUM = False
+
+AWS_S3_TRANSFER_CONFIG = TransferConfig(
+    multipart_threshold=1024 * 1024 * 500,  # 500 MB
+    multipart_chunksize=1024 * 1024 * 500,
+    max_concurrency=1,
+    use_threads=False,
+)
 
 STORAGES = {
     "default": {
@@ -321,8 +330,8 @@ STORAGES = {
     },
 }
 
-STATIC_URL = "https://cdn.mybustimes.cc/mybustimes/staticfiles/"
-MEDIA_URL = "https://cdn.mybustimes.cc/mybustimes/media/"
+STATIC_URL = "https://cdn.mybustimes.cc/mybustimes/mybustimes/staticfiles/"
+MEDIA_URL = "https://cdn.mybustimes.cc/mybustimes/mybustimes/media/"
 
 MEDIA_ROOT = BASE_DIR / "media"
 STATIC_ROOT = BASE_DIR / "staticfiles"
