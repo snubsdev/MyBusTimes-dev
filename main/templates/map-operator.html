@@ -43,6 +43,21 @@
 
 {% block content %}
 <button id="directionToggle">Show Outbound</button>
+<button id="stopsToggle" style="
+  position: fixed;
+  bottom: 10px;
+  left: 140px;
+  z-index: 1000;
+  background: var(--brand-color);
+  color: var(--text-color);
+  padding: 6px 10px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+">
+  Show Stops
+</button>
+
 <div id="map"></div>
 
 <script>
@@ -50,6 +65,7 @@
   const operatorRoutesUrl = `/api/operator/route/?route_operators=${operatorId}`;
 
   let currentDirection = "inbound";
+  let showStops = false; // OFF BY DEFAULT
 
   {% if themeDark == 'True' %}
     tilesJSON = 'https://tiles.snubs.dev/styles/dark-matter/style.json';
@@ -175,6 +191,19 @@
       toggleBtn.textContent = 'Show Outbound';
     }
     loadOperatorRoutes(currentDirection);
+  });
+
+  const stopsToggle = document.getElementById('stopsToggle');
+  stopsToggle.addEventListener('click', () => {
+    showStops = !showStops;
+
+    stopsToggle.textContent = showStops ? "Hide Stops" : "Show Stops";
+
+    if (!showStops) {
+      clearMarkers();
+    } else {
+      loadOperatorRoutes(currentDirection); // Reload route & markers
+    }
   });
 
   map.on('load', () => loadOperatorRoutes(currentDirection));
