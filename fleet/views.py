@@ -2002,7 +2002,7 @@ def duty_add(request, operator_slug):
             'titles': titles,  # Pass the plural title for the duties/running boards
             'title': title,  # Pass the singular title for the duty/running board
         }
-        return render(request, 'duties.html', context)
+        return render(request, 'add_duty.html', context)
 
 @login_required
 @require_http_methods(["GET", "POST"])
@@ -2020,7 +2020,7 @@ def duty_add_trip(request, operator_slug, duty_id):
     else:
         title = "Duty"
         titles = "Duties"
-        board_type = "duty"
+        board_type = "duties"
 
     operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
     userPerms = get_helper_permissions(request.user, operator)
