@@ -81,12 +81,12 @@
 
 <script>
   const savedView = JSON.parse(localStorage.getItem('mbt_map_view') || 'null');
-  let tilesJSON = 'https://tiles.snubs.dev/styles/bright/style.json';
+  let tilesJSON = 'https://tiles.snubs.dev/styles/light/style.json';
 
   {% if themeDark == 'True' %}
     tilesJSON = 'https://tiles.snubs.dev/styles/dark/style.json';
   {% else %}
-    tilesJSON = 'https://tiles.snubs.dev/styles/bright/style.json';
+    tilesJSON = 'https://tiles.snubs.dev/styles/light/style.json';
   {% endif %}
 
   const map = new maplibregl.Map({
