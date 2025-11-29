@@ -1,0 +1,228 @@
+{% extends 'mbtbase.html' %}
+{% load static %}
+{% load url_filters %}
+
+{% block title %}{{ route.route_num }} Route Map{% endblock %}
+
+{% block extra_css %}
+<link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
+
+<style>
+  html, body, main {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  #map {
+    position: fixed !important;
+    top: 55px;
+    bottom: 0;
+    width: 100%;
+    left: 0;
+  }
+
+  #directionToggle {
+    position: fixed;
+    bottom: 10px;
+    left: 10px;
+    z-index: 1000;
+    background: var(--brand-color);
+    color: var(--text-color);
+    padding: 6px 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  #stopsToggle {
+    position: fixed;
+    bottom: 50px;
+    left: 10px;
+    z-index: 1000;
+    background: var(--brand-color);
+    color: var(--text-color);
+    padding: 6px 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  /* Hide markers by default */
+  .maplibregl-marker {
+    display: none;
+  }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js"></script>
+{% endblock %}
+
+{% block content %}
+<button id="directionToggle">Show Outbound</button>
+<button id="stopsToggle" style="
+  position: fixed;
+  bottom: 10px;
+  left: 140px;
+  z-index: 1000;
+  background: var(--brand-color);
+  color: var(--text-color);
+  padding: 6px 10px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+">
+  Show Stops
+</button>
+
+<div id="map"></div>
+
+<script>
+  const operatorId = "{{ operator.id }}";
+  const operatorRoutesUrl = `/api/operator/route/?route_operators=${operatorId}`;
+
+  let currentDirection = "inbound";
+  let showStops = false; // OFF BY DEFAULT
+
+  {% if themeDark == 'True' %}
+    tilesJSON = 'https://tiles.snubs.dev/styles/dark-matter/style.json';
+  {% else %}
+    tilesJSON = 'https://tiles.snubs.dev/styles/bright/style.json';
+  {% endif %}
+
+  const map = new maplibregl.Map({
+    container: 'map',
+    style: tilesJSON,
+    center: [-1.9, 54.9],
+    zoom: 6
+  });
+
+  map.addControl(new maplibregl.NavigationControl(), 'top-left');
+
+  let markers = [];
+  let routeLayers = [];
+
+  // Load ALL operator routes
+  async function loadOperatorRoutes(direction) {
+    // Clear markers
+    markers.forEach(m => m.remove());
+    markers = [];
+
+    // Remove old route layers
+    for (const id of routeLayers) {
+      if (map.getLayer(id)) map.removeLayer(id);
+      if (map.getSource(id)) map.removeSource(id);
+    }
+    routeLayers = [];
+
+    // Fetch routes belonging to the operator
+    const resRoutes = await fetch(operatorRoutesUrl);
+    const operatorData = await resRoutes.json();
+    const routes = operatorData.results ?? [];
+
+    let globalBounds = new maplibregl.LngLatBounds();
+
+    for (const route of routes) {
+      await loadSingleRoute(route.id, direction, globalBounds);
+    }
+
+    // Fit map to include ALL routes if bounds are valid
+    if (!globalBounds.isEmpty()) {
+      map.fitBounds(globalBounds, { padding: 60 });
+    }
+  }
+
+  // Load a single route and overlay it
+  async function loadSingleRoute(routeId, direction, globalBounds) {
+    const res = await fetch(`/api/routes/${routeId}/stops/?direction=${direction}`);
+    if (!res.ok) return;
+
+    const stops = await res.json();
+    const coords = stops
+      .map(s => s.cords?.split(',').map(Number))
+      .filter(c => c && c.length === 2 && !isNaN(c[0]) && !isNaN(c[1]))
+      .map(([lat, lon]) => [lon, lat]);
+
+    const layerId = `routeLine_${routeId}`;
+
+    // Draw route polyline
+    if (coords.length >= 2) {
+      map.addSource(layerId, {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          geometry: { type: 'LineString', coordinates: coords }
+        }
+      });
+
+      map.addLayer({
+        id: layerId,
+        type: 'line',
+        source: layerId,
+        paint: {
+          'line-color': '#2f80ed',
+          'line-width': 3
+        }
+      });
+
+      // Track layers so they can be removed later
+      routeLayers.push(layerId);
+
+      // Expand global bounds
+      coords.forEach(c => globalBounds.extend(c));
+    }
+
+    // Add stop markers
+    for (const stop of stops) {
+      const [lat, lon] = stop.cords.split(',').map(Number);
+      if (isNaN(lat) || isNaN(lon)) continue;
+
+      const el = document.createElement('div');
+      el.style.cssText = `
+        width:10px;height:10px;
+        border:3px solid #2f80ea;
+        border-radius:50%;
+        background:#fff;
+        cursor:pointer;
+      `;
+
+      const marker = new maplibregl.Marker({ element: el })
+        .setLngLat([lon, lat])
+        .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(
+          `<a href="/stop/?name=${encodeURIComponent(stop.stop)}">${stop.stop}</a>`
+        ))
+        .addTo(map);
+
+      markers.push(marker);
+    }
+  }
+
+  // Toggle direction
+  const toggleBtn = document.getElementById('directionToggle');
+  toggleBtn.addEventListener('click', () => {
+    if (currentDirection === 'inbound') {
+      currentDirection = 'outbound';
+      toggleBtn.textContent = 'Show Inbound';
+    } else {
+      currentDirection = 'inbound';
+      toggleBtn.textContent = 'Show Outbound';
+    }
+    loadOperatorRoutes(currentDirection);
+  });
+
+  const stopsBtn = document.getElementById('stopsToggle');
+
+  stopsBtn.addEventListener('click', () => {
+    showStops = !showStops;
+
+    document.querySelectorAll('.maplibregl-marker').forEach(el => {
+      el.style.display = showStops ? "block" : "none";
+    });
+
+    stopsBtn.textContent = showStops ? "Hide Stops" : "Show Stops";
+  });
+  map.on('load', () => loadOperatorRoutes(currentDirection));
+</script>
+
+{% endblock %}

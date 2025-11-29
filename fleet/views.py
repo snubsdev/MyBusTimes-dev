@@ -238,6 +238,9 @@ def generate_tabs(active, operator, count=None):
     tab_name = f"{route_count} routes" if active == "routes" else "Routes"
     tabs.append({"name": tab_name, "url": f"/operator/{operator.operator_slug}/", "active": active == "routes"})
 
+    tab_name = "Map"
+    tabs.append({"name": tab_name, "url": f"/map/operator/{operator.operator_slug}/", "active": active == "map"})
+
     tab_name = f"{vehicle_count} vehicles" if active == "vehicles" else "Vehicles"
     tabs.append({"name": tab_name, "url": f"/operator/{operator.operator_slug}/vehicles/", "active": active == "vehicles"})
 
@@ -3047,9 +3050,9 @@ def vehicle_mass_edit(request, operator_slug):
     path = "JSON/features.json"
 
     with default_storage.open(path, "r") as f:
-        data = json.load(f)
-        features_json = data.load(f)
-        features_list = features_json.get("features", [])
+        features_json = json.load(f)
+
+    features_list = features_json.get("features", [])
 
     if request.method == "POST":
         updated_count = 0

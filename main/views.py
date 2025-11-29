@@ -337,6 +337,23 @@ def stop_map(request):
 def live_map_simple(request):
     return render(request, 'map-simple.html')
 
+def operator_route_map(request, operator_slug):
+    response = feature_enabled(request, "route_map")
+    if response:
+        return response
+    
+    operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
+    mapTiles_instance = operator.mapTile if operator else mapTileSet.objects.filter(is_default=True).first()
+
+    if mapTiles_instance == None:
+        mapTiles_instance = mapTileSet.objects.get(id=1)
+
+    context = {
+        'operator': operator,
+        'mapTile': mapTiles_instance,
+    }
+    return render(request, 'map-operator.html', context)
+
 def live_route_map(request, route_id):
     response = feature_enabled(request, "route_map")
     if response:
