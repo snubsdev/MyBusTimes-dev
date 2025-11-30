@@ -164,6 +164,13 @@ def register_view(request):
 
             validation = validate_turnstile(token, remoteip)
 
+            #email and username validation
+            if form.cleaned_data['email'] and CustomUser.objects.filter(email=form.cleaned_data['email']).exists():
+                form.add_error('email', 'Email address is already in use.')
+            
+            if form.cleaned_data['username'] and CustomUser.objects.filter(username=form.cleaned_data['username']).exists():
+                form.add_error('username', 'Username is already taken.')
+
             if validation['success']:
                 if ' ' in form.cleaned_data['username']:
                     form.add_error('username', 'Username cannot contain spaces')
