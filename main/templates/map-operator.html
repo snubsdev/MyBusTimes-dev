@@ -80,7 +80,7 @@
 
 <script>
   const operatorId = "{{ operator.id }}";
-  const operatorRoutesUrl = `/api/operator/route/?route_operators=${operatorId}`;
+  const operatorRoutesUrl = `/api/operator/route/?route_operators=${operatorId}&stops_have_cords=true`;
 
   let currentDirection = "inbound";
   let showStops = false; // OFF BY DEFAULT
