@@ -4,6 +4,8 @@ from django.db.models import Q
 
 class routesFilter(django_filters.FilterSet):
     operator_code = django_filters.CharFilter(method='filter_by_operator_code')
+    has_stops = django_filters.BooleanFilter(method='filter_has_stops')
+    stops_have_cords = django_filters.BooleanFilter(method='filter_stops_have_cords')
 
     class Meta:
         model = route
@@ -17,6 +19,17 @@ class routesFilter(django_filters.FilterSet):
     def filter_by_operator_code(self, queryset, name, value):
         return queryset.filter(route_operators__operator_code__iexact=value)
 
+    def filter_has_stops(self, queryset, name, value):
+        return queryset.filter(routestop__stops__isnull=False).distinct()
+    
+    def filter_stops_have_cords(self, queryset, name, value):
+        if not value:
+            return queryset
+
+        return queryset.filter(
+            routestop__stops__icontains="cords"
+        ).distinct()
+    
 class timetableFilter(django_filters.FilterSet):
     class Meta:
         model = timetableEntry

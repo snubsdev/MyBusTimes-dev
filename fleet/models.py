@@ -71,7 +71,7 @@ class liverie(models.Model):
 
 class vehicleType(models.Model):
     id = models.AutoField(primary_key=True)
-    type_name = models.CharField(max_length=100, blank=False, unique=True)
+    type_name = models.CharField(max_length=100, blank=False)
     active = models.BooleanField(default=False)
     hidden = models.BooleanField(default=False, help_text="If true, this type will not be displayed in the UI.")
     double_decker = models.BooleanField(default=False)
@@ -346,7 +346,7 @@ class reservedOperatorName(models.Model):
 
     @classmethod
     def is_name_reservable(cls, operator_name):
-        json_path = Path(settings.MEDIA_ROOT) / 'JSON' / 'non-reservable-names.json'
+        json_path = Path(settings.MEDIA_URL) / 'JSON' / 'non-reservable-names.json'
         with open(json_path, 'r') as file:
             non_reservable_names = json.load(file)
 

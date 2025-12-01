@@ -154,6 +154,7 @@ def register_view(request):
 
     if request.method == 'POST':
         form = CustomUserCreationForm(request.POST)
+
         if form.is_valid():
             token = request.POST.get('cf-turnstile-response')
             remoteip = (
@@ -164,33 +165,42 @@ def register_view(request):
 
             validation = validate_turnstile(token, remoteip)
 
+            # email and username validation
+            if form.cleaned_data['email'] and CustomUser.objects.filter(email=form.cleaned_data['email']).exists():
+                form.add_error('email', 'Email address is already in use.')
+
+            if form.cleaned_data['username'] and CustomUser.objects.filter(username=form.cleaned_data['username']).exists():
+                form.add_error('username', 'Username is already taken.')
+
+            if ' ' in form.cleaned_data.get('username', ''):
+                form.add_error('username', 'Username cannot contain spaces')
+
+            # 🔥 NEW IMPORTANT CHECK — DO NOT SAVE IF ERRORS WERE ADDED
+            if form.errors:
+                return render(request, 'register.html', {'form': form})
+
+            # Continue only if validation success
             if validation['success']:
-                if ' ' in form.cleaned_data['username']:
-                    form.add_error('username', 'Username cannot contain spaces')
-                else:
-                    user = form.save()
+                user = form.save()
 
-                    # ✅ check for invite cookie
-                    invite_id = request.COOKIES.get("invite_id")
-                    if invite_id:
-                        try:
-                            link = AffiliateLink.objects.get(id=invite_id)
-                            link.signups_from_clicks += 1
-                            link.save()
+                # invite cookie support
+                invite_id = request.COOKIES.get("invite_id")
+                if invite_id:
+                    try:
+                        link = AffiliateLink.objects.get(id=invite_id)
+                        link.signups_from_clicks += 1
+                        link.save()
+                    except AffiliateLink.DoesNotExist:
+                        pass
 
-                        except AffiliateLink.DoesNotExist:
-                            pass
+                # login new user
+                user.backend = settings.AUTHENTICATION_BACKENDS[0]
+                login(request, user)
 
-                    # log the new user in
-                    user.backend = settings.AUTHENTICATION_BACKENDS[0]
-                    login(request, user)
+                response = redirect(f'/u/{user.username}')
+                response.delete_cookie("invite_id")
+                return response
 
-                    response = redirect(f'/u/{user.username}')
-
-                    # ✅ optionally clear the cookie so it’s not reused
-                    response.delete_cookie("invite_id")
-
-                    return response
     else:
         form = CustomUserCreationForm()
 

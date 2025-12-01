@@ -7,13 +7,16 @@ from .serializers import trackingSerializer, trackingDataSerializer, TripSeriali
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import AllowAny
 #from rest_framework_api_key.permissions import HasAPIKey
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from .forms import trackingForm
 from django.shortcuts import redirect
 from main.models import UserKeys
-
+from rest_framework import generics, serializers
+from routes.models import routeStop
+from fleet.models import fleet
 from django.views.decorators.csrf import csrf_exempt
 
 @csrf_exempt
@@ -263,3 +266,293 @@ class map_view_history(generics.ListAPIView):
             return Tracking.objects.filter(game_id=tracking_game)
         return Tracking.objects.all()
 
+class current_vehicle_trips(generics.ListAPIView):
+    serializer_class = TripSerializer
+    permission_classes = [ReadOnly]
+    def get_queryset(self):
+        current_time = timezone.now()
+        print(f"[DEBUG] current_vehicle_trips: current_time = {current_time}")
+        queryset = Trip.objects.filter(
+            trip_start_at__lte=current_time,
+            trip_end_at__gte=current_time
+        )
+        print(f"[DEBUG] current_vehicle_trips: found {queryset.count()} trips")
+        return queryset
+    
+import math
+def calculate_heading(lat1, lng1, lat2, lng2):
+    """
+    Returns heading in degrees (0–360),
+    where 0 = North, 90 = East, 180 = South, 270 = West.
+    """
+    lat1 = math.radians(lat1)
+    lat2 = math.radians(lat2)
+    d_lng = math.radians(lng2 - lng1)
+
+    x = math.sin(d_lng) * math.cos(lat2)
+    y = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(d_lng)
+
+    heading = math.degrees(math.atan2(x, y))
+    heading = (heading + 360) % 360
+    return heading
+    
+def get_route_coordinates(route_id):
+    """Return the list of (lat, lng) from routeStop.stops JSON.
+
+    Works for multiple routeStop rows per route (concatenates them
+    in DB order). Robust to malformed entries.
+    """
+    print(f"[DEBUG] get_route_coordinates: route_id = {route_id}")
+    stops_qs = routeStop.objects.filter(route_id=route_id).order_by("id")
+    print(f"[DEBUG] get_route_coordinates: found {stops_qs.count()} stops rows")
+    coords = []
+
+    for rs in stops_qs:
+        if not rs.stops:
+            print(f"[DEBUG] get_route_coordinates: routeStop {rs.id} has empty stops")
+            continue
+
+        # rs.stops is a JSON list of dicts like:
+        # [{"stop": "...", "cords": "lat,lng", ...}, ...]
+        try:
+            for i, stop in enumerate(rs.stops):
+                if not isinstance(stop, dict):
+                    print(f"[DEBUG] get_route_coordinates: skip non-dict stop at index {i} in routeStop {rs.id}")
+                    continue
+
+                cords = stop.get("cords") or stop.get("coords")  # try both common keys
+                if not cords:
+                    # maybe lat/lng are stored separately
+                    lat = stop.get("lat") or stop.get("latitude")
+                    lng = stop.get("lng") or stop.get("longitude") or stop.get("long")
+                    if lat is not None and lng is not None:
+                        try:
+                            coords.append((float(lat), float(lng)))
+                        except Exception as e:
+                            print(f"[DEBUG] get_route_coordinates: failed to parse lat/lng in routeStop {rs.id} stop {i}: {e}")
+                    else:
+                        print(f"[DEBUG] get_route_coordinates: no coords found for routeStop {rs.id} stop {i}")
+                    continue
+
+                # cords exist as a single "lat,lng" string
+                try:
+                    lat_str, lng_str = cords.split(",")
+                    lat, lng = float(lat_str.strip()), float(lng_str.strip())
+                    coords.append((lat, lng))
+                except Exception as e:
+                    print(f"[DEBUG] get_route_coordinates: failed to parse cords '{cords}' for routeStop {rs.id} stop {i}: {e}")
+                    continue
+
+        except Exception as e:
+            print(f"[DEBUG] get_route_coordinates: unexpected error reading routeStop {rs.id}: {e}")
+            continue
+
+    print(f"[DEBUG] get_route_coordinates: returning {len(coords)} coordinates")
+    return coords
+
+def get_progress(trip):
+    now = timezone.now()
+    start = trip.trip_start_at
+    end = trip.trip_end_at
+    print(f"[DEBUG] get_progress: trip_id={trip.pk}, now={now}, start={start}, end={end}")
+    duration = (end - start).total_seconds()
+    elapsed = (now - start).total_seconds()
+    print(f"[DEBUG] get_progress: duration={duration}s, elapsed={elapsed}s")
+    if elapsed <= 0:
+        print(f"[DEBUG] get_progress: returning 0.0 (not started)")
+        return 0.0
+    if elapsed >= duration:
+        print(f"[DEBUG] get_progress: returning 1.0 (completed)")
+        return 1.0
+    progress = elapsed / duration
+    print(f"[DEBUG] get_progress: returning {progress}")
+    return progress
+
+def interpolate(coords, progress):
+    if not coords:
+        return (None, None, None)
+    if len(coords) == 1:
+        return coords[0][0], coords[0][1], 0
+
+    total_segments = len(coords) - 1
+    segment_float = progress * total_segments
+    seg_index = int(segment_float)
+
+    if seg_index >= total_segments:
+        return coords[-1][0], coords[-1][1], total_segments - 1
+
+    seg_progress = segment_float - seg_index
+
+    (lat1, lng1) = coords[seg_index]
+    (lat2, lng2) = coords[seg_index + 1]
+
+    lat = lat1 + (lat2 - lat1) * seg_progress
+    lng = lng1 + (lng2 - lng1) * seg_progress
+
+    return lat, lng, seg_index
+
+
+class VehicleDetailSerializer(serializers.Serializer):
+    url = serializers.SerializerMethodField()
+    name = serializers.SerializerMethodField()
+    features = serializers.SerializerMethodField()
+    livery = serializers.SerializerMethodField()
+    colour = serializers.SerializerMethodField()
+    text_colour = serializers.SerializerMethodField()
+    white_text = serializers.SerializerMethodField()
+    left_css = serializers.SerializerMethodField()
+    right_css = serializers.SerializerMethodField()
+    stroke_colour = serializers.SerializerMethodField()
+
+    def _get_vehicle_obj(self, obj):
+        # Convert int → vehicle instance AND cache so we don't hit DB multiple times
+        if isinstance(obj, int):
+            if not hasattr(self, "_vehicle_cache"):
+                self._vehicle_cache = {}
+            if obj not in self._vehicle_cache:
+                self._vehicle_cache[obj] = fleet.objects.select_related("operator", "livery").get(id=obj)
+            return self._vehicle_cache[obj]
+
+        return obj
+
+    def get_url(self, obj):
+        obj = self._get_vehicle_obj(obj)
+        return f"/operator/{obj.operator.operator_slug}/vehicles/{obj.id}/"
+
+    def get_name(self, obj):
+        obj = self._get_vehicle_obj(obj)
+        if obj.fleet_number:
+            return f"{obj.fleet_number} - {obj.reg}"
+        return obj.reg or "Unknown Vehicle"
+
+    def get_features(self, obj):
+        obj = self._get_vehicle_obj(obj)
+        if not obj.features:
+            return ""
+        if isinstance(obj.features, list):
+            return "<br>".join(obj.features)
+        return str(obj.features)
+
+    def get_livery(self, obj):
+        obj = self._get_vehicle_obj(obj)
+        return obj.livery.id if obj.livery else None
+
+    def get_colour(self, obj):
+        obj = self._get_vehicle_obj(obj)
+        return obj.livery.colour if obj.livery else (obj.colour or "#000000")
+
+    def get_text_colour(self, obj):
+        obj = self._get_vehicle_obj(obj)
+        return obj.livery.text_colour if obj.livery else "#ffffff"
+
+    def get_white_text(self, obj):
+        return self.get_text_colour(obj).lower() in ["#fff", "#ffffff", "white"]
+
+    def get_left_css(self, obj):
+        obj = self._get_vehicle_obj(obj)
+        return obj.livery.left_css if obj.livery else ""
+
+    def get_right_css(self, obj):
+        obj = self._get_vehicle_obj(obj)
+        return obj.livery.right_css if obj.livery else ""
+
+    def get_stroke_colour(self, obj):
+        obj = self._get_vehicle_obj(obj)
+        return obj.livery.stroke_colour if obj.livery else ""
+    
+class ServiceDetailSerializer(serializers.Serializer):
+    url = serializers.SerializerMethodField()
+    line_name = serializers.SerializerMethodField()
+
+    def _get_route(self, service_id):
+        return route.objects.filter(id=service_id).first()
+
+    def get_url(self, service_id):
+        r = self._get_route(service_id)
+        if not r:
+            return None
+
+        op = r.route_operators.first()
+        if not op:
+            return None
+
+        return f"/operator/{op.operator_slug}/route/{r.id}/"
+    
+    def get_line_name(self, service_id):
+        r = self._get_route(service_id)
+        return r.route_num if r else "Unknown Service"
+
+class EstimatedPositionSerializer(serializers.Serializer):
+    trip_id = serializers.IntegerField()
+    vehicle = VehicleDetailSerializer()
+    service_id = serializers.IntegerField()
+    service = ServiceDetailSerializer()
+    progress = serializers.FloatField()
+    lat = serializers.FloatField()
+    lng = serializers.FloatField()
+    destination = serializers.CharField()
+    heading = serializers.FloatField()
+
+class VehiclePositionAPIView(generics.ListAPIView):
+    serializer_class = EstimatedPositionSerializer
+    permission_classes = [AllowAny]
+    def get_queryset(self):
+        now = timezone.now()
+        print(f"[DEBUG] VehiclePositionAPIView: now = {now}")
+        # Fetch active trips
+        trips = Trip.objects.filter(
+            trip_start_at__lte=now,
+            trip_end_at__gte=now,
+            trip_ended=False
+        )
+        print(f"[DEBUG] VehiclePositionAPIView: found {trips.count()} active trips")
+        # Bounding box (optional)
+        min_lat = self.request.query_params.get("ymin")
+        max_lat = self.request.query_params.get("ymax")
+        min_lng = self.request.query_params.get("xmin")
+        max_lng = self.request.query_params.get("xmax")
+        print(f"[DEBUG] VehiclePositionAPIView: bounding box = min_lat={min_lat}, max_lat={max_lat}, min_lng={min_lng}, max_lng={max_lng}")
+        results = []
+        for trip in trips:
+            print(f"[DEBUG] VehiclePositionAPIView: processing trip_id={trip.pk}")
+            coords = get_route_coordinates(trip.trip_route_id)
+            progress = get_progress(trip)
+            lat, lng, seg_index = interpolate(coords, progress)
+
+            if lat is None or lng is None:
+                continue
+
+            # compute heading (if possible)
+            heading = None
+            if seg_index < len(coords) - 1:
+                next_lat, next_lng = coords[seg_index + 1]
+                heading = calculate_heading(lat, lng, next_lat, next_lng)
+
+            # Bounding box filter
+            if min_lat and lat < float(min_lat):
+                print(f"[DEBUG] VehiclePositionAPIView: skipping trip_id={trip.pk} (lat < min_lat)")
+                continue
+            if max_lat and lat > float(max_lat):
+                print(f"[DEBUG] VehiclePositionAPIView: skipping trip_id={trip.pk} (lat > max_lat)")
+                continue
+            if min_lng and lng < float(min_lng):
+                print(f"[DEBUG] VehiclePositionAPIView: skipping trip_id={trip.pk} (lng < min_lng)")
+                continue
+            if max_lng and lng > float(max_lng):
+                print(f"[DEBUG] VehiclePositionAPIView: skipping trip_id={trip.pk} (lng > max_lng)")
+                continue
+            result = {
+                "trip_id": trip.pk,
+                "vehicle": trip.trip_vehicle_id,
+                "service_id": trip.trip_route_id,
+                "service": trip.trip_route_id,
+                "progress": round(progress, 4),
+                "lat": lat,
+                "lng": lng,
+                "heading": heading,
+                "destination": trip.trip_end_location or ""
+            }
+            print(f"[DEBUG] VehiclePositionAPIView: adding result = {result}")
+            results.append(result)
+        print(f"[DEBUG] VehiclePositionAPIView: returning {len(results)} results")
+        return results

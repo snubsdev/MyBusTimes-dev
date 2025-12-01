@@ -34,6 +34,24 @@
     border-radius: 4px;
     cursor: pointer;
   }
+
+  #stopsToggle {
+    position: fixed;
+    bottom: 50px;
+    left: 10px;
+    z-index: 1000;
+    background: var(--brand-color);
+    color: var(--text-color);
+    padding: 6px 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  /* Hide markers by default */
+  .maplibregl-marker {
+    display: none;
+  }
 </style>
 {% endblock %}
 
@@ -43,15 +61,30 @@
 
 {% block content %}
 <button id="directionToggle">Show Outbound</button>
+<button id="stopsToggle" style="
+  position: fixed;
+  bottom: 10px;
+  left: 140px;
+  z-index: 1000;
+  background: var(--brand-color);
+  color: var(--text-color);
+  padding: 6px 10px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+">
+  Show Stops
+</button>
+
 <div id="map"></div>
 
 <script>
-  const routeId = {{ route.id }};
-  const operatorName = "{{ operator.operator_name }}";
+  const operatorId = "{{ operator.id }}";
+  const operatorRoutesUrl = `/api/operator/route/?route_operators=${operatorId}&stops_have_cords=true`;
 
   let currentDirection = "inbound";
+  let showStops = false; // OFF BY DEFAULT
 
-  // Choose tile style
   {% if themeDark == 'True' %}
     tilesJSON = 'https://tiles.snubs.dev/styles/dark/style.json';
   {% else %}
@@ -68,34 +101,54 @@
   map.addControl(new maplibregl.NavigationControl(), 'top-left');
 
   let markers = [];
-  let routeLine = null;
+  let routeLayers = [];
 
-  async function loadRoute(direction) {
+  // Load ALL operator routes
+  async function loadOperatorRoutes(direction) {
     // Clear markers
-    for (const m of markers) m.remove();
+    markers.forEach(m => m.remove());
     markers = [];
 
-    // Clear previous route line
-    if (map.getLayer('routeLine')) map.removeLayer('routeLine');
-    if (map.getSource('routeLine')) map.removeSource('routeLine');
+    // Remove old route layers
+    for (const id of routeLayers) {
+      if (map.getLayer(id)) map.removeLayer(id);
+      if (map.getSource(id)) map.removeSource(id);
+    }
+    routeLayers = [];
 
-    // Fetch stops
-    const res = await fetch(`/api/routes/${routeId}/stops/?direction=${direction}`);
-    if (!res.ok) {
-      alert('Failed to load route stops');
-      return;
+    // Fetch routes belonging to the operator
+    const resRoutes = await fetch(operatorRoutesUrl);
+    const operatorData = await resRoutes.json();
+    const routes = operatorData.results ?? [];
+
+    let globalBounds = new maplibregl.LngLatBounds();
+
+    for (const route of routes) {
+      await loadSingleRoute(route.id, direction, globalBounds);
     }
 
+    // Fit map to include ALL routes if bounds are valid
+    if (!globalBounds.isEmpty()) {
+      map.fitBounds(globalBounds, { padding: 60 });
+    }
+  }
+
+  // Load a single route and overlay it
+  async function loadSingleRoute(routeId, direction, globalBounds) {
+    const res = await fetch(`/api/routes/${routeId}/stops/?direction=${direction}`);
+    if (!res.ok) return;
+
     const stops = await res.json();
-
     const coords = stops
-      .map(stop => stop.cords?.split(',').map(Number))
+      .map(s => s.cords?.split(',').map(Number))
       .filter(c => c && c.length === 2 && !isNaN(c[0]) && !isNaN(c[1]))
-      .map(([lat, lon]) => [lon, lat]); // MapLibre uses [lon, lat]
+      .map(([lat, lon]) => [lon, lat]);
 
-    // Draw polyline if multiple stops
+    const layerId = `routeLine_${routeId}`;
+
+    // Draw route polyline
     if (coords.length >= 2) {
-      map.addSource('routeLine', {
+      map.addSource(layerId, {
         type: 'geojson',
         data: {
           type: 'Feature',
@@ -104,19 +157,20 @@
       });
 
       map.addLayer({
-        id: 'routeLine',
+        id: layerId,
         type: 'line',
-        source: 'routeLine',
+        source: layerId,
         paint: {
           'line-color': '#2f80ed',
           'line-width': 3
         }
       });
 
-      // Fit map to route
-      const bounds = new maplibregl.LngLatBounds();
-      coords.forEach(c => bounds.extend(c));
-      map.fitBounds(bounds, { padding: 60 });
+      // Track layers so they can be removed later
+      routeLayers.push(layerId);
+
+      // Expand global bounds
+      coords.forEach(c => globalBounds.extend(c));
     }
 
     // Add stop markers
@@ -144,7 +198,7 @@
     }
   }
 
-  // Toggle inbound/outbound
+  // Toggle direction
   const toggleBtn = document.getElementById('directionToggle');
   toggleBtn.addEventListener('click', () => {
     if (currentDirection === 'inbound') {
@@ -154,9 +208,21 @@
       currentDirection = 'inbound';
       toggleBtn.textContent = 'Show Outbound';
     }
-    loadRoute(currentDirection);
+    loadOperatorRoutes(currentDirection);
   });
 
-  map.on('load', () => loadRoute(currentDirection));
+  const stopsBtn = document.getElementById('stopsToggle');
+
+  stopsBtn.addEventListener('click', () => {
+    showStops = !showStops;
+
+    document.querySelectorAll('.maplibregl-marker').forEach(el => {
+      el.style.display = showStops ? "block" : "none";
+    });
+
+    stopsBtn.textContent = showStops ? "Hide Stops" : "Show Stops";
+  });
+  map.on('load', () => loadOperatorRoutes(currentDirection));
 </script>
+
 {% endblock %}

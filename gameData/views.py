@@ -26,7 +26,7 @@ class gameDetailView(generics.RetrieveAPIView):
 class RouteDataView(generics.ListAPIView):
     def get(self, request, game_name, *args, **kwargs):
         # Define the path to the JSON file in the /media/json directory
-        json_file_path = os.path.join(settings.MEDIA_ROOT, 'JSON/gameRoutes', f'{game_name}.json')
+        json_file_path = os.path.join(settings.MEDIA_URL, 'JSON/gameRoutes', f'{game_name}.json')
 
         # Check if the file exists
         if not os.path.exists(json_file_path):
@@ -70,7 +70,7 @@ class GameTilesJSONDetailView(generics.RetrieveAPIView):
             return JsonResponse({'error': 'No tiles JSON file associated with this game'}, status=status.HTTP_404_NOT_FOUND)
 
         # Construct the full path to the JSON file
-        json_file_path = os.path.join(settings.MEDIA_ROOT, game_tile.tiles_json_file.name)
+        json_file_path = os.path.join(settings.MEDIA_URL, game_tile.tiles_json_file.name)
 
         # Check if the file exists
         if not os.path.exists(json_file_path):
@@ -90,7 +90,7 @@ class GameTilesJSONDetailView(generics.RetrieveAPIView):
 class RouteDestsDataView(generics.ListAPIView):
     def get(self, request, game, *args, **kwargs):
         # Define the path to the JSON file in the /media/json directory
-        json_file_path = os.path.join(settings.MEDIA_ROOT, 'JSON/gameRoutes/Dests', f'{game}.json')
+        json_file_path = os.path.join(settings.MEDIA_URL, 'JSON/gameRoutes/Dests', f'{game}.json')
 
         # Check if the file exists
         if not os.path.exists(json_file_path):

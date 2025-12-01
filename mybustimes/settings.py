@@ -1,3 +1,4 @@
+from boto3.s3.transfer import TransferConfig
 from dotenv import load_dotenv
 from pathlib import Path
 import os
@@ -24,18 +25,18 @@ DISCORD_WEB_ERROR_WEBHOOK = os.environ["DISCORD_WEB_ERROR_WEBHOOK"]
 DISCORD_404_ERROR_WEBHOOK = os.environ["DISCORD_404_ERROR_WEBHOOK"]
 
 # Cloudflare Turnstile Site Key
-CF_SITE_KEY = os.environ.get("CF_SITE_KEY")
-CF_SECRET_KEY = os.environ.get("CF_SECRET_KEY")
+CF_SITE_KEY = os.getenv("CF_SITE_KEY")
+CF_SECRET_KEY = os.getenv("CF_SECRET_KEY")
 
 # Discord Bot API URL
-DISCORD_BOT_API_URL = os.environ.get("DISCORD_BOT_API_URL")
+DISCORD_BOT_API_URL = os.getenv("DISCORD_BOT_API_URL")
 
 # Channel IDs for Discord
-DISCORD_LIVERY_ID = os.environ.get("DISCORD_LIVERY_ID")
-DISCORD_MIGRATION_ERROR_ID = os.environ.get("DISCORD_MIGRATION_ERROR_ID")
+DISCORD_LIVERY_ID = os.getenv("DISCORD_LIVERY_ID")
+DISCORD_MIGRATION_ERROR_ID = os.getenv("DISCORD_MIGRATION_ERROR_ID")
 DISCORD_REPORTS_CHANNEL_ID = os.environ["DISCORD_REPORTS_CHANNEL_ID"]
-DISCORD_GAME_ID = os.environ.get("DISCORD_GAME_ID")
-DISCORD_OPERATOR_LOGS_ID = os.environ.get("DISCORD_OPERATOR_LOGS_ID")
+DISCORD_GAME_ID = os.getenv("DISCORD_GAME_ID")
+DISCORD_OPERATOR_LOGS_ID = os.getenv("DISCORD_OPERATOR_LOGS_ID")
 
 STRIPE_SECRET_KEY = os.environ["STRIPE_SECRET_KEY"]
 STRIPE_PUBLISHABLE_KEY = os.environ["STRIPE_PUBLISHABLE_KEY"]
@@ -80,6 +81,7 @@ INSTALLED_APPS = [
     'admin_dash',
     'debug_toolbar',
     'forum',
+    'storages',
     'tickets',
     'apply',
     'messaging',
@@ -288,12 +290,51 @@ EMAIL_HOST_PASSWORD = os.getenv("SMTP_PASSWORD")
 EMAIL_USE_TLS = False
 EMAIL_USE_SSL = True
 
-STATIC_URL = '/static/'
-STATICFILES_DIRS = [BASE_DIR / "static"]
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
 
-MEDIA_URL = '/media/'
+AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME')
+AWS_S3_ENDPOINT_URL = os.getenv('AWS_S3_ENDPOINT_URL')
+    
+AWS_S3_CUSTOM_DOMAIN = "cdn.mybustimes.cc"
+AWS_S3_ADDRESSING_STYLE = "path"
+AWS_S3_SIGNATURE_VERSION = "s3v4"
+AWS_S3_REGION_NAME = "garage"
+
+AWS_S3_FILE_OVERWRITE = False
+AWS_DEFAULT_ACL = None
+
+AWS_S3_CONFIG = {
+    "addressing_style": "path",
+    "signature_version": "s3v4",
+}
+
+AWS_LOCATION = "mybustimes/staticfiles"
+AWS_S3_CHECKSUM = False
+AWS_S3_USE_THREADS = False
+AWS_S3_CHECKSUM = False
+
+AWS_S3_TRANSFER_CONFIG = TransferConfig(
+    multipart_threshold=1024 * 1024 * 500,  # 500 MB
+    multipart_chunksize=1024 * 1024 * 500,
+    max_concurrency=1,
+    use_threads=False,
+)
+
+STORAGES = {
+    "default": {
+        "BACKEND": "mybustimes.storages.MediaStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "mybustimes.storages.StaticStorage",
+    },
+}
+
+STATIC_URL = "https://cdn.mybustimes.cc/mybustimes/mybustimes/staticfiles/"
+MEDIA_URL = "https://cdn.mybustimes.cc/mybustimes/mybustimes/media/"
+
 MEDIA_ROOT = BASE_DIR / "media"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 LOGIN_URL = '/account/login/'
 LOGIN_REDIRECT_URL = '/'

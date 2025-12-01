@@ -34,6 +34,7 @@ from django.http import Http404
 from django.core.paginator import Paginator
 from django.utils.dateparse import parse_time
 from simple_history.models import HistoricalRecords
+from django.core.files.storage import default_storage
 
 # Django REST Framework imports
 from rest_framework.exceptions import NotFound
@@ -236,6 +237,9 @@ def generate_tabs(active, operator, count=None):
     
     tab_name = f"{route_count} routes" if active == "routes" else "Routes"
     tabs.append({"name": tab_name, "url": f"/operator/{operator.operator_slug}/", "active": active == "routes"})
+
+    tab_name = "Map"
+    tabs.append({"name": tab_name, "url": f"/map/operator/{operator.operator_slug}/", "active": active == "map"})
 
     tab_name = f"{vehicle_count} vehicles" if active == "vehicles" else "Vehicles"
     tabs.append({"name": tab_name, "url": f"/operator/{operator.operator_slug}/vehicles/", "active": active == "vehicles"})
@@ -1098,10 +1102,12 @@ def vehicle_edit(request, operator_slug, vehicle_id):
             Q(id__in=helper_operator_ids) | Q(owner=request.user)
         ).distinct().order_by('operator_name')
 
-    features_path = os.path.join(settings.MEDIA_ROOT, 'JSON', 'features.json')
-    with open(features_path, 'r') as f:
-        features_json = json.load(f)
-        features_list = features_json.get("features", [])
+    path = "JSON/features.json"
+
+    with default_storage.open(path, "r") as f:
+        data = json.load(f)  # loads the entire JSON file into a dict
+
+    features_list = data.get("features", [])
 
     if request.method == "POST":
         current_operator = vehicle.operator
@@ -2029,6 +2035,7 @@ def duty_add_trip(request, operator_slug, duty_id):
     available_routes_qs = route.objects.filter(route_operators=operator).order_by('route_num')
     available_routes = [
         {
+            "id": r.id,
             "route_num": r.route_num,
             "route_name": r.route_name,
             "route_inbound_destination": r.inbound_destination,
@@ -2107,7 +2114,86 @@ def duty_add_trip(request, operator_slug, duty_id):
             'is_running_board': is_running_board,  # Pass this to your template if needed
         }
         return render(request, 'add_duty_trip.html', context)
-    
+
+def get_timetable(request, route_id, direction):
+    try:
+        inbound_first = (direction == "inbound")
+
+        r = route.objects.filter(pk=route_id).first()
+        if not r:
+            return JsonResponse({"error": "No route found"}, status=400)
+
+        inbound_entry = timetableEntry.objects.filter(route=r, inbound=True).first()
+        outbound_entry = timetableEntry.objects.filter(route=r, inbound=False).first()
+
+        if not inbound_entry and not outbound_entry:
+            return JsonResponse({"error": "No timetables found"}, status=400)
+
+        # -------- PARSE FUNCTION --------
+        def parse_entry(entry):
+            if not entry:
+                return []
+
+            raw = entry.stop_times
+            data = json.loads(raw) if isinstance(raw, str) else raw
+
+            if not isinstance(data, dict):
+                return []
+
+            stops_list = list(data.values())
+            if not stops_list:
+                return []
+
+            trip_count = len(stops_list[0]["times"])
+            trips = []
+
+            for i in range(trip_count):
+                trip_stops = []
+                for stop in stops_list:
+                    trip_stops.append({
+                        "stop": stop["stopname"],
+                        "time": stop["times"][i]
+                    })
+
+                trips.append({
+                    "times": trip_stops,
+                    "start_time": trip_stops[0]["time"],
+                    "end_time": trip_stops[-1]["time"],
+                    "start_stop": trip_stops[0]["stop"],
+                    "end_stop": trip_stops[-1]["stop"]
+                })
+
+            return trips
+
+        inbound_trips = parse_entry(inbound_entry)
+        outbound_trips = parse_entry(outbound_entry)
+
+        # ----------- BUILD ALTERNATING SEQUENCE -----------
+
+        combined = []
+        max_len = max(len(inbound_trips), len(outbound_trips))
+
+        for i in range(max_len):
+            if inbound_first:
+                # inbound → outbound
+                if i < len(inbound_trips):
+                    combined.append(inbound_trips[i])
+                if i < len(outbound_trips):
+                    combined.append(outbound_trips[i])
+            else:
+                # outbound → inbound
+                if i < len(outbound_trips):
+                    combined.append(outbound_trips[i])
+                if i < len(inbound_trips):
+                    combined.append(inbound_trips[i])
+
+        # ----------- RETURN EXACT ORDER WITHOUT FILTERING -----------
+
+        return JsonResponse(combined, safe=False)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
 @login_required
 @require_http_methods(["GET", "POST"])
 def duty_edit_trips(request, operator_slug, duty_id):
@@ -2659,10 +2745,12 @@ def vehicle_add(request, operator_slug):
             Q(id__in=helper_operator_ids) | Q(owner=request.user)
         ).distinct().order_by('operator_name')
 
-    features_path = os.path.join(settings.MEDIA_ROOT, 'JSON', 'features.json')
-    with open(features_path, 'r') as f:
-        features_json = json.load(f)
-        features_list = features_json.get("features", [])
+    path = "JSON/features.json"
+
+    with default_storage.open(path, "r") as f:
+        data = json.load(f)  # loads the entire JSON file into a dict
+
+    features_list = data.get("features", [])
 
     if request.method == "POST":
         vehicle = fleet()  # <--- Create a new vehicle instance
@@ -2798,10 +2886,12 @@ def vehicle_mass_add(request, operator_slug):
         ).distinct().order_by('operator_name')
 
 
-    features_path = os.path.join(settings.MEDIA_ROOT, 'JSON', 'features.json')
-    with open(features_path, 'r') as f:
-        features_json = json.load(f)
-        features_list = features_json.get("features", [])
+    path = "JSON/features.json"
+
+    with default_storage.open(path, "r") as f:
+        data = json.load(f)  # loads the entire JSON file into a dict
+
+    features_list = data.get("features", [])
 
     if request.method == "POST":
         try:
@@ -3037,10 +3127,12 @@ def vehicle_mass_edit(request, operator_slug):
             Q(id__in=helper_operator_ids) | Q(owner=request.user)
         ).distinct().order_by('operator_name')
 
-    features_path = os.path.join(settings.MEDIA_ROOT, 'JSON', 'features.json')
-    with open(features_path, 'r') as f:
+    path = "JSON/features.json"
+
+    with default_storage.open(path, "r") as f:
         features_json = json.load(f)
-        features_list = features_json.get("features", [])
+
+    features_list = features_json.get("features", [])
 
     if request.method == "POST":
         updated_count = 0

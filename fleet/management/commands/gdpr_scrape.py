@@ -229,7 +229,7 @@ class Command(BaseCommand):
 							for k, v in item.items():
 								if isinstance(v, dict) and v.get('path'):
 									rel_path = v.get('path')
-									src_path = os.path.join(settings.MEDIA_ROOT, rel_path) if settings.MEDIA_ROOT and not os.path.isabs(rel_path) else rel_path
+									src_path = os.path.join(settings.MEDIA_URL, rel_path) if settings.MEDIA_URL and not os.path.isabs(rel_path) else rel_path
 									if os.path.exists(src_path):
 										dest_path = os.path.join(files_dir, os.path.basename(rel_path))
 										try:

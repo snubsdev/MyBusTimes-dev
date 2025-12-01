@@ -72,9 +72,9 @@
 {{ existing_stops|json_script:"existing-stops-data" }}
 
 <script>
-  let tilesJSON = 'https://tiles.snubs.dev/styles/bright/style.json';
+  let tilesJSON = 'https://tiles.snubs.dev/styles/light/style.json';
   {% if themeDark == 'True' %}
-    tilesJSON = 'https://tiles.snubs.dev/styles/dark-matter/style.json';
+    tilesJSON = 'https://tiles.snubs.dev/styles/dark/style.json';
   {% endif %}
 
   const map = new maplibregl.Map({
