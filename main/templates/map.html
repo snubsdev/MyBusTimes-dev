@@ -295,17 +295,18 @@
     }).toString();
 
     try {
-      const res = await fetch(`https://ukbuses.org/vehicles.json?${q}`);
+      const res = await fetch(`/api/trips/estimated_positions/?${q}`);
       const data = await res.json();
-      const vehicles = Array.isArray(data) ? data : (data.features || []);
+
+      console.log('BT vehicle data:', data);
+      let vehicles = Array.isArray(data.results) ? data.results : (data.features || []);
       clearMarkers(btMarkers);
 
       if (vehicles.length > 2000) return;
 
       for (const v of vehicles.slice(0, 2000)) {
-        const coords = v.coordinates || v.geometry?.coordinates;
-        if (!coords) continue;
-        const [lng, lat] = coords;
+        const lng = v.lng;
+        const lat = v.lat;
 
         let heading = v.heading ?? 0;
         const line = v.service?.line_name || '';
@@ -358,15 +359,15 @@
         const is_staff = {{ user.is_staff|yesno:"true,false" }};
         if (is_staff) {
           html = `
-          <a href="https://ukbuses.org${serviceLink}">${line} to ${dest}</a><br>
-          ${vehicleName ? `<a href="https://ukbuses.org${vehicleLink}">${vehicleName}</a><br>` : ''}
-          <span class="time-ago" data-time="${v.datetime}">${timeAgo(v.datetime)}</span>
+          <a href="${serviceLink}">${line} to ${dest}</a><br>
+          ${vehicleName ? `<a href="${vehicleLink}">${vehicleName}</a><br>` : ''}
+          <span>Simulated Location</span>
           `;
         } else {
           html = `
           ${line} to ${dest}<br>
           ${vehicleName ? `${vehicleName}<br>` : ''}
-          <span class="time-ago" data-time="${v.datetime}">${timeAgo(v.datetime)}</span>
+          <span>Simulated Location</span>
           `;
         }
 
