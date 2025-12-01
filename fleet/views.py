@@ -2035,6 +2035,7 @@ def duty_add_trip(request, operator_slug, duty_id):
     available_routes_qs = route.objects.filter(route_operators=operator).order_by('route_num')
     available_routes = [
         {
+            "id": r.id,
             "route_num": r.route_num,
             "route_name": r.route_name,
             "route_inbound_destination": r.inbound_destination,
@@ -2114,6 +2115,118 @@ def duty_add_trip(request, operator_slug, duty_id):
         }
         return render(request, 'add_duty_trip.html', context)
     
+def get_timetable(request, route_id, direction):
+    try:
+        inbound_requested = (direction == "inbound")
+        print(f"Fetching timetable for route {route_id}, direction: {direction}")
+
+        r = route.objects.filter(pk=route_id).first()
+        if not r:
+            return JsonResponse({"error": "No route found"}, status=400)
+
+        inbound_entry = timetableEntry.objects.filter(route=r, inbound=True).first()
+        outbound_entry = timetableEntry.objects.filter(route=r, inbound=False).first()
+
+        if not inbound_entry and not outbound_entry:
+            return JsonResponse({"error": "No timetables found"}, status=400)
+
+        # Parse function
+        def parse_entry(entry):
+            if not entry:
+                return None
+
+            raw = entry.stop_times
+            data = json.loads(raw) if isinstance(raw, str) else raw
+            if not isinstance(data, dict):
+                return None
+
+            stops_list = list(data.values())
+            if not stops_list:
+                return None
+
+            trip_count = len(stops_list[0]["times"])
+            trips = []
+
+            for i in range(trip_count):
+                t = []
+                for stop in stops_list:
+                    t.append({
+                        "stop": stop["stopname"],
+                        "time": stop["times"][i]
+                    })
+
+                trips.append({
+                    "times": t,
+                    "start_time": t[0]["time"],
+                    "end_time": t[-1]["time"],
+                    "start_stop": t[0]["stop"],
+                    "end_stop": t[-1]["stop"]
+                })
+
+            return trips
+
+        inbound_trips = parse_entry(inbound_entry)
+        outbound_trips = parse_entry(outbound_entry)
+
+        # ---------------------------
+        # STEP 1: build flipped sequence
+        # ---------------------------
+        if inbound_trips and not outbound_trips:
+            combined = inbound_trips
+
+        elif outbound_trips and not inbound_trips:
+            combined = outbound_trips
+
+        else:
+            combined = []
+            i = 0
+            while True:
+                added = False
+
+                if inbound_requested:
+                    if i < len(inbound_trips):
+                        combined.append(inbound_trips[i])
+                        added = True
+                    if i < len(outbound_trips):
+                        combined.append(outbound_trips[i])
+                        added = True
+                else:
+                    if i < len(outbound_trips):
+                        combined.append(outbound_trips[i])
+                        added = True
+                    if i < len(inbound_trips):
+                        combined.append(inbound_trips[i])
+                        added = True
+
+                if not added:
+                    break
+
+                i += 1
+
+        # ---------------------------
+        # STEP 2: Duty chaining on the flipped list
+        # ---------------------------
+        duty = []
+        last_end = None
+
+        for trip in combined:
+            start = trip["start_time"]
+            end = trip["end_time"]
+
+            if last_end is None:
+                duty.append(trip)
+                last_end = end
+                continue
+
+            if start >= last_end:
+                duty.append(trip)
+                last_end = end
+
+        return JsonResponse(duty, safe=False)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
 @login_required
 @require_http_methods(["GET", "POST"])
 def duty_edit_trips(request, operator_slug, duty_id):

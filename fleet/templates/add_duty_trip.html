@@ -51,6 +51,31 @@
   <button type="submit" style="margin-top: 20px;">Save Trips</button>
 </form>
 
+<h3 style="margin-top:30px;">Auto-Generate Trips From Timetable</h3>
+<div class="fleet-edit-wrapper">
+  <label>First Trip Start Time:</label>
+  <input type="time" id="auto-first-start">
+
+  <label>Select Route:</label>
+  <select id="auto-route-select">
+    {% for r in available_routes %}
+    <option value="{{ r.id }}">{{ r.route_num }} - {{ r.route_inbound_destination }} →
+      {{ r.route_outbound_destination }}</option>
+    {% endfor %}
+  </select>
+
+  <label>Direction:</label>
+  <select id="auto-direction">
+    <option value="outbound">Outbound</option>
+    <option value="inbound">Inbound</option>
+  </select>
+
+  <button type="button" id="auto-generate-btn" style="margin-top:10px;">
+    Preview Auto-Generated Trips
+  </button>
+
+  <div id="auto-generate-status" style="margin-top:10px; color:var(--text-muted);"></div>
+</div>
 <script>
   // Utility to add minutes to a time string "HH:MM"
   function addMinutes(time, minutesToAdd) {
@@ -88,7 +113,8 @@
     routeOptions.forEach(route => {
       const option = document.createElement('option');
       option.value = route.route_num;
-      option.textContent = `${route.route_num} - ${route.route_inbound_destination} to ${route.route_outbound_destination}`;
+      option.textContent =
+        `${route.route_num} - ${route.route_inbound_destination} to ${route.route_outbound_destination}`;
       if (route.route_num === values.route_num) {
         option.selected = true;
       }
@@ -157,7 +183,9 @@
 
     for (let i = 0; i < repeatCount; i++) {
       tripsToRepeat.forEach(values => {
-        const trip = { ...values };
+        const trip = {
+          ...values
+        };
 
         if (latestEndTime) {
           trip.start_time = addMinutes(latestEndTime, breakMinutes);
@@ -171,6 +199,88 @@
         latestEndTime = trip.end_time;
         container.appendChild(createTripGroup(trip));
       });
+    }
+  });
+  async function fetchTimetable(routeID, direction) {
+    const operator = "{{ operator.id }}";
+    const url = `/api/timetable/${routeID}/${direction}`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("Failed to load timetable");
+    return await response.json();
+  }
+
+  // Return HH:MM duration between two strings
+  function diffMinutes(start, end) {
+    const s = new Date(`1970-01-01T${start}`);
+    const e = new Date(`1970-01-01T${end}`);
+    return Math.round((e - s) / 60000);
+  }
+
+  document.getElementById("auto-generate-btn").addEventListener("click", async () => {
+    const firstStart = document.getElementById("auto-first-start").value;
+    const routeID = document.getElementById("auto-route-select").value;
+    const direction = document.getElementById("auto-direction").value;
+    const container = document.getElementById("trips-container");
+    const status = document.getElementById("auto-generate-status");
+
+    if (!firstStart) {
+      status.textContent = "Enter a start time first.";
+      return;
+    }
+
+    status.textContent = "Loading timetable…";
+
+    try {
+      const timetable = await fetchTimetable(routeID, direction);
+
+      /*
+          timetable = [
+              {
+                  "times": [ {"stop": "Foo", "time": "09:12"}, ... ],
+                  "start_stop": "Foo",
+                  "end_stop": "Bar"
+              },
+              ...
+          ]
+      */
+
+      // Find first trip with departure >= user input
+      let selected = timetable.filter(t => t.times[0].time >= firstStart);
+
+      if (selected.length === 0) {
+        status.textContent = "No trips available after that time.";
+        return;
+      }
+
+      // Clear manual list, we are previewing auto-gen
+      container.innerHTML = "";
+
+      let lastEnd = firstStart;
+
+      selected.forEach(t => {
+        const tripStart = t.times[0].time;
+        const tripEnd = t.times[t.times.length - 1].time;
+
+        if (tripStart < lastEnd) return; // overlaps previous
+
+        const values = {
+          route_id: routeID,
+          start_time: tripStart,
+          end_time: tripEnd,
+          start_at: t.start_stop,
+          end_at: t.end_stop,
+        };
+
+        container.appendChild(createTripGroup(values));
+
+        lastEnd = tripEnd;
+      });
+
+      status.textContent = "Trips generated. You can edit them before saving.";
+
+    } catch (err) {
+      status.textContent = "Error loading timetable.";
+      console.error(err);
     }
   });
 </script>
