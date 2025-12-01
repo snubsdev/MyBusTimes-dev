@@ -2144,6 +2144,12 @@ def get_timetable(request, route_id, direction):
             if not stops_list:
                 return None
 
+            first_stop_times = stops_list[0]["times"]
+            last_stop_times = stops_list[-1]["times"]
+
+            if first_stop_times[0] > last_stop_times[0]:
+                stops_list = list(reversed(stops_list))
+
             trip_count = len(stops_list[0]["times"])
             trips = []
 
