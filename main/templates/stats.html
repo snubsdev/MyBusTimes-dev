@@ -5,138 +5,112 @@
 <div class="container mx-auto px-4 py-6">
     <h1 class="text-3xl font-bold mb-6">Site Statistics</h1>
 
-    <!-- USERS, OPERATORS, FLEETS -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <!-- Users -->
+    <!-- Grid: Users, Operators, Fleets, Other -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+
+        <!-- USERS -->
         <div class="bg-white shadow rounded-lg p-6">
             <h2 class="text-xl font-semibold mb-4">Users</h2>
             <ul class="space-y-2">
-                <li><strong>Total Users:</strong> {{ total_users }}</li>
-                <li><strong>Active Users (last 30 days):</strong> {{ active_users }}</li>
-                <li><strong>Banned Users:</strong> {{ banned_users }}</li>
-                <li><strong>Ad-Free Users:</strong> {{ ad_free_users }}</li>
+                <li>Total Users: <strong>{{ total_users }}</strong></li>
+                <li>Active Users: <strong>{{ active_users }}</strong></li>
+                <li>Banned Users: <strong>{{ banned_users }}</strong></li>
+                <li>Ad-Free Users: <strong>{{ ad_free_users }}</strong></li>
             </ul>
-            <h3 class="mt-4 font-semibold">Users Per Team:</h3>
+
+            <h3 class="text-lg font-semibold mt-4">Users Per Team</h3>
             <ul class="list-disc list-inside">
                 {% for team in users_per_team %}
-                    <li>{{ team.name }}: {{ team.member_count }}</li>
+                <li>{{ team.name }}: {{ team.user_count }}</li>
                 {% empty %}
-                    <li>No teams found.</li>
+                <li>No teams found.</li>
                 {% endfor %}
             </ul>
         </div>
 
-        <!-- Operators -->
+        <!-- OPERATORS -->
         <div class="bg-white shadow rounded-lg p-6">
             <h2 class="text-xl font-semibold mb-4">Operators</h2>
             <ul class="space-y-2">
-                <li><strong>Total Operators:</strong> {{ total_operators }}</li>
-                <li><strong>Operators with No Fleet:</strong> {{ operators_no_fleet|length }}</li>
+                <li>Total Operators: <strong>{{ total_operators }}</strong></li>
+                <li>Average Fleet per Operator: <strong>{{ avg_fleet_per_operator|floatformat:2 }}</strong></li>
             </ul>
-            <h3 class="mt-4 font-semibold">Operators Per Region:</h3>
-            <ul class="list-disc list-inside">
-                {% for region in operators_per_region %}
-                    <li>{{ region.region_name }}: {{ region.operator_count }}</li>
-                {% empty %}
-                    <li>No regions found.</li>
-                {% endfor %}
-            </ul>
-            <h3 class="mt-4 font-semibold">Top Operators:</h3>
+
+            <h3 class="text-lg font-semibold mt-4">Top 5 Operators</h3>
             <ul class="list-disc list-inside">
                 {% for operator in top_operators %}
-                    <li>{{ operator.username }}: {{ operator.fleet_count }} buses</li>
+                <li>{{ operator.username }} ({{ operator.fleet_count }} fleets)</li>
                 {% empty %}
-                    <li>No operators found.</li>
+                <li>No operators found.</li>
+                {% endfor %}
+            </ul>
+
+            <h3 class="text-lg font-semibold mt-4">Operators per Region</h3>
+            <ul class="list-disc list-inside">
+                {% for reg in operators_per_region %}
+                <li>{{ reg.region_name }}: {{ reg.operator_count }}</li>
+                {% empty %}
+                <li>No regions found.</li>
                 {% endfor %}
             </ul>
         </div>
 
-        <!-- Fleets -->
+        <!-- FLEETS -->
         <div class="bg-white shadow rounded-lg p-6">
             <h2 class="text-xl font-semibold mb-4">Fleets</h2>
             <ul class="space-y-2">
-                <li><strong>Total Buses:</strong> {{ total_buses }}</li>
-                <li><strong>Average Fleet per Operator:</strong> {{ avg_fleet_per_operator|default:0|floatformat:2 }}</li>
-                <li><strong>Largest Fleet Operator:</strong> 
-                    {% if largest_fleet_operator %}
-                        {{ largest_fleet_operator.username }} ({{ largest_fleet_operator.fleet_count }} buses)
-                    {% else %}
-                        N/A
-                    {% endif %}
-                </li>
-            </ul>
-        </div>
-    </div>
-
-    <!-- OTHER STATS -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <!-- Reports -->
-        <div class="bg-white shadow rounded-lg p-6">
-            <h2 class="text-xl font-semibold mb-4">Reports</h2>
-            <ul class="space-y-2">
-                <li><strong>Total Reports:</strong> {{ total_reports }}</li>
-                <li><strong>Reports Last 7 Days:</strong> {{ reports_last_7_days }}</li>
-            </ul>
-            <h3 class="mt-4 font-semibold">Reports by Type:</h3>
-            <ul class="list-disc list-inside">
-                {% for r in reports_by_type %}
-                    <li>{{ r.report_type }}: {{ r.count }}</li>
-                {% empty %}
-                    <li>No reports found.</li>
-                {% endfor %}
+                <li>Total Buses: <strong>{{ total_buses }}</strong></li>
+                <li>Total Fleet Changes: <strong>{{ total_fleet_changes }}</strong></li>
+                <li>Total Tickets: <strong>{{ total_tickets }}</strong></li>
             </ul>
         </div>
 
-        <!-- Banned IPs -->
+        <!-- OTHER STATS -->
         <div class="bg-white shadow rounded-lg p-6">
-            <h2 class="text-xl font-semibold mb-4">Banned IPs</h2>
+            <h2 class="text-xl font-semibold mb-4">Other Stats</h2>
             <ul class="space-y-2">
-                <li><strong>Total Banned IPs:</strong> {{ total_banned_ips }}</li>
+                <li>Total Reports: <strong>{{ total_reports }}</strong></li>
+                <li>Total Banned IPs: <strong>{{ total_banned_ips }}</strong></li>
+                <li>Total Helpers: <strong>{{ total_helpers }}</strong></li>
+                <li>Total Liveries: <strong>{{ total_liveries }}</strong></li>
+                <li>Total Vehicle Types: <strong>{{ total_vehicle_types }}</strong></li>
+                <li>Total Community Images: <strong>{{ total_community_images }}</strong></li>
             </ul>
-            <h3 class="mt-4 font-semibold">Recent Bans:</h3>
+
+            <h3 class="text-lg font-semibold mt-4">Recent Banned IPs</h3>
             <ul class="list-disc list-inside">
                 {% for ip in recent_banned_ips %}
-                    <li>{{ ip.ip_address }} - {{ ip.reason|default:"No reason" }}</li>
+                <li>{{ ip.ip_address }} - {{ ip.reason|default:"No reason" }}</li>
                 {% empty %}
-                    <li>No banned IPs found.</li>
+                <li>No banned IPs.</li>
                 {% endfor %}
             </ul>
-        </div>
 
-        <!-- Features & Community -->
-        <div class="bg-white shadow rounded-lg p-6">
-            <h2 class="text-xl font-semibold mb-4">Features & Community</h2>
-            <ul class="space-y-2">
-                <li><strong>Total Community Images:</strong> {{ total_community_images }}</li>
-            </ul>
-
-            <h3 class="mt-4 font-semibold">Recent Images:</h3>
+            <h3 class="text-lg font-semibold mt-4">Recent Community Images</h3>
             <ul class="list-disc list-inside">
                 {% for img in recent_community_images %}
-                    <li>{{ img.uploaded_by.username }} - <a href="{{ img.image.url }}" target="_blank">View</a></li>
+                <li>{{ img.uploaded_by.username }} - <img src="{{ img.image.url }}" class="inline h-12 w-12 rounded" /></li>
                 {% empty %}
-                    <li>No recent images.</li>
-                {% endfor %}
-            </ul>
-
-            <h3 class="mt-4 font-semibold">Top Uploaders:</h3>
-            <ul class="list-disc list-inside">
-                {% for uploader in top_uploaders %}
-                    <li>{{ uploader.username }} - {{ uploader.image_count }} images</li>
-                {% empty %}
-                    <li>No top uploaders yet.</li>
-                {% endfor %}
-            </ul>
-
-            <h3 class="mt-4 font-semibold">Feature Toggles:</h3>
-            <ul class="list-disc list-inside">
-                {% for feature in features %}
-                    <li>{{ feature.name }}: {{ feature.status_text }}</li>
-                {% empty %}
-                    <li>No features found.</li>
+                <li>No images.</li>
                 {% endfor %}
             </ul>
         </div>
     </div>
+
+    <!-- Feature Toggles -->
+    <div class="mt-8">
+        <h2 class="text-2xl font-bold mb-4">Feature Toggles</h2>
+        <ul class="space-y-2">
+            {% for feat in features %}
+            <li>
+                {{ feat.name }} - 
+                <strong>{{ feat.status_text }}</strong>
+                {% if feat.super_user_only %}(Superuser only){% endif %}
+            </li>
+            {% empty %}
+            <li>No features found.</li>
+            {% endfor %}
+        </ul>
+    </div>
 </div>
-{% endblock %}
+{% endblock content %}
