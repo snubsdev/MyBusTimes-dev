@@ -111,13 +111,13 @@
             <h2 class="card-title">Operators</h2>
             <ul class="card-list">
                 <li>Total Operators: <strong>{{ total_operators }}</strong></li>
-                <li>Average Fleet per Operator: <strong>{{ avg_fleet_per_operator|floatformat:2 }}</strong></li>
+                <li>Average Fleet Size per Operator: <strong>{{ avg_fleet_per_operator|floatformat:2 }}</strong></li>
             </ul>
 
             <h3 class="card-subtitle">Top 5 Operators</h3>
             <ul class="card-list">
                 {% for operator in top_operators %}
-                <li>{{ operator.username }} ({{ operator.fleet_count }} fleets)</li>
+                <li>{{ operator.operator_name}} ({{ operator.fleet_count }} fleets)</li>
                 {% empty %}
                 <li>No operators found.</li>
                 {% endfor %}
@@ -138,7 +138,7 @@
             <h2 class="card-title">Fleets</h2>
             <ul class="card-list">
                 <li>Total Buses: <strong>{{ total_buses }}</strong></li>
-                <li>Total Fleet Changes: <strong>{{ total_fleet_changes }}</strong></li>
+                <li>Total Vehicle Changes: <strong>{{ total_fleet_changes }}</strong></li>
                 <li>Total Tickets: <strong>{{ total_tickets }}</strong></li>
             </ul>
         </div>
@@ -166,20 +166,6 @@
                 {% endfor %}
             </ul>
         </div>
-    </div>
-
-    <div class="feature-toggles">
-        <h2 class="page-title-small">Feature Toggles</h2>
-        <ul class="card-list">
-            {% for feat in features %}
-            <li>
-                {{ feat.name }} – <strong>{{ feat.status_text }}</strong>
-                {% if feat.super_user_only %}(Superuser only){% endif %}
-            </li>
-            {% empty %}
-            <li>No features found.</li>
-            {% endfor %}
-        </ul>
     </div>
 </div>
 {% endblock %}
