@@ -190,31 +190,50 @@ def feature_enabled(request, feature_name):
     except featureToggle.DoesNotExist:
         # If feature doesn't exist, you might want to block or allow
         return render(request, 'feature_disabled.html', {'feature_name': feature_key}, status=200)
-    
+
 @require_POST
 def set_theme(request):
     theme_id = request.POST.get('theme_id')
+    dark_mode = request.POST.get('darkMode')
+    dark_mode = True if dark_mode == 'true' else False
 
-    try:
-        selected_theme = theme.objects.get(pk=theme_id)
-    except theme.DoesNotExist:
-        return JsonResponse({'error': 'Invalid theme'}, status=400)
+    selected_theme = None
+    if theme_id:
+        try:
+            selected_theme = theme.objects.get(pk=theme_id)
+        except theme.DoesNotExist:
+            return JsonResponse({'error': 'Invalid theme'}, status=400)
 
+    # -----------------------------
+    # LOGGED-IN USER
+    # -----------------------------
     if request.user.is_authenticated:
-        # Save theme to user model
-        request.user.theme = selected_theme
-        request.user.save()
-        response = JsonResponse({'message': 'Theme updated for user'})
-    else:
-        # Set theme cookie for anonymous users
-        response = JsonResponse({'message': 'Theme set in cookie'})
-        css_filename = selected_theme.css.name  # This might be "themes/MBT_Light.css"
-        css_name_only = css_filename.split('/')[-1]  # This will give "MBT_Light.css"
+        if selected_theme:
+            request.user.theme = selected_theme
 
-        response.set_cookie('theme', css_name_only, max_age=60*60*24*365)
-        response.set_cookie('themeDark', selected_theme.dark_theme, max_age=60*60*24*365)
-        response.set_cookie('brandColour', selected_theme.main_colour, max_age=60*60*24*365)
+        request.user.dark_mode = dark_mode
+        request.user.save()
+        
+        return JsonResponse({'message': 'Theme updated for user'})
+
+    # -----------------------------
+    # ANONYMOUS USER
+    # -----------------------------
+    response = JsonResponse({'message': 'Theme set in cookie'})
+
+    if selected_theme:
+        light_css_file = selected_theme.light_css.name.split('/')[-1] if selected_theme.light_css else ""
+        dark_css_file = selected_theme.dark_css.name.split('/')[-1] if selected_theme.dark_css else ""
+
+        response.set_cookie('themeLight', light_css_file, max_age=60*60*24*365)
+        response.set_cookie('themeDarkCSS', dark_css_file, max_age=60*60*24*365)
         response.set_cookie('themeID', selected_theme.id, max_age=60*60*24*365)
+
+        # Set correct brand colour based on dark mode
+        brand_colour = selected_theme.dark_main_colour if dark_mode else selected_theme.light_main_colour
+        response.set_cookie('brandColour', brand_colour, max_age=60*60*24*365)
+
+    response.set_cookie('darkMode', 'true' if dark_mode else 'false', max_age=60*60*24*365)
 
     return response
 
