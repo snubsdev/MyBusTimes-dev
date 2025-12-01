@@ -154,15 +154,6 @@
                 <li>Total Community Images: <strong>{{ total_community_images }}</strong></li>
             </ul>
 
-            <h3 class="card-subtitle">Recent Banned IPs</h3>
-            <ul class="card-list">
-                {% for ip in recent_banned_ips %}
-                <li>{{ ip.ip_address }} - {{ ip.reason|default:"No reason" }}</li>
-                {% empty %}
-                <li>No banned IPs.</li>
-                {% endfor %}
-            </ul>
-
             <h3 class="card-subtitle">Recent Community Images</h3>
             <ul class="card-list">
                 {% for img in recent_community_images %}
