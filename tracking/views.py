@@ -296,59 +296,81 @@ def calculate_heading(lat1, lng1, lat2, lng2):
     heading = (heading + 360) % 360
     return heading
     
-def get_route_coordinates(route_id):
-    """Return the list of (lat, lng) from routeStop.stops JSON.
-
-    Works for multiple routeStop rows per route (concatenates them
-    in DB order). Robust to malformed entries.
+def get_route_coordinates_for_trip(route_id, trip_end_location):
     """
-    print(f"[DEBUG] get_route_coordinates: route_id = {route_id}")
-    stops_qs = routeStop.objects.filter(route_id=route_id).order_by("id")
-    print(f"[DEBUG] get_route_coordinates: found {stops_qs.count()} stops rows")
-    coords = []
+    Returns ordered list of coordinates for a trip, using inbound/outbound
+    determination by matching trip_end_location to the LAST stop name
+    of each routeStop row.
 
+    If no matching direction is found → fall back to the
+    default (first/only routeStop order).
+    """
+    print(f"[DEBUG] get_route_coordinates_for_trip: route_id={route_id}, trip_end_location='{trip_end_location}'")
+
+    stops_qs = routeStop.objects.filter(route_id=route_id).order_by("id")
+    print(f"[DEBUG] found {stops_qs.count()} routeStop rows")
+
+    if not stops_qs:
+        print("[DEBUG] no routeStops found, returning empty list")
+        return []
+
+    direction_candidates = []
+
+    # Parse each routeStop block
     for rs in stops_qs:
+        print(f"[DEBUG] processing routeStop id={rs.id}")
+
+        coords = []
+        last_stop_name = None
+
         if not rs.stops:
-            print(f"[DEBUG] get_route_coordinates: routeStop {rs.id} has empty stops")
+            print(f"[DEBUG] routeStop {rs.id} has empty stops")
             continue
 
-        # rs.stops is a JSON list of dicts like:
-        # [{"stop": "...", "cords": "lat,lng", ...}, ...]
-        try:
-            for i, stop in enumerate(rs.stops):
-                if not isinstance(stop, dict):
-                    print(f"[DEBUG] get_route_coordinates: skip non-dict stop at index {i} in routeStop {rs.id}")
-                    continue
+        for i, stop in enumerate(rs.stops):
+            if not isinstance(stop, dict):
+                print(f"[DEBUG] skipping non-dict stop at index {i} in routeStop {rs.id}")
+                continue
 
-                cords = stop.get("cords") or stop.get("coords")  # try both common keys
-                if not cords:
-                    # maybe lat/lng are stored separately
-                    lat = stop.get("lat") or stop.get("latitude")
-                    lng = stop.get("lng") or stop.get("longitude") or stop.get("long")
-                    if lat is not None and lng is not None:
-                        try:
-                            coords.append((float(lat), float(lng)))
-                        except Exception as e:
-                            print(f"[DEBUG] get_route_coordinates: failed to parse lat/lng in routeStop {rs.id} stop {i}: {e}")
-                    else:
-                        print(f"[DEBUG] get_route_coordinates: no coords found for routeStop {rs.id} stop {i}")
-                    continue
+            # Extract stop name for matching
+            sname = stop.get("stop") or stop.get("name") or stop.get("title")
+            if sname:
+                last_stop_name = sname
 
-                # cords exist as a single "lat,lng" string
+            cords = stop.get("cords") or stop.get("coords")
+            if cords:
                 try:
                     lat_str, lng_str = cords.split(",")
-                    lat, lng = float(lat_str.strip()), float(lng_str.strip())
-                    coords.append((lat, lng))
+                    coords.append((float(lat_str.strip()), float(lng_str.strip())))
                 except Exception as e:
-                    print(f"[DEBUG] get_route_coordinates: failed to parse cords '{cords}' for routeStop {rs.id} stop {i}: {e}")
-                    continue
+                    print(f"[DEBUG] failed to parse cords '{cords}' in routeStop {rs.id}: {e}")
+                continue
 
-        except Exception as e:
-            print(f"[DEBUG] get_route_coordinates: unexpected error reading routeStop {rs.id}: {e}")
-            continue
+            # Alternative lat/lng storage
+            lat = stop.get("lat") or stop.get("latitude")
+            lng = stop.get("lng") or stop.get("longitude") or stop.get("long")
+            if lat is not None and lng is not None:
+                try:
+                    coords.append((float(lat), float(lng)))
+                except Exception as e:
+                    print(f"[DEBUG] failed parsing lat/lng in routeStop {rs.id}: {e}")
 
-    print(f"[DEBUG] get_route_coordinates: returning {len(coords)} coordinates")
-    return coords
+        print(f"[DEBUG] routeStop {rs.id} → {len(coords)} coords, last_stop='{last_stop_name}'")
+
+        direction_candidates.append({
+            "coords": coords,
+            "last_stop": last_stop_name
+        })
+
+    # Try to match inbound/outbound by last_stop vs trip_end_location
+    for d in direction_candidates:
+        if d["last_stop"] and trip_end_location.lower().strip() in d["last_stop"].lower():
+            print(f"[DEBUG] MATCH FOUND: using direction with last_stop '{d['last_stop']}'")
+            return d["coords"]
+
+    # Fallback to the first direction
+    print("[DEBUG] NO MATCH FOUND → using default direction")
+    return direction_candidates[0]["coords"]
 
 def get_progress(trip):
     now = timezone.now()
