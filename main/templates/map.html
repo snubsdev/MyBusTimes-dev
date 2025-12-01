@@ -356,20 +356,11 @@
 
         let html = '';
 
-        const is_staff = {{ user.is_staff|yesno:"true,false" }};
-        if (is_staff) {
-          html = `
-          <a href="${serviceLink}">${line} to ${dest}</a><br>
-          ${vehicleName ? `<a href="${vehicleLink}">${vehicleName}</a><br>` : ''}
-          <span>Simulated Location</span>
-          `;
-        } else {
-          html = `
-          ${line} to ${dest}<br>
-          ${vehicleName ? `${vehicleName}<br>` : ''}
-          <span>Simulated Location</span>
-          `;
-        }
+        html = `
+        <a href="${serviceLink}">${line} to ${dest}</a><br>
+        ${vehicleName ? `<a href="${vehicleLink}">${vehicleName}</a><br>` : ''}
+        <span>Simulated Location</span>
+        `;
 
         const el = createLiveryIcon({
           label: line, css, textColour, rotation: heading, textStroke, strokeWidth
