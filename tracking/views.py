@@ -296,7 +296,7 @@ def calculate_heading(lat1, lng1, lat2, lng2):
     heading = (heading + 360) % 360
     return heading
     
-def get_route_coordinates_for_trip(route_id, trip_end_location):
+def get_route_coordinates(route_id, trip_end_location):
     """
     Returns ordered list of coordinates for a trip, using inbound/outbound
     determination by matching trip_end_location to the LAST stop name
