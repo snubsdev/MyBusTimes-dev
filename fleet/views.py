@@ -2177,37 +2177,35 @@ def get_timetable(request, route_id, direction):
         # ---------------------------
         # STEP 1: build flipped sequence
         # ---------------------------
-        if inbound_trips and not outbound_trips:
-            combined = inbound_trips
+        combined = []
+        i = 0
 
-        elif outbound_trips and not inbound_trips:
-            combined = outbound_trips
+        while True:
+            added = False
 
-        else:
-            combined = []
-            i = 0
-            while True:
-                added = False
+            if inbound_requested:
+                # inbound -> outbound
+                if i < len(inbound_trips):
+                    combined.append(inbound_trips[i])
+                    added = True
+                if i < len(outbound_trips):
+                    combined.append(outbound_trips[i])
+                    added = True
+            else:
+                # outbound -> inbound
+                if i < len(outbound_trips):
+                    combined.append(outbound_trips[i])
+                    added = True
+                if i < len(inbound_trips):
+                    combined.append(inbound_trips[i])
+                    added = True
 
-                if inbound_requested:
-                    if i < len(inbound_trips):
-                        combined.append(inbound_trips[i])
-                        added = True
-                    if i < len(outbound_trips):
-                        combined.append(outbound_trips[i])
-                        added = True
-                else:
-                    if i < len(outbound_trips):
-                        combined.append(outbound_trips[i])
-                        added = True
-                    if i < len(inbound_trips):
-                        combined.append(inbound_trips[i])
-                        added = True
+            if not added:
+                break
 
-                if not added:
-                    break
+            i += 1
 
-                i += 1
+        combined.sort(key=lambda x: x["start_time"])
 
         # ---------------------------
         # STEP 2: Duty chaining on the flipped list
@@ -2219,12 +2217,7 @@ def get_timetable(request, route_id, direction):
             start = trip["start_time"]
             end = trip["end_time"]
 
-            if last_end is None:
-                duty.append(trip)
-                last_end = end
-                continue
-
-            if start >= last_end:
+            if last_end is None or start >= last_end:
                 duty.append(trip)
                 last_end = end
 
