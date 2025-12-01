@@ -22,6 +22,8 @@ urlpatterns = [
     path('create/vehicle/', create_vehicle, name='create_vehicle'),
     path('create/game/', create_game, name='create_game'),
     path("for_sale/", for_sale, name='for_sale'),
+    path("stats/", views.stats_page, name="stats"),
+
  
     path("hub/", community_hub, name="community_hub"),
     path("hub/all_images/", community_hub_images, name="community_hub_images"),

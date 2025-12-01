@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Site Stats{% endblock %}
+
+{% block content %}
+<h1 style="margin-bottom: 20px;">MyBusTimes – Public Stats</h1>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+
+    <!-- USER STATS -->
+    <div class="card card-body" style="text-align:center;">
+        <h2>Users</h2>
+        <p>Total: {{ total_users }}</p>
+        <p>Online: {{ online_users }}</p>
+        <p>Recent (7d): {{ recent_users }}</p>
+        <p>Ad-Free: {{ ad_free_users }}</p>
+    </div>
+
+    <!-- OPERATOR STATS -->
+    <div class="card card-body" style="text-align:center;">
+        <h2>Operators</h2>
+        <p>Total: {{ total_operators }}</p>
+        <p>Verified: {{ verified_operators }}</p>
+        <p>Private: {{ private_operators }}</p>
+        <p>Avg Fleet Size: {{ avg_fleet_per_operator|floatformat:1 }}</p>
+    </div>
+
+    <!-- FLEET / BUSES -->
+    <div class="card card-body" style="text-align:center;">
+        <h2>Buses / Fleet</h2>
+        <p>Total: {{ total_buses }}</p>
+        <p>In Service: {{ in_service }}</p>
+        <p>For Sale: {{ for_sale }}</p>
+        <p>Preserved: {{ preserved }}</p>
+        <p>Double Deckers: {{ double_deckers }}</p>
+    </div>
+
+    <!-- TICKETS -->
+    <div class="card card-body" style="text-align:center;">
+        <h2>Tickets</h2>
+        <p>Total: {{ total_tickets }}</p>
+        <ul>
+            {% for t in tickets_per_category %}
+                <li>{{ t.ticket_category|default:"Uncategorized" }}: {{ t.count }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <!-- SITE UPDATES / PATCHES -->
+    <div class="card card-body" style="text-align:center;">
+        <h2>Site Updates</h2>
+        <p>Updates Total: {{ total_updates }}</p>
+        <p>Live: {{ live_updates }}</p>
+        <p>Patch Notes Total: {{ total_patch_notes }}</p>
+        <p>Live: {{ live_patch_notes }}</p>
+        <p>Active Features: {{ active_features }}</p>
+    </div>
+
+    <!-- COMMUNITY & REPORTS -->
+    <div class="card card-body" style="text-align:center;">
+        <h2>Community & Reports</h2>
+        <p>Reports Total: {{ total_reports }}</p>
+        <p>Last 7 Days: {{ reports_last_7days }}</p>
+        <p>Community Images: {{ total_community_images }}</p>
+        <p>Total Badges Assigned: {{ total_badges }}</p>
+    </div>
+
+    <!-- FLEET CHANGES -->
+    <div class="card card-body" style="text-align:center;">
+        <h2>Most Changed Buses</h2>
+        <ul>
+            {% for bus in most_changed_buses %}
+                <li>{{ bus.vehicle__fleet_number }} - {{ bus.num_changes }} changes</li>
+            {% endfor %}
+        </ul>
+    </div>
+
+</div>
+
+<!-- Operators per Region Chart -->
+<h2 style="margin-top: 40px;">Operators per Region</h2>
+<ul>
+    {% for r in operators_per_region %}
+        <li>{{ r.region_name }}: {{ r.operator_count }} operators</li>
+    {% endfor %}
+</ul>
+
+{% endblock %}

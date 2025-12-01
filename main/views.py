@@ -41,6 +41,7 @@ from django.http import HttpResponse, Http404
 from django.http import FileResponse
 from datetime import timedelta
 from django.contrib.auth import authenticate
+from django.utils import timezone
 
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -53,6 +54,10 @@ from fleet.models import fleet, MBTOperator
 from routes.models import route
 from main.models import CustomUser, siteUpdate
 from .forms import GameForm
+from main.models import (
+    CustomUser as User, MBTOperator, fleet, fleetChange, ticket, region,
+    siteUpdate, patchNote, Report, CommunityImages, helper, liverie, vehicleType, featureToggle
+)
 
 def ads_txt_view(request):
     ads_path = os.path.join(settings.BASE_DIR, 'static/ads.txt')
@@ -1734,3 +1739,78 @@ def online_members(request):
         "total_mbt_members": total_mbt_members,
         "online_mbt_members": online_mbt_members,
     })
+
+def stats_page(request):
+    now = timezone.now()
+
+    # ---- USER STATS ----
+    total_users = User.objects.count()
+    online_users = User.objects.filter(last_active__gte=now - timedelta(minutes=10)).count()
+    recent_users = User.objects.filter(join_date__gte=now - timedelta(days=7)).count()
+    ad_free_users = User.objects.filter(ad_free_until__gte=now).count()
+
+    # ---- OPERATOR STATS ----
+    total_operators = MBTOperator.objects.count()
+    verified_operators = MBTOperator.objects.filter(verified=True).count()
+    private_operators = MBTOperator.objects.filter(private=True).count()
+    operators_per_region = region.objects.annotate(operator_count=Count('operators')).order_by('-operator_count')
+
+    # ---- FLEET / BUS STATS ----
+    total_buses = fleet.objects.count()
+    in_service = fleet.objects.filter(in_service=True).count()
+    for_sale = fleet.objects.filter(for_sale=True).count()
+    preserved = fleet.objects.filter(preserved=True).count()
+    double_deckers = fleet.objects.filter(vehicleType__double_decker=True).count()
+    avg_fleet_per_operator = fleet.objects.values('operator').annotate(bus_count=Count('id')).aggregate(avg_count=Avg('bus_count'))['avg_count']
+
+    # ---- TICKET STATS ----
+    total_tickets = ticket.objects.count()
+    tickets_per_category = ticket.objects.values('ticket_category').annotate(count=Count('id')).order_by('-count')
+
+    # ---- SITE UPDATES / PATCHES ----
+    total_updates = siteUpdate.objects.count()
+    live_updates = siteUpdate.objects.filter(live=True).count()
+    total_patch_notes = patchNote.objects.count()
+    live_patch_notes = patchNote.objects.filter(live=True).count()
+    active_features = featureToggle.objects.filter(enabled=True).count()
+
+    # ---- REPORT / COMMUNITY STATS ----
+    total_reports = Report.objects.count()
+    reports_last_7days = Report.objects.filter(created_at__gte=now - timedelta(days=7)).count()
+    total_community_images = CommunityImages.objects.count()
+    total_badges = sum([user.badges.count() for user in User.objects.all()])
+
+    # ---- FLEET CHANGES ----
+    most_changed_buses = fleetChange.objects.values('vehicle__fleet_number').annotate(num_changes=Count('id')).order_by('-num_changes')[:5]
+
+    context = {
+        "breadcrumbs": [{"name": "Stats", "url": "/stats"}],
+        "total_users": total_users,
+        "online_users": online_users,
+        "recent_users": recent_users,
+        "ad_free_users": ad_free_users,
+        "total_operators": total_operators,
+        "verified_operators": verified_operators,
+        "private_operators": private_operators,
+        "operators_per_region": operators_per_region,
+        "total_buses": total_buses,
+        "in_service": in_service,
+        "for_sale": for_sale,
+        "preserved": preserved,
+        "double_deckers": double_deckers,
+        "avg_fleet_per_operator": avg_fleet_per_operator,
+        "total_tickets": total_tickets,
+        "tickets_per_category": tickets_per_category,
+        "total_updates": total_updates,
+        "live_updates": live_updates,
+        "total_patch_notes": total_patch_notes,
+        "live_patch_notes": live_patch_notes,
+        "active_features": active_features,
+        "total_reports": total_reports,
+        "reports_last_7days": reports_last_7days,
+        "total_community_images": total_community_images,
+        "total_badges": total_badges,
+        "most_changed_buses": most_changed_buses,
+    }
+
+    return render(request, "stats.html", context)
