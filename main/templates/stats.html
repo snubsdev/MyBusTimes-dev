@@ -3,21 +3,25 @@
 {% block title %}Stats - MyBusTimes{% endblock %}
 
 {% block content %}
-<div class="container mx-auto py-8 px-4">
+<div class="container mx-auto py-8 px-4 space-y-8">
 
-    <!-- Stats Cards -->
-    <div class="grid md:grid-cols-3 gap-6 mb-8">
+    <!-- Top Stats Cards -->
+    <div class="grid md:grid-cols-4 gap-6">
         <div class="bg-white p-6 rounded-lg shadow hover:shadow-lg transition duration-300">
             <h2 class="text-xl font-semibold mb-2">Total Operators</h2>
             <p class="text-3xl font-bold">{{ total_operators }}</p>
         </div>
         <div class="bg-white p-6 rounded-lg shadow hover:shadow-lg transition duration-300">
-            <h2 class="text-xl font-semibold mb-2">Avg Fleet per Operator</h2>
+            <h2 class="text-xl font-semibold mb-2">Total Buses</h2>
+            <p class="text-3xl font-bold">{{ total_buses }}</p>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow hover:shadow-lg transition duration-300">
+            <h2 class="text-xl font-semibold mb-2">Avg Fleet / Operator</h2>
             <p class="text-3xl font-bold">{{ avg_fleet_per_operator|floatformat:1 }}</p>
         </div>
         <div class="bg-white p-6 rounded-lg shadow hover:shadow-lg transition duration-300">
-            <h2 class="text-xl font-semibold mb-2">Total Buses</h2>
-            <p class="text-3xl font-bold">{{ total_buses }}</p>
+            <h2 class="text-xl font-semibold mb-2">Total Reports</h2>
+            <p class="text-3xl font-bold">{{ total_reports }}</p>
         </div>
     </div>
 
@@ -45,6 +49,37 @@
             </tbody>
         </table>
     </div>
+
+    <!-- Recent Reports Table -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <h2 class="text-2xl font-bold p-4 border-b">Recent Reports</h2>
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Reporter</th>
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Details</th>
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for report in recent_reports %}
+                    <tr class="hover:bg-gray-100">
+                        <td class="px-6 py-4 whitespace-nowrap">{{ report.reporter.username }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">{{ report.report_type }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">{{ report.details|truncatechars:50 }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">{{ report.created_at|date:"Y-m-d H:i" }}</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="4" class="px-6 py-4 text-center text-gray-400">No reports</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- You can add more sections here for fleets, top operators, etc. -->
 
 </div>
 {% endblock %}
