@@ -1,178 +1,142 @@
 {% extends "mbtbase.html" %}
+{% load static %}
 
 {% block content %}
 <div class="container mx-auto px-4 py-6">
+    <h1 class="text-3xl font-bold mb-6">Site Statistics</h1>
 
-  <h1 class="text-3xl font-bold mb-6">Site Statistics</h1>
-
-  <!-- Users Stats -->
-  <section class="mb-8">
-    <h2 class="text-2xl font-semibold mb-4">Users</h2>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div class="bg-white shadow rounded p-4">
-        <h3 class="text-lg font-semibold">Total Users</h3>
-        <p class="text-2xl font-bold">{{ total_users }}</p>
-      </div>
-      <div class="bg-white shadow rounded p-4">
-        <h3 class="text-lg font-semibold">Active Users</h3>
-        <p class="text-2xl font-bold">{{ active_users }}</p>
-      </div>
-      <div class="bg-white shadow rounded p-4">
-        <h3 class="text-lg font-semibold">Banned Users</h3>
-        <p class="text-2xl font-bold">{{ banned_users }}</p>
-      </div>
-    </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-      <div class="bg-white shadow rounded p-4">
-        <h3 class="text-lg font-semibold">Ad-Free Users</h3>
-        <p class="text-xl font-bold">{{ ad_free_users }}</p>
-      </div>
-      <div class="bg-white shadow rounded p-4">
-        <h3 class="text-lg font-semibold">Users per Team</h3>
-        <ul class="list-disc pl-5">
-          {% for team in users_per_team %}
-            <li>{{ team.name }}: {{ team.member_count }}</li>
-          {% endfor %}
-        </ul>
-      </div>
-    </div>
-  </section>
-
-  <!-- Operators & Fleets Stats -->
-  <section class="mb-8">
-    <h2 class="text-2xl font-semibold mb-4">Operators & Fleets</h2>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div class="bg-white shadow rounded p-4">
-        <h3 class="text-lg font-semibold">Total Operators</h3>
-        <p class="text-2xl font-bold">{{ total_operators }}</p>
-      </div>
-      <div class="bg-white shadow rounded p-4">
-        <h3 class="text-lg font-semibold">Total Buses</h3>
-        <p class="text-2xl font-bold">{{ total_buses }}</p>
-      </div>
-      <div class="bg-white shadow rounded p-4">
-        <h3 class="text-lg font-semibold">Avg Fleet per Operator</h3>
-        <p class="text-2xl font-bold">{{ avg_fleet_per_operator }}</p>
-      </div>
-    </div>
-
-    <div class="mt-4">
-      <h3 class="text-lg font-semibold mb-2">Top Operators by Fleet Size</h3>
-      <table class="w-full bg-white shadow rounded">
-        <thead class="bg-gray-100">
-          <tr>
-            <th class="px-4 py-2 text-left">Operator</th>
-            <th class="px-4 py-2 text-left">Fleet Size</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for operator in top_operators %}
-          <tr class="border-b">
-            <td class="px-4 py-2">{{ operator.name }}</td>
-            <td class="px-4 py-2">{{ operator.fleet_count }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-
-    <div class="mt-4">
-      <h3 class="text-lg font-semibold mb-2">Operators per Region</h3>
-      <table class="w-full bg-white shadow rounded">
-        <thead class="bg-gray-100">
-          <tr>
-            <th class="px-4 py-2 text-left">Region</th>
-            <th class="px-4 py-2 text-left">Operator Count</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for region in operators_per_region %}
-          <tr class="border-b">
-            <td class="px-4 py-2">{{ region.region_name }}</td>
-            <td class="px-4 py-2">{{ region.operator_count }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <!-- Reports Stats -->
-  <section class="mb-8">
-    <h2 class="text-2xl font-semibold mb-4">Reports</h2>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div class="bg-white shadow rounded p-4">
-        <h3 class="text-lg font-semibold">Total Reports</h3>
-        <p class="text-2xl font-bold">{{ total_reports }}</p>
-      </div>
-      {% for type in reports_by_type %}
-      <div class="bg-white shadow rounded p-4">
-        <h3 class="text-lg font-semibold">{{ type.report_type }} Reports</h3>
-        <p class="text-2xl font-bold">{{ type.count }}</p>
-      </div>
-      {% endfor %}
-    </div>
-  </section>
-
-  <!-- Banned IPs -->
-  <section class="mb-8">
-    <h2 class="text-2xl font-semibold mb-4">Banned IPs</h2>
-    <p>Total banned IPs: <strong>{{ total_banned_ips }}</strong></p>
-    <ul class="list-disc pl-5 mt-2">
-      {% for ip in recent_banned_ips %}
-        <li>{{ ip.ip_address }} - {{ ip.reason }}</li>
-      {% endfor %}
-    </ul>
-  </section>
-
-  <!-- Feature Toggles -->
-  <section class="mb-8">
-    <h2 class="text-2xl font-semibold mb-4">Feature Toggles</h2>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      {% for feature in features %}
-      <div class="bg-white shadow rounded p-4">
-        <h3 class="text-lg font-semibold">{{ feature.name }}</h3>
-        <p class="text-xl font-bold">{{ feature.status_text }}</p>
-      </div>
-      {% endfor %}
-    </div>
-  </section>
-
-  <!-- Stripe Subscriptions -->
-  <section class="mb-8">
-    <h2 class="text-2xl font-semibold mb-4">Stripe Subscriptions</h2>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div class="bg-white shadow rounded p-4">
-        <h3 class="text-lg font-semibold">Total Subscriptions</h3>
-        <p class="text-2xl font-bold">{{ total_subscriptions }}</p>
-      </div>
-      <div class="bg-white shadow rounded p-4">
-        <h3 class="text-lg font-semibold">Active Subscriptions</h3>
-        <p class="text-2xl font-bold">{{ active_subscriptions }}</p>
-      </div>
-      <div class="bg-white shadow rounded p-4">
-        <h3 class="text-lg font-semibold">Users Without Subscription</h3>
-        <p class="text-2xl font-bold">{{ users_without_subscription }}</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- Community Content -->
-  <section class="mb-8">
-    <h2 class="text-2xl font-semibold mb-4">Community Images</h2>
-    <p>Total Images: <strong>{{ total_community_images }}</strong></p>
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-2">
-      {% for image in recent_community_images %}
-      <div class="bg-white shadow rounded overflow-hidden">
-        <img src="{{ image.image.url }}" alt="Community Image" class="w-full h-48 object-cover">
-        <div class="p-2">
-          Uploaded by: {{ image.uploaded_by.username }}
+    <!-- USERS, OPERATORS, FLEETS -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <!-- Users -->
+        <div class="bg-white shadow rounded-lg p-6">
+            <h2 class="text-xl font-semibold mb-4">Users</h2>
+            <ul class="space-y-2">
+                <li><strong>Total Users:</strong> {{ total_users }}</li>
+                <li><strong>Active Users (last 30 days):</strong> {{ active_users }}</li>
+                <li><strong>Banned Users:</strong> {{ banned_users }}</li>
+                <li><strong>Ad-Free Users:</strong> {{ ad_free_users }}</li>
+            </ul>
+            <h3 class="mt-4 font-semibold">Users Per Team:</h3>
+            <ul class="list-disc list-inside">
+                {% for team in users_per_team %}
+                    <li>{{ team.name }}: {{ team.member_count }}</li>
+                {% empty %}
+                    <li>No teams found.</li>
+                {% endfor %}
+            </ul>
         </div>
-      </div>
-      {% endfor %}
-    </div>
-  </section>
 
+        <!-- Operators -->
+        <div class="bg-white shadow rounded-lg p-6">
+            <h2 class="text-xl font-semibold mb-4">Operators</h2>
+            <ul class="space-y-2">
+                <li><strong>Total Operators:</strong> {{ total_operators }}</li>
+                <li><strong>Operators with No Fleet:</strong> {{ operators_no_fleet|length }}</li>
+            </ul>
+            <h3 class="mt-4 font-semibold">Operators Per Region:</h3>
+            <ul class="list-disc list-inside">
+                {% for region in operators_per_region %}
+                    <li>{{ region.region_name }}: {{ region.operator_count }}</li>
+                {% empty %}
+                    <li>No regions found.</li>
+                {% endfor %}
+            </ul>
+            <h3 class="mt-4 font-semibold">Top Operators:</h3>
+            <ul class="list-disc list-inside">
+                {% for operator in top_operators %}
+                    <li>{{ operator.username }}: {{ operator.fleet_count }} buses</li>
+                {% empty %}
+                    <li>No operators found.</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <!-- Fleets -->
+        <div class="bg-white shadow rounded-lg p-6">
+            <h2 class="text-xl font-semibold mb-4">Fleets</h2>
+            <ul class="space-y-2">
+                <li><strong>Total Buses:</strong> {{ total_buses }}</li>
+                <li><strong>Average Fleet per Operator:</strong> {{ avg_fleet_per_operator|default:0|floatformat:2 }}</li>
+                <li><strong>Largest Fleet Operator:</strong> 
+                    {% if largest_fleet_operator %}
+                        {{ largest_fleet_operator.username }} ({{ largest_fleet_operator.fleet_count }} buses)
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- OTHER STATS -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Reports -->
+        <div class="bg-white shadow rounded-lg p-6">
+            <h2 class="text-xl font-semibold mb-4">Reports</h2>
+            <ul class="space-y-2">
+                <li><strong>Total Reports:</strong> {{ total_reports }}</li>
+                <li><strong>Reports Last 7 Days:</strong> {{ reports_last_7_days }}</li>
+            </ul>
+            <h3 class="mt-4 font-semibold">Reports by Type:</h3>
+            <ul class="list-disc list-inside">
+                {% for r in reports_by_type %}
+                    <li>{{ r.report_type }}: {{ r.count }}</li>
+                {% empty %}
+                    <li>No reports found.</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <!-- Banned IPs -->
+        <div class="bg-white shadow rounded-lg p-6">
+            <h2 class="text-xl font-semibold mb-4">Banned IPs</h2>
+            <ul class="space-y-2">
+                <li><strong>Total Banned IPs:</strong> {{ total_banned_ips }}</li>
+            </ul>
+            <h3 class="mt-4 font-semibold">Recent Bans:</h3>
+            <ul class="list-disc list-inside">
+                {% for ip in recent_banned_ips %}
+                    <li>{{ ip.ip_address }} - {{ ip.reason|default:"No reason" }}</li>
+                {% empty %}
+                    <li>No banned IPs found.</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <!-- Features & Community -->
+        <div class="bg-white shadow rounded-lg p-6">
+            <h2 class="text-xl font-semibold mb-4">Features & Community</h2>
+            <ul class="space-y-2">
+                <li><strong>Total Community Images:</strong> {{ total_community_images }}</li>
+            </ul>
+
+            <h3 class="mt-4 font-semibold">Recent Images:</h3>
+            <ul class="list-disc list-inside">
+                {% for img in recent_community_images %}
+                    <li>{{ img.uploaded_by.username }} - <a href="{{ img.image.url }}" target="_blank">View</a></li>
+                {% empty %}
+                    <li>No recent images.</li>
+                {% endfor %}
+            </ul>
+
+            <h3 class="mt-4 font-semibold">Top Uploaders:</h3>
+            <ul class="list-disc list-inside">
+                {% for uploader in top_uploaders %}
+                    <li>{{ uploader.username }} - {{ uploader.image_count }} images</li>
+                {% empty %}
+                    <li>No top uploaders yet.</li>
+                {% endfor %}
+            </ul>
+
+            <h3 class="mt-4 font-semibold">Feature Toggles:</h3>
+            <ul class="list-disc list-inside">
+                {% for feature in features %}
+                    <li>{{ feature.name }}: {{ feature.status_text }}</li>
+                {% empty %}
+                    <li>No features found.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
 </div>
 {% endblock %}

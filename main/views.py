@@ -1759,76 +1759,66 @@ def online_members(request):
     })
 
 def stats_page(request):
-    now = timezone.now()
+    # --- Users Stats ---
+    total_users = CustomUser.objects.count()
+    active_users = CustomUser.objects.filter(last_active__gte=timezone.now() - timedelta(days=30)).count()
+    banned_users = CustomUser.objects.filter(banned=True).count()
+    ad_free_users = CustomUser.objects.filter(ad_free_until__gte=timezone.now()).count()
 
-    # ---- USER STATS ----
-    total_users = User.objects.count()
-    online_users = User.objects.filter(last_active__gte=now - timedelta(minutes=10)).count()
-    recent_users = User.objects.filter(join_date__gte=now - timedelta(days=7)).count()
-    ad_free_users = User.objects.filter(ad_free_until__gte=now).count()
+    users_per_team = MBTTeam.objects.annotate(member_count=Count('team_members')).order_by('-member_count')
 
-    # ---- OPERATOR STATS ----
-    total_operators = MBTOperator.objects.count()
-    verified_operators = MBTOperator.objects.filter(verified=True).count()
-    private_operators = MBTOperator.objects.filter(private=True).count()
-    operators_per_region = region.objects.annotate(operator_count=Count('operators')).order_by('-operator_count')
+    # --- Operators Stats ---
+    total_operators = CustomUser.objects.filter(mbt_team__isnull=False).count()  # assuming operators have teams
+    operators_per_region = region.objects.annotate(operator_count=Count('region_code'))  # customize if operator->region relationship exists
 
-    # ---- FLEET / BUS STATS ----
+    top_operators = CustomUser.objects.annotate(fleet_count=Count('fleet_set')).order_by('-fleet_count')[:5]
+    operators_no_fleet = CustomUser.objects.annotate(fleet_count=Count('fleet_set')).filter(fleet_count=0)
+    
+    # --- Fleets Stats ---
     total_buses = fleet.objects.count()
-    in_service = fleet.objects.filter(in_service=True).count()
-    for_sale = fleet.objects.filter(for_sale=True).count()
-    preserved = fleet.objects.filter(preserved=True).count()
-    double_deckers = fleet.objects.filter(vehicleType__double_decker=True).count()
-    avg_fleet_per_operator = fleet.objects.values('operator').annotate(bus_count=Count('id')).aggregate(avg_count=Avg('bus_count'))['avg_count']
+    avg_fleet_per_operator = fleet.objects.values('operator').annotate(bus_count=Count('id')).aggregate(avg_count=Avg('bus_count'))['avg_count'] or 0
 
-    # ---- TICKET STATS ----
-    total_tickets = ticket.objects.count()
-    tickets_per_category = ticket.objects.values('ticket_category').annotate(count=Count('id')).order_by('-count')
+    largest_fleet_operator = CustomUser.objects.annotate(fleet_count=Count('fleet_set')).order_by('-fleet_count').first()
 
-    # ---- SITE UPDATES / PATCHES ----
-    total_updates = siteUpdate.objects.count()
-    live_updates = siteUpdate.objects.filter(live=True).count()
-    total_patch_notes = patchNote.objects.count()
-    live_patch_notes = patchNote.objects.filter(live=True).count()
-    active_features = featureToggle.objects.filter(enabled=True).count()
-
-    # ---- REPORT / COMMUNITY STATS ----
+    # --- Reports Stats ---
     total_reports = Report.objects.count()
-    reports_last_7days = Report.objects.filter(created_at__gte=now - timedelta(days=7)).count()
-    total_community_images = CommunityImages.objects.count()
-    total_badges = sum([user.badges.count() for user in User.objects.all()])
+    reports_by_type = Report.objects.values('report_type').annotate(count=Count('id'))
+    reports_last_7_days = Report.objects.filter(created_at__gte=timezone.now() - timedelta(days=7)).count()
 
-    # ---- FLEET CHANGES ----
-    most_changed_buses = fleetChange.objects.values('vehicle__fleet_number').annotate(num_changes=Count('id')).order_by('-num_changes')[:5]
+    # --- Banned IPs Stats ---
+    total_banned_ips = BannedIps.objects.count()
+    recent_banned_ips = BannedIps.objects.order_by('-banned_at')[:5]
+
+    # --- Feature Toggles ---
+    features = featureToggle.objects.all()
+
+    # --- Community Images Stats ---
+    total_community_images = CommunityImages.objects.count()
+    recent_community_images = CommunityImages.objects.order_by('-created_at')[:5]
+    top_uploaders = CustomUser.objects.annotate(image_count=Count('uploaded_images')).order_by('-image_count')[:5]
 
     context = {
-        "breadcrumbs": [{"name": "Stats", "url": "/stats"}],
-        "total_users": total_users,
-        "online_users": online_users,
-        "recent_users": recent_users,
-        "ad_free_users": ad_free_users,
-        "total_operators": total_operators,
-        "verified_operators": verified_operators,
-        "private_operators": private_operators,
-        "operators_per_region": operators_per_region,
-        "total_buses": total_buses,
-        "in_service": in_service,
-        "for_sale": for_sale,
-        "preserved": preserved,
-        "double_deckers": double_deckers,
-        "avg_fleet_per_operator": avg_fleet_per_operator,
-        "total_tickets": total_tickets,
-        "tickets_per_category": tickets_per_category,
-        "total_updates": total_updates,
-        "live_updates": live_updates,
-        "total_patch_notes": total_patch_notes,
-        "live_patch_notes": live_patch_notes,
-        "active_features": active_features,
-        "total_reports": total_reports,
-        "reports_last_7days": reports_last_7days,
-        "total_community_images": total_community_images,
-        "total_badges": total_badges,
-        "most_changed_buses": most_changed_buses,
+        'total_users': total_users,
+        'active_users': active_users,
+        'banned_users': banned_users,
+        'ad_free_users': ad_free_users,
+        'users_per_team': users_per_team,
+        'total_operators': total_operators,
+        'operators_per_region': operators_per_region,
+        'top_operators': top_operators,
+        'operators_no_fleet': operators_no_fleet,
+        'total_buses': total_buses,
+        'avg_fleet_per_operator': avg_fleet_per_operator,
+        'largest_fleet_operator': largest_fleet_operator,
+        'total_reports': total_reports,
+        'reports_by_type': reports_by_type,
+        'reports_last_7_days': reports_last_7_days,
+        'total_banned_ips': total_banned_ips,
+        'recent_banned_ips': recent_banned_ips,
+        'features': features,
+        'total_community_images': total_community_images,
+        'recent_community_images': recent_community_images,
+        'top_uploaders': top_uploaders,
     }
 
-    return render(request, "stats.html", context)
+    return render(request, "stats_page.html", context)
