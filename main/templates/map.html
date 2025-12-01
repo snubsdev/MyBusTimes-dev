@@ -390,6 +390,7 @@
   const btDiv = document.createElement('div');
   btDiv.className = 'bt-toggle-control';
   btDiv.innerHTML = `<label><input id="btToggle" type="checkbox" checked style="margin-right:6px;">Real Buses</label>`;
+  btDiv.style.zIndex = -10;
   document.body.appendChild(btDiv);
   const btToggle = document.getElementById('btToggle');
   btToggle.addEventListener('change', () => {
