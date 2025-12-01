@@ -207,13 +207,57 @@
       });
     }
   });
-  async function fetchTimetable(routeID, direction) {
-    const operator = "{{ operator.id }}";
-    const url = `/api/timetable/${routeID}/${direction}`;
+  async function fetchTimetable(routeID, direction, startTime) {
+    const url = `/api/timetable/${routeID}/${direction}?start_time=${startTime}`;
     const response = await fetch(url);
     if (!response.ok) throw new Error("Failed to load timetable");
     return await response.json();
   }
+
+  document.getElementById("auto-generate-btn").addEventListener("click", async () => {
+    const firstStart = document.getElementById("auto-first-start").value;
+    const routeID = document.getElementById("auto-route-select").value;
+    const direction = document.getElementById("auto-direction").value;
+    const container = document.getElementById("trips-container");
+    const status = document.getElementById("auto-generate-status");
+
+    if (!firstStart) {
+      status.textContent = "Enter a start time first.";
+      return;
+    }
+
+    status.textContent = "Loading timetable…";
+
+    try {
+      // NEW: backend handles flipping + filtering
+      const trips = await fetchTimetable(routeID, direction, firstStart);
+
+      container.innerHTML = ""; // clear existing
+
+      const routes = JSON.parse(document.getElementById('route-data').textContent);
+      const selectedRoute = routes.find(r => r.id == routeID);
+
+      trips.forEach(t => {
+        const values = {
+          route_id: routeID,
+          route_num: selectedRoute ? selectedRoute.route_num : "",
+          start_time: t.start_time,
+          end_time: t.end_time,
+          start_at: t.start_stop,
+          end_at: t.end_stop,
+        };
+
+        container.appendChild(createTripGroup(values));
+      });
+
+      status.textContent = "Trips generated. You can edit them before saving.";
+
+    } catch (err) {
+      status.textContent = "Error loading timetable.";
+      console.error(err);
+    }
+  });
+
 
   // Return HH:MM duration between two strings
   function diffMinutes(start, end) {
@@ -273,12 +317,12 @@
         const selectedRoute = routes.find(r => r.id == routeID);
 
         const values = {
-            route_id: routeID,
-            route_num: selectedRoute ? selectedRoute.route_num : "",
-            start_time: tripStart,
-            end_time: tripEnd,
-            start_at: t.start_stop,
-            end_at: t.end_stop,
+          route_id: routeID,
+          route_num: selectedRoute ? selectedRoute.route_num : "",
+          start_time: tripStart,
+          end_time: tripEnd,
+          start_at: t.start_stop,
+          end_at: t.end_stop,
         };
 
         container.appendChild(createTripGroup(values));

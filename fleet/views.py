@@ -2117,79 +2117,99 @@ def duty_add_trip(request, operator_slug, duty_id):
 
 def get_timetable(request, route_id, direction):
     try:
+        # direction tells us which trip the vehicle does FIRST
         inbound_first = (direction == "inbound")
 
+        start_time_str = request.GET.get("start_time", None)
+        if not start_time_str:
+            return JsonResponse({"error": "start_time is required (HH:MM)"}, status=400)
+
+        # convert HH:MM → minutes
+        def to_minutes(t):
+            h, m = map(int, t.split(":"))
+            return h * 60 + m
+
+        start_minutes = to_minutes(start_time_str)
+
+        # -------- GET ROUTE --------
         r = route.objects.filter(pk=route_id).first()
         if not r:
-            return JsonResponse({"error": "No route found"}, status=400)
+            return JsonResponse({"error": "Route not found"}, status=400)
 
         inbound_entry = timetableEntry.objects.filter(route=r, inbound=True).first()
         outbound_entry = timetableEntry.objects.filter(route=r, inbound=False).first()
 
-        if not inbound_entry and not outbound_entry:
-            return JsonResponse({"error": "No timetables found"}, status=400)
+        if not inbound_entry or not outbound_entry:
+            return JsonResponse({"error": "Both inbound and outbound timetables required"}, status=400)
 
-        # -------- PARSE FUNCTION --------
+        # -------- PARSE TIMETABLE ENTRY --------
         def parse_entry(entry):
-            if not entry:
-                return []
-
-            raw = entry.stop_times
-            data = json.loads(raw) if isinstance(raw, str) else raw
-
-            if not isinstance(data, dict):
-                return []
+            data = entry.stop_times
+            data = json.loads(data) if isinstance(data, str) else data
 
             stops_list = list(data.values())
-            if not stops_list:
-                return []
-
             trip_count = len(stops_list[0]["times"])
-            trips = []
 
+            trips = []
             for i in range(trip_count):
-                trip_stops = []
-                for stop in stops_list:
-                    trip_stops.append({
+                trip_stops = [
+                    {
                         "stop": stop["stopname"],
                         "time": stop["times"][i]
-                    })
+                    }
+                    for stop in stops_list
+                ]
+
+                start_t = trip_stops[0]["time"]
+                end_t = trip_stops[-1]["time"]
 
                 trips.append({
                     "times": trip_stops,
-                    "start_time": trip_stops[0]["time"],
-                    "end_time": trip_stops[-1]["time"],
+                    "start_time": start_t,
+                    "end_time": end_t,
+                    "start_minutes": to_minutes(start_t),
+                    "end_minutes": to_minutes(end_t),
                     "start_stop": trip_stops[0]["stop"],
-                    "end_stop": trip_stops[-1]["stop"]
+                    "end_stop": trip_stops[-1]["stop"],
                 })
 
+            trips.sort(key=lambda x: x["start_minutes"])
             return trips
 
         inbound_trips = parse_entry(inbound_entry)
         outbound_trips = parse_entry(outbound_entry)
 
-        # ----------- BUILD ALTERNATING SEQUENCE -----------
+        # -------- BUILD VEHICLE RUN SEQUENCE --------
 
-        combined = []
-        max_len = max(len(inbound_trips), len(outbound_trips))
+        result = []
+        current_time = start_minutes
+        doing_inbound = inbound_first
 
-        for i in range(max_len):
-            if inbound_first:
-                # inbound → outbound
-                if i < len(inbound_trips):
-                    combined.append(inbound_trips[i])
-                if i < len(outbound_trips):
-                    combined.append(outbound_trips[i])
-            else:
-                # outbound → inbound
-                if i < len(outbound_trips):
-                    combined.append(outbound_trips[i])
-                if i < len(inbound_trips):
-                    combined.append(inbound_trips[i])
+        while True:
+            # choose trip list
+            pool = inbound_trips if doing_inbound else outbound_trips
 
-        # ----------- RETURN EXACT ORDER WITHOUT FILTERING -----------
+            # find next valid trip:
+            # must start AFTER current_time
+            next_trip = None
+            for trip in pool:
+                if trip["start_minutes"] >= current_time:
+                    next_trip = trip
+                    break
 
-        return JsonResponse(combined, safe=False)
+            if not next_trip:
+                break  # no more trips
+
+            # append trip
+            result.append(next_trip)
+
+            # update current time to trip end
+            current_time = next_trip["end_minutes"]
+
+            # flip direction
+            doing_inbound = not doing_inbound
+
+        return JsonResponse(result, safe=False)
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
