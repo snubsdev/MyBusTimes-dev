@@ -272,35 +272,4 @@
   <p style="position: absolute;left: 0; background: var(--brand-color);padding: 5px;border-radius: 0px 10px 0px 0px;">
     MyBusTimes: V2.2.2</p>
 </body>
-
-{% if themeDark == "True" %}
-<style>
-  :root {
-    --header-image: url("https://raw.githubusercontent.com/NextStopLabs/MBT-Media-Kit/refs/heads/main/banner1.svg") center;
-    --brand-color: #08594A;
-    --brand-color-darker: #08594A;
-    --brand-color-darker-darker: #1E9271;
-    --border-color: var(--brand-color-darker);
-    --border-color-darker: var(--brand-color-darker-darker);
-    --background-color: #222;
-    --text-color: #ffffff;
-    --link-color: #FF4141;
-  }
-</style>
-{% else %}
-<style>
-  :root {
-    --header-image: url("https://raw.githubusercontent.com/NextStopLabs/MBT-Media-Kit/refs/heads/main/banner1.svg") center;
-    --brand-color: #16846F;
-    --brand-color-darker: #107B67;
-    --brand-color-darker-darker: #1E9271;
-    --border-color: var(--brand-color-darker);
-    --border-color-darker: var(--brand-color-darker-darker);
-    --background-color: #eee;
-    --text-color: #222;
-    --link-color: #D02121;
-  }
-</style>
-{% endif %}
-</html>
 {% endif %}
