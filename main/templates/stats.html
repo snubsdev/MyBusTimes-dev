@@ -1,88 +1,50 @@
 {% extends "mbtbase.html" %}
 
-{% block title %}Site Stats{% endblock %}
+{% block title %}Stats - MyBusTimes{% endblock %}
 
 {% block content %}
-<h1 style="margin-bottom: 20px;">MyBusTimes – Public Stats</h1>
+<div class="container mx-auto py-8 px-4">
 
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
-
-    <!-- USER STATS -->
-    <div class="card card-body" style="text-align:center;">
-        <h2>Users</h2>
-        <p>Total: {{ total_users }}</p>
-        <p>Online: {{ online_users }}</p>
-        <p>Recent (7d): {{ recent_users }}</p>
-        <p>Ad-Free: {{ ad_free_users }}</p>
+    <!-- Stats Cards -->
+    <div class="grid md:grid-cols-3 gap-6 mb-8">
+        <div class="bg-white p-6 rounded-lg shadow hover:shadow-lg transition duration-300">
+            <h2 class="text-xl font-semibold mb-2">Total Operators</h2>
+            <p class="text-3xl font-bold">{{ total_operators }}</p>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow hover:shadow-lg transition duration-300">
+            <h2 class="text-xl font-semibold mb-2">Avg Fleet per Operator</h2>
+            <p class="text-3xl font-bold">{{ avg_fleet_per_operator|floatformat:1 }}</p>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow hover:shadow-lg transition duration-300">
+            <h2 class="text-xl font-semibold mb-2">Total Buses</h2>
+            <p class="text-3xl font-bold">{{ total_buses }}</p>
+        </div>
     </div>
 
-    <!-- OPERATOR STATS -->
-    <div class="card card-body" style="text-align:center;">
-        <h2>Operators</h2>
-        <p>Total: {{ total_operators }}</p>
-        <p>Verified: {{ verified_operators }}</p>
-        <p>Private: {{ private_operators }}</p>
-        <p>Avg Fleet Size: {{ avg_fleet_per_operator|floatformat:1 }}</p>
-    </div>
-
-    <!-- FLEET / BUSES -->
-    <div class="card card-body" style="text-align:center;">
-        <h2>Buses / Fleet</h2>
-        <p>Total: {{ total_buses }}</p>
-        <p>In Service: {{ in_service }}</p>
-        <p>For Sale: {{ for_sale }}</p>
-        <p>Preserved: {{ preserved }}</p>
-        <p>Double Deckers: {{ double_deckers }}</p>
-    </div>
-
-    <!-- TICKETS -->
-    <div class="card card-body" style="text-align:center;">
-        <h2>Tickets</h2>
-        <p>Total: {{ total_tickets }}</p>
-        <ul>
-            {% for t in tickets_per_category %}
-                <li>{{ t.ticket_category|default:"Uncategorized" }}: {{ t.count }}</li>
-            {% endfor %}
-        </ul>
-    </div>
-
-    <!-- SITE UPDATES / PATCHES -->
-    <div class="card card-body" style="text-align:center;">
-        <h2>Site Updates</h2>
-        <p>Updates Total: {{ total_updates }}</p>
-        <p>Live: {{ live_updates }}</p>
-        <p>Patch Notes Total: {{ total_patch_notes }}</p>
-        <p>Live: {{ live_patch_notes }}</p>
-        <p>Active Features: {{ active_features }}</p>
-    </div>
-
-    <!-- COMMUNITY & REPORTS -->
-    <div class="card card-body" style="text-align:center;">
-        <h2>Community & Reports</h2>
-        <p>Reports Total: {{ total_reports }}</p>
-        <p>Last 7 Days: {{ reports_last_7days }}</p>
-        <p>Community Images: {{ total_community_images }}</p>
-        <p>Total Badges Assigned: {{ total_badges }}</p>
-    </div>
-
-    <!-- FLEET CHANGES -->
-    <div class="card card-body" style="text-align:center;">
-        <h2>Most Changed Buses</h2>
-        <ul>
-            {% for bus in most_changed_buses %}
-                <li>{{ bus.vehicle__fleet_number }} - {{ bus.num_changes }} changes</li>
-            {% endfor %}
-        </ul>
+    <!-- Operators per Region Table -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <h2 class="text-2xl font-bold p-4 border-b">Operators per Region</h2>
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Region</th>
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Operators</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for region in operators_per_region %}
+                    <tr class="hover:bg-gray-100">
+                        <td class="px-6 py-4 whitespace-nowrap">{{ region.region_name }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap font-semibold">{{ region.operator_count }}</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="2" class="px-6 py-4 text-center text-gray-400">No data available</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 
 </div>
-
-<!-- Operators per Region Chart -->
-<h2 style="margin-top: 40px;">Operators per Region</h2>
-<ul>
-    {% for r in operators_per_region %}
-        <li>{{ r.region_name }}: {{ r.operator_count }} operators</li>
-    {% endfor %}
-</ul>
-
 {% endblock %}
