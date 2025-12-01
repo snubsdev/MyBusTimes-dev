@@ -53,9 +53,9 @@ from rest_framework import status
 from tracking.models import Trip
 from fleet.models import fleet, MBTOperator
 from routes.models import route
-from main.models import CustomUser, siteUpdate
+from main.models import CustomUser, siteUpdate, featureToggle, siteUpdate, patchNote, Report, CommunityImages
 from .forms import GameForm
-from main.models import CustomUser as User, fleet, fleetChange, ticket, region, siteUpdate, patchNote, Report, CommunityImages, helper, liverie, vehicleType, featureToggle
+from fleet.models import fleet, fleetChange, ticket, region, helper, liverie, vehicleType
 
 def ads_txt_view(request):
     ads_path = os.path.join(settings.BASE_DIR, 'static/ads.txt')
