@@ -56,7 +56,7 @@ from routes.models import route
 from main.models import CustomUser, siteUpdate
 from .forms import GameForm
 from main.models import (
-    CustomUser as User, MBTOperator, fleet, fleetChange, ticket, region,
+    CustomUser as User, fleet, fleetChange, ticket, region,
     siteUpdate, patchNote, Report, CommunityImages, helper, liverie, vehicleType, featureToggle
 )
 
