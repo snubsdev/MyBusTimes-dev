@@ -221,6 +221,8 @@
       {% endif %}
     </select>
     <br>
+    <input type="checkbox" id="dark-mode-toggle" name="dark_mode" {% if themeDark == 'True' %}checked{% endif %}><label for="dark-mode-toggle">Dark Mode</label>
+    <br>
     <ul class="footer-info">
       <li id="users-stats">Online: {{ online_users_count }} | Total: {{ total_users_count }}</li>
     </ul>

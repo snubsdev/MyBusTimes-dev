@@ -13,28 +13,45 @@
     // Theme selector
     document.getElementById('theme-selector').addEventListener('change', function () {
       const themeId = this.value;
+      const darkMode = document.getElementById('dark-mode-toggle').checked;
 
       fetch("{% url 'set_theme' %}", {
-        method: 'POST',
-        headers: {
-          'X-CSRFToken': '{{ csrf_token }}',
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          theme_id: themeId
-        }),
-      })
-        .then(response => {
-          if (!response.ok) throw new Error('Failed to set theme');
-          return response.json();
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            theme_id: themeId,
+            darkMode: darkMode
+          }),
         })
-        .then(data => {
-          window.location.reload();
-        })
-        .catch(err => {
-          alert(err.message);
-        });
+        .then(response => response.json())
+        .then(() => window.location.reload())
+        .catch(err => alert(err.message));
     });
+
+
+    document.getElementById('dark-mode-toggle').addEventListener('change', function () {
+      const darkMode = this.checked;
+      const themeId = document.getElementById('theme-selector').value;
+
+      fetch("{% url 'set_theme' %}", {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            theme_id: themeId,
+            darkMode: darkMode
+          }),
+        })
+        .then(response => response.json())
+        .then(() => window.location.reload())
+        .catch(err => alert(err.message));
+    });
+
 
     // Unban timer
     const timerEl = document.getElementById("unban-timer");
@@ -94,11 +111,12 @@
 
         const data = await response.json();
         const bannedItems = data.results.filter(r => r.status === "banned");
-        
+
         if (bannedItems.length > 0) {
           let newValue = value;
           bannedItems.forEach(item => {
-            const badWord = item.word || item.match || item.value || item.query || Object.values(item).find(v => typeof v === 'string') || '';
+            const badWord = item.word || item.match || item.value || item.query || Object.values(item).find(
+              v => typeof v === 'string') || '';
             if (!badWord) return;
             const esc = badWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const rx = new RegExp('\\b' + esc + '\\b', 'gi');
@@ -120,7 +138,8 @@
       }
     }
 
-    const fields = document.querySelectorAll('input[type="text"], textarea, input[type="search"], input[type="email"]');
+    const fields = document.querySelectorAll(
+      'input[type="text"], textarea, input[type="search"], input[type="email"]');
     fields.forEach(field => {
       field.addEventListener('input', () => {
         clearTimeout(field._bannedCheckTimeout);
