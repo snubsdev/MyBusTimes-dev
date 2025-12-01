@@ -2114,13 +2114,22 @@ def duty_add_trip(request, operator_slug, duty_id):
             'is_running_board': is_running_board,  # Pass this to your template if needed
         }
         return render(request, 'add_duty_trip.html', context)
-
+    
 def get_timetable(request, route_id, direction):
+    import json
+    import sys
+
+    def log(*args):
+        print("[TIMETABLE DEBUG]", *args, file=sys.stdout, flush=True)
+
     try:
-        # direction tells us which trip the vehicle does FIRST
+        log("REQUEST route_id=", route_id, "direction=", direction)
+
         inbound_first = (direction == "inbound")
 
         start_time_str = request.GET.get("start_time", None)
+        log("START TIME RAW =", start_time_str)
+
         if not start_time_str:
             return JsonResponse({"error": "start_time is required (HH:MM)"}, status=400)
 
@@ -2130,35 +2139,53 @@ def get_timetable(request, route_id, direction):
             return h * 60 + m
 
         start_minutes = to_minutes(start_time_str)
+        log("START TIME MINUTES =", start_minutes)
 
         # -------- GET ROUTE --------
         r = route.objects.filter(pk=route_id).first()
+        log("ROUTE FOUND =", bool(r))
+
         if not r:
             return JsonResponse({"error": "Route not found"}, status=400)
 
         inbound_entry = timetableEntry.objects.filter(route=r, inbound=True).first()
         outbound_entry = timetableEntry.objects.filter(route=r, inbound=False).first()
 
+        log("INBOUND ENTRY EXISTS =", bool(inbound_entry))
+        log("OUTBOUND ENTRY EXISTS =", bool(outbound_entry))
+
         if not inbound_entry or not outbound_entry:
             return JsonResponse({"error": "Both inbound and outbound timetables required"}, status=400)
 
         # -------- PARSE TIMETABLE ENTRY --------
-        def parse_entry(entry):
+        def parse_entry(entry, label):
+            log(f"Parsing entry for {label}")
             data = entry.stop_times
-            data = json.loads(data) if isinstance(data, str) else data
+            if isinstance(data, str):
+                try:
+                    data = json.loads(data)
+                except Exception as e:
+                    log(f"JSON LOAD ERROR IN {label}:", str(e))
+                    return []
+
+            log(f"{label} STOP KEYS =", list(data.keys()))
 
             stops_list = list(data.values())
-            trip_count = len(stops_list[0]["times"])
+            if not stops_list:
+                log(f"{label} EMPTY STOPS LIST")
+                return []
+
+            trip_count = len(stops_list[0].get("times", []))
+            log(f"{label} TRIP COUNT =", trip_count)
 
             trips = []
             for i in range(trip_count):
-                trip_stops = [
-                    {
+                trip_stops = []
+                for stop in stops_list:
+                    trip_stops.append({
                         "stop": stop["stopname"],
                         "time": stop["times"][i]
-                    }
-                    for stop in stops_list
-                ]
+                    })
 
                 start_t = trip_stops[0]["time"]
                 end_t = trip_stops[-1]["time"]
@@ -2174,10 +2201,16 @@ def get_timetable(request, route_id, direction):
                 })
 
             trips.sort(key=lambda x: x["start_minutes"])
+            log(f"{label} FIRST 3 TRIPS (sorted)=",
+                [(t['start_time'], t['end_time']) for t in trips[:3]])
+
             return trips
 
-        inbound_trips = parse_entry(inbound_entry)
-        outbound_trips = parse_entry(outbound_entry)
+        inbound_trips = parse_entry(inbound_entry, "INBOUND")
+        outbound_trips = parse_entry(outbound_entry, "OUTBOUND")
+
+        log("INBOUND TRIPS COUNT =", len(inbound_trips))
+        log("OUTBOUND TRIPS COUNT =", len(outbound_trips))
 
         # -------- BUILD VEHICLE RUN SEQUENCE --------
 
@@ -2185,33 +2218,52 @@ def get_timetable(request, route_id, direction):
         current_time = start_minutes
         doing_inbound = inbound_first
 
-        while True:
-            # choose trip list
-            pool = inbound_trips if doing_inbound else outbound_trips
+        iteration = 0
 
-            # find next valid trip:
-            # must start AFTER current_time
+        while True:
+            iteration += 1
+            if iteration > 5000:
+                log("!!! STOPPING: LOOP ITERATION LIMIT HIT !!!")
+                break
+
+            log(f"--- LOOP {iteration} ---")
+            log("CURRENT TIME =", current_time)
+            log("DOING INBOUND =", doing_inbound)
+
+            pool = inbound_trips if doing_inbound else outbound_trips
+            log("POOL SIZE =", len(pool))
+
             next_trip = None
-            for trip in pool:
-                if trip["start_minutes"] >= current_time:
-                    next_trip = trip
+            for t in pool:
+                if t["start_minutes"] >= current_time:
+                    next_trip = t
                     break
 
             if not next_trip:
-                break  # no more trips
+                log("NO NEXT TRIP FOUND - BREAK")
+                break
 
-            # append trip
+            # Safety: prevent freeze if end==start
+            if next_trip["end_minutes"] <= current_time:
+                log("BREAK: END MINUTES <= CURRENT TIME (BAD TRIP)")
+                break
+
+            log("SELECTED TRIP =", next_trip["start_time"], "→", next_trip["end_time"])
+
             result.append(next_trip)
 
-            # update current time to trip end
+            # Move current time forward
             current_time = next_trip["end_minutes"]
+            log("UPDATED CURRENT TIME =", current_time)
 
-            # flip direction
+            # Flip direction
             doing_inbound = not doing_inbound
 
+        log("FINAL RESULT COUNT =", len(result))
         return JsonResponse(result, safe=False)
 
     except Exception as e:
+        log("ERROR:", str(e))
         return JsonResponse({"error": str(e)}, status=400)
 
 @login_required
