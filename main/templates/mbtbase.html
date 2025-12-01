@@ -67,7 +67,7 @@
   </div>
   <header>
     <div class="site-header">
-      <a href="/"><img id="logo" src="{{ menuLogo }}" height="55px" alt="My Bus Times Logo" fetchpriority="high"
+      <a href="/"><img id="logo" src="{{ menuLogo }}" height="45px" alt="My Bus Times Logo" fetchpriority="high"
           decoding="async"></a>
       <button id="menu-toggle"><img id="menu" src="{{ burgerMenuLogo }}" height="35px" alt="Burger Menu Icon"></button>
       <form action="/search">
@@ -272,5 +272,34 @@
     MyBusTimes: V2.2.2</p>
 </body>
 
+{% if themeDark == "True" %}
+<style>
+  :root {
+    --header-image: url("https://raw.githubusercontent.com/NextStopLabs/MBT-Media-Kit/refs/heads/main/banner1.svg") center;
+    --brand-color: #08594A;
+    --brand-color-darker: #08594A;
+    --brand-color-darker-darker: #1E9271;
+    --border-color: var(--brand-color-darker);
+    --border-color-darker: var(--brand-color-darker-darker);
+    --background-color: #222;
+    --text-color: #ffffff;
+    --link-color: #FF4141;
+  }
+</style>
+{% else %}
+<style>
+  :root {
+    --header-image: url("https://raw.githubusercontent.com/NextStopLabs/MBT-Media-Kit/refs/heads/main/banner1.svg") center;
+    --brand-color: #16846F;
+    --brand-color-darker: #107B67;
+    --brand-color-darker-darker: #1E9271;
+    --border-color: var(--brand-color-darker);
+    --border-color-darker: var(--brand-color-darker-darker);
+    --background-color: #eee;
+    --text-color: #222;
+    --link-color: #D02121;
+  }
+</style>
+{% endif %}
 </html>
 {% endif %}

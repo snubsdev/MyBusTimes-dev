@@ -69,6 +69,10 @@ def theme_settings(request):
     if current_time.month == 11 and current_time.day == 11 and current_time.hour == 11 and current_time.minute in [0, 1]:
         silence = True
 
+    christmas = False
+    if (datetime.now().month == 12):
+        christmas = True
+
     poppy = False
     if (datetime.now().month == 11):
         poppy = True
@@ -86,6 +90,8 @@ def theme_settings(request):
             menu_logo = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/MBT-Logo-White-SPM.png'
         elif poppy:
             menu_logo = 'https://cdn.mybustimes.cc/assets/Logo Light.svg'
+        elif christmas:
+            menu_logo = 'https://cdn.mybustimes.cc/assets/Christmas/Logo.svg'
         elif birthday:
             menu_logo = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/MBT-Logo-White-BD.png'
         elif pride_month:
@@ -99,6 +105,8 @@ def theme_settings(request):
             menu_logo = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/MBT-Logo-Black-SPM.png'
         elif poppy:
             menu_logo = 'https://cdn.mybustimes.cc/assets/Logo Dark.svg'
+        elif christmas:
+            menu_logo = 'https://cdn.mybustimes.cc/assets/Christmas/Logo.svg'
         elif birthday:
             menu_logo = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/MBT-Logo-Black-BD.png'
         elif pride_month:
@@ -110,6 +118,8 @@ def theme_settings(request):
         favicon_ico = favicon_svg = favicon_96x96 = favicon_touch = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/favicon/MBTSPM.png'
     elif poppy:
         favicon_ico = favicon_svg = favicon_96x96 = favicon_touch = 'https://cdn.mybustimes.cc/assets/Square%20Small%20Icon.svg'
+    elif christmas:
+        favicon_ico = favicon_svg = favicon_96x96 = favicon_touch = 'https://cdn.mybustimes.cc/assets/Christmas/Square Small Icon.svg'
     else:
         favicon_ico = 'https://cdn.mybustimes.cc/assets/favicon/favicon.ico'
         favicon_svg = 'https://cdn.mybustimes.cc/assets/favicon/favicon.svg'
