@@ -1,25 +1,103 @@
 {% extends "mbtbase.html" %}
 {% load static %}
 
-{% block content %}
-<div class="container mx-auto px-4 py-6">
-    <h1 class="text-3xl font-bold mb-6">Site Statistics</h1>
+{% block extra_css %}
+<style>
+    .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
 
-    <!-- Grid: Users, Operators, Fleets, Other -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+.page-title {
+    font-size: 28px;
+    font-weight: bold;
+    margin-bottom: 25px;
+}
+
+.page-title-small {
+    font-size: 22px;
+    font-weight: bold;
+    margin-top: 40px;
+    margin-bottom: 15px;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+}
+
+@media (min-width: 768px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (min-width: 1024px) {
+    .stats-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+.card {
+    background: var(--background-color);
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+.card-title {
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 15px;
+}
+
+.card-subtitle {
+    font-size: 16px;
+    font-weight: 600;
+    margin-top: 20px;
+    margin-bottom: 10px;
+}
+
+.card-list {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.card-list li {
+    margin-bottom: 6px;
+}
+
+.thumb {
+    height: 48px;
+    width: 48px;
+    border-radius: 6px;
+    vertical-align: middle;
+    object-fit: cover;
+}
+
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="page-title">Site Statistics</h1>
+
+    <div class="stats-grid">
 
         <!-- USERS -->
-        <div class="bg-white shadow rounded-lg p-6">
-            <h2 class="text-xl font-semibold mb-4">Users</h2>
-            <ul class="space-y-2">
+        <div class="card">
+            <h2 class="card-title">Users</h2>
+            <ul class="card-list">
                 <li>Total Users: <strong>{{ total_users }}</strong></li>
                 <li>Active Users: <strong>{{ active_users }}</strong></li>
                 <li>Banned Users: <strong>{{ banned_users }}</strong></li>
                 <li>Ad-Free Users: <strong>{{ ad_free_users }}</strong></li>
             </ul>
 
-            <h3 class="text-lg font-semibold mt-4">Users Per Team</h3>
-            <ul class="list-disc list-inside">
+            <h3 class="card-subtitle">Users Per Team</h3>
+            <ul class="card-list">
                 {% for team in users_per_team %}
                 <li>{{ team.name }}: {{ team.user_count }}</li>
                 {% empty %}
@@ -29,15 +107,15 @@
         </div>
 
         <!-- OPERATORS -->
-        <div class="bg-white shadow rounded-lg p-6">
-            <h2 class="text-xl font-semibold mb-4">Operators</h2>
-            <ul class="space-y-2">
+        <div class="card">
+            <h2 class="card-title">Operators</h2>
+            <ul class="card-list">
                 <li>Total Operators: <strong>{{ total_operators }}</strong></li>
                 <li>Average Fleet per Operator: <strong>{{ avg_fleet_per_operator|floatformat:2 }}</strong></li>
             </ul>
 
-            <h3 class="text-lg font-semibold mt-4">Top 5 Operators</h3>
-            <ul class="list-disc list-inside">
+            <h3 class="card-subtitle">Top 5 Operators</h3>
+            <ul class="card-list">
                 {% for operator in top_operators %}
                 <li>{{ operator.username }} ({{ operator.fleet_count }} fleets)</li>
                 {% empty %}
@@ -45,8 +123,8 @@
                 {% endfor %}
             </ul>
 
-            <h3 class="text-lg font-semibold mt-4">Operators per Region</h3>
-            <ul class="list-disc list-inside">
+            <h3 class="card-subtitle">Operators per Region</h3>
+            <ul class="card-list">
                 {% for reg in operators_per_region %}
                 <li>{{ reg.region_name }}: {{ reg.operator_count }}</li>
                 {% empty %}
@@ -56,19 +134,19 @@
         </div>
 
         <!-- FLEETS -->
-        <div class="bg-white shadow rounded-lg p-6">
-            <h2 class="text-xl font-semibold mb-4">Fleets</h2>
-            <ul class="space-y-2">
+        <div class="card">
+            <h2 class="card-title">Fleets</h2>
+            <ul class="card-list">
                 <li>Total Buses: <strong>{{ total_buses }}</strong></li>
                 <li>Total Fleet Changes: <strong>{{ total_fleet_changes }}</strong></li>
                 <li>Total Tickets: <strong>{{ total_tickets }}</strong></li>
             </ul>
         </div>
 
-        <!-- OTHER STATS -->
-        <div class="bg-white shadow rounded-lg p-6">
-            <h2 class="text-xl font-semibold mb-4">Other Stats</h2>
-            <ul class="space-y-2">
+        <!-- OTHER -->
+        <div class="card">
+            <h2 class="card-title">Other Stats</h2>
+            <ul class="card-list">
                 <li>Total Reports: <strong>{{ total_reports }}</strong></li>
                 <li>Total Helpers: <strong>{{ total_helpers }}</strong></li>
                 <li>Total Liveries: <strong>{{ total_liveries }}</strong></li>
@@ -76,8 +154,8 @@
                 <li>Total Community Images: <strong>{{ total_community_images }}</strong></li>
             </ul>
 
-            <h3 class="text-lg font-semibold mt-4">Recent Banned IPs</h3>
-            <ul class="list-disc list-inside">
+            <h3 class="card-subtitle">Recent Banned IPs</h3>
+            <ul class="card-list">
                 {% for ip in recent_banned_ips %}
                 <li>{{ ip.ip_address }} - {{ ip.reason|default:"No reason" }}</li>
                 {% empty %}
@@ -85,10 +163,13 @@
                 {% endfor %}
             </ul>
 
-            <h3 class="text-lg font-semibold mt-4">Recent Community Images</h3>
-            <ul class="list-disc list-inside">
+            <h3 class="card-subtitle">Recent Community Images</h3>
+            <ul class="card-list">
                 {% for img in recent_community_images %}
-                <li>{{ img.uploaded_by.username }} - <img src="{{ img.image.url }}" class="inline h-12 w-12 rounded" /></li>
+                <li>
+                    {{ img.uploaded_by.username }} -
+                    <img src="{{ img.image.url }}" class="thumb">
+                </li>
                 {% empty %}
                 <li>No images.</li>
                 {% endfor %}
@@ -96,14 +177,12 @@
         </div>
     </div>
 
-    <!-- Feature Toggles -->
-    <div class="mt-8">
-        <h2 class="text-2xl font-bold mb-4">Feature Toggles</h2>
-        <ul class="space-y-2">
+    <div class="feature-toggles">
+        <h2 class="page-title-small">Feature Toggles</h2>
+        <ul class="card-list">
             {% for feat in features %}
             <li>
-                {{ feat.name }} - 
-                <strong>{{ feat.status_text }}</strong>
+                {{ feat.name }} – <strong>{{ feat.status_text }}</strong>
                 {% if feat.super_user_only %}(Superuser only){% endif %}
             </li>
             {% empty %}
@@ -112,4 +191,4 @@
         </ul>
     </div>
 </div>
-{% endblock content %}
+{% endblock %}
