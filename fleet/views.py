@@ -2114,11 +2114,10 @@ def duty_add_trip(request, operator_slug, duty_id):
             'is_running_board': is_running_board,  # Pass this to your template if needed
         }
         return render(request, 'add_duty_trip.html', context)
-    
+
 def get_timetable(request, route_id, direction):
     try:
-        inbound_requested = (direction == "inbound")
-        print(f"Fetching timetable for route {route_id}, direction: {direction}")
+        inbound_first = (direction == "inbound")
 
         r = route.objects.filter(pk=route_id).first()
         if not r:
@@ -2130,43 +2129,38 @@ def get_timetable(request, route_id, direction):
         if not inbound_entry and not outbound_entry:
             return JsonResponse({"error": "No timetables found"}, status=400)
 
-        # Parse function
+        # -------- PARSE FUNCTION --------
         def parse_entry(entry):
             if not entry:
-                return None
+                return []
 
             raw = entry.stop_times
             data = json.loads(raw) if isinstance(raw, str) else raw
+
             if not isinstance(data, dict):
-                return None
+                return []
 
             stops_list = list(data.values())
             if not stops_list:
-                return None
-
-            first_stop_times = stops_list[0]["times"]
-            last_stop_times = stops_list[-1]["times"]
-
-            if first_stop_times[0] > last_stop_times[0]:
-                stops_list = list(reversed(stops_list))
+                return []
 
             trip_count = len(stops_list[0]["times"])
             trips = []
 
             for i in range(trip_count):
-                t = []
+                trip_stops = []
                 for stop in stops_list:
-                    t.append({
+                    trip_stops.append({
                         "stop": stop["stopname"],
                         "time": stop["times"][i]
                     })
 
                 trips.append({
-                    "times": t,
-                    "start_time": t[0]["time"],
-                    "end_time": t[-1]["time"],
-                    "start_stop": t[0]["stop"],
-                    "end_stop": t[-1]["stop"]
+                    "times": trip_stops,
+                    "start_time": trip_stops[0]["time"],
+                    "end_time": trip_stops[-1]["time"],
+                    "start_stop": trip_stops[0]["stop"],
+                    "end_stop": trip_stops[-1]["stop"]
                 })
 
             return trips
@@ -2174,53 +2168,28 @@ def get_timetable(request, route_id, direction):
         inbound_trips = parse_entry(inbound_entry)
         outbound_trips = parse_entry(outbound_entry)
 
-        # ---------------------------
-        # STEP 1: flip-flop (alternate)
-        # ---------------------------
+        # ----------- BUILD ALTERNATING SEQUENCE -----------
+
         combined = []
-        i = 0
+        max_len = max(len(inbound_trips), len(outbound_trips))
 
-        while True:
-            added = False
-
-            if inbound_requested:
-                # inbound -> outbound
+        for i in range(max_len):
+            if inbound_first:
+                # inbound → outbound
                 if i < len(inbound_trips):
                     combined.append(inbound_trips[i])
-                    added = True
                 if i < len(outbound_trips):
                     combined.append(outbound_trips[i])
-                    added = True
             else:
-                # outbound -> inbound
+                # outbound → inbound
                 if i < len(outbound_trips):
                     combined.append(outbound_trips[i])
-                    added = True
                 if i < len(inbound_trips):
                     combined.append(inbound_trips[i])
-                    added = True
 
-            if not added:
-                break
+        # ----------- RETURN EXACT ORDER WITHOUT FILTERING -----------
 
-            i += 1
-
-        # ---------------------------
-        # STEP 2: Duty chaining (NO SORTING)
-        # ---------------------------
-        duty = []
-        last_end = None
-
-        for trip in combined:
-            start = trip["start_time"]
-            end = trip["end_time"]
-
-            if last_end is None or start >= last_end:
-                duty.append(trip)
-                last_end = end
-
-
-        return JsonResponse(duty, safe=False)
+        return JsonResponse(combined, safe=False)
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
