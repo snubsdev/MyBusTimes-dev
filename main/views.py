@@ -1757,7 +1757,6 @@ def online_members(request):
         "total_mbt_members": total_mbt_members,
         "online_mbt_members": online_mbt_members,
     })
-
 def stats_page(request):
     # ----- USERS -----
     total_users = CustomUser.objects.count()
@@ -1767,9 +1766,10 @@ def stats_page(request):
     users_per_team = MBTTeam.objects.annotate(user_count=Count('team_members')).order_by('-user_count')
 
     # ----- OPERATORS -----
-    total_operators = CustomUser.objects.filter(fleets__isnull=False).distinct().count()
-    operators_per_region = region.objects.annotate(operator_count=Count('operator')).order_by('-operator_count')
-    top_operators = CustomUser.objects.annotate(fleet_count=Count('fleets')).order_by('-fleet_count')[:5]
+    total_operators = MBTOperator.objects.distinct().count()
+    operators_per_region = region.objects.annotate(operator_count=Count('operators')).order_by('-operator_count')
+    top_operators = MBTOperator.objects.annotate(fleet_count=Count('fleet_operator', distinct=True)).order_by('-fleet_count')[:5]
+
 
     # ----- FLEETS -----
     total_buses = fleet.objects.count()
@@ -1781,6 +1781,7 @@ def stats_page(request):
 
     # ----- BANNED IPS -----
     total_banned_ips = BannedIps.objects.count()
+    recent_banned_ips = BannedIps.objects.order_by('-banned_at')[:10]  # add this
 
     # ----- FEATURES -----
     features = featureToggle.objects.all()
@@ -1837,4 +1838,4 @@ def stats_page(request):
         'total_fleet_changes': total_fleet_changes,
     }
 
-    return render(request, "stats_page.html", context)
+    return render(request, "stats.html", context)
