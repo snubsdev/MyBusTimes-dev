@@ -69,6 +69,7 @@ def theme_settings(request):
     if current_time.month == 11 and current_time.day == 11 and current_time.hour == 11 and current_time.minute in [0, 1]:
         silence = True
 
+    poppy = False
     if (datetime.now().month == 11):
         poppy = True
         #if dark_mode == 'true' or dark_mode == 'True':
