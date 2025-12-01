@@ -109,26 +109,32 @@
     const routeSelect = document.createElement('select');
     routeSelect.name = 'route_select[]';
 
-    const routeOptions = JSON.parse(document.getElementById('route-data').textContent);
-    routeOptions.forEach(route => {
+    const routes = JSON.parse(document.getElementById('route-data').textContent);
+    routes.forEach(route => {
       const option = document.createElement('option');
-      option.value = route.route_num;
+      option.value = route.id;
       option.textContent =
         `${route.route_num} - ${route.route_inbound_destination} to ${route.route_outbound_destination}`;
-      if (route.route_num === values.route_num) {
+
+      // pre-select when values.route_id OR values.route_num match
+      if (values.route_id == route.id || values.route_num == route.route_num) {
         option.selected = true;
       }
+
       routeSelect.appendChild(option);
     });
+
     tripGroup.appendChild(routeLabel);
     tripGroup.appendChild(routeSelect);
 
-    // Route Number Field
+    // Route Number Field (auto-filled)
     addInput('Route Number:', 'text', 'route_num[]', true, values.route_num);
 
-    // Auto-fill route number when dropdown changes
+    // Auto-fill when dropdown changes
     routeSelect.addEventListener('change', function () {
-      tripGroup.querySelector('input[name="route_num[]"]').value = this.value;
+      const selected = routes.find(r => r.id == this.value);
+      tripGroup.querySelector('input[name="route_num[]"]').value =
+        selected ? selected.route_num : '';
     });
 
     addInput('Start Time:', 'time', 'start_time[]', true, values.start_time);
