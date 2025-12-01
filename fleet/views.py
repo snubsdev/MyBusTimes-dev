@@ -2175,7 +2175,7 @@ def get_timetable(request, route_id, direction):
         outbound_trips = parse_entry(outbound_entry)
 
         # ---------------------------
-        # STEP 1: build flipped sequence
+        # STEP 1: flip-flop (alternate)
         # ---------------------------
         combined = []
         i = 0
@@ -2205,10 +2205,8 @@ def get_timetable(request, route_id, direction):
 
             i += 1
 
-        combined.sort(key=lambda x: x["start_time"])
-
         # ---------------------------
-        # STEP 2: Duty chaining on the flipped list
+        # STEP 2: Duty chaining (NO SORTING)
         # ---------------------------
         duty = []
         last_end = None
@@ -2220,6 +2218,7 @@ def get_timetable(request, route_id, direction):
             if last_end is None or start >= last_end:
                 duty.append(trip)
                 last_end = end
+
 
         return JsonResponse(duty, safe=False)
 
