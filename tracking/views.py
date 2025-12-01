@@ -537,7 +537,10 @@ class VehiclePositionAPIView(generics.ListAPIView):
         results = []
         for trip in trips:
             print(f"[DEBUG] VehiclePositionAPIView: processing trip_id={trip.pk}")
-            coords = get_route_coordinates(trip.trip_route_id)
+            coords = get_route_coordinates(
+                trip.trip_route_id,
+                trip.trip_end_location or ""
+            )
             progress = get_progress(trip)
             lat, lng, seg_index = interpolate(coords, progress)
 
