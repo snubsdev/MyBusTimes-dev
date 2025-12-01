@@ -269,12 +269,16 @@
 
         if (tripStart < lastEnd) return; // overlaps previous
 
+        const routes = JSON.parse(document.getElementById('route-data').textContent);
+        const selectedRoute = routes.find(r => r.id == routeID);
+
         const values = {
-          route_id: routeID,
-          start_time: tripStart,
-          end_time: tripEnd,
-          start_at: t.start_stop,
-          end_at: t.end_stop,
+            route_id: routeID,
+            route_num: selectedRoute ? selectedRoute.route_num : "",
+            start_time: tripStart,
+            end_time: tripEnd,
+            start_at: t.start_stop,
+            end_at: t.end_stop,
         };
 
         container.appendChild(createTripGroup(values));
