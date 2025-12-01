@@ -297,34 +297,25 @@ def calculate_heading(lat1, lng1, lat2, lng2):
     return heading
     
 def get_route_coordinates(route_id, trip_end_location):
-    """
-    Returns ordered list of coordinates for a trip, using inbound/outbound
-    determination by matching trip_end_location to the LAST stop name
-    of each routeStop row.
-
-    If no matching direction is found → fall back to the
-    default (first/only routeStop order).
-    """
     print(f"[DEBUG] get_route_coordinates_for_trip: route_id={route_id}, trip_end_location='{trip_end_location}'")
 
     stops_qs = routeStop.objects.filter(route_id=route_id).order_by("id")
     print(f"[DEBUG] found {stops_qs.count()} routeStop rows")
 
     if not stops_qs:
-        print("[DEBUG] no routeStops found, returning empty list")
+        print("[DEBUG] no routeStops found → returning []")
         return []
 
     direction_candidates = []
 
-    # Parse each routeStop block
     for rs in stops_qs:
         print(f"[DEBUG] processing routeStop id={rs.id}")
 
         coords = []
         last_stop_name = None
 
-        if not rs.stops:
-            print(f"[DEBUG] routeStop {rs.id} has empty stops")
+        if not rs.stops or not isinstance(rs.stops, list):
+            print(f"[DEBUG] routeStop {rs.id} has invalid stops field")
             continue
 
         for i, stop in enumerate(rs.stops):
@@ -332,44 +323,56 @@ def get_route_coordinates(route_id, trip_end_location):
                 print(f"[DEBUG] skipping non-dict stop at index {i} in routeStop {rs.id}")
                 continue
 
-            # Extract stop name for matching
+            # Try to extract stop name
             sname = stop.get("stop") or stop.get("name") or stop.get("title")
             if sname:
                 last_stop_name = sname
 
+            # cords: "lat,lng"
             cords = stop.get("cords") or stop.get("coords")
             if cords:
                 try:
                     lat_str, lng_str = cords.split(",")
                     coords.append((float(lat_str.strip()), float(lng_str.strip())))
+                    continue
                 except Exception as e:
                     print(f"[DEBUG] failed to parse cords '{cords}' in routeStop {rs.id}: {e}")
-                continue
 
-            # Alternative lat/lng storage
+            # lat/lng fields
             lat = stop.get("lat") or stop.get("latitude")
             lng = stop.get("lng") or stop.get("longitude") or stop.get("long")
             if lat is not None and lng is not None:
                 try:
                     coords.append((float(lat), float(lng)))
+                    continue
                 except Exception as e:
                     print(f"[DEBUG] failed parsing lat/lng in routeStop {rs.id}: {e}")
 
-        print(f"[DEBUG] routeStop {rs.id} → {len(coords)} coords, last_stop='{last_stop_name}'")
+        print(f"[DEBUG] routeStop {rs.id} → extracted {len(coords)} coords, last_stop='{last_stop_name}'")
 
-        direction_candidates.append({
-            "coords": coords,
-            "last_stop": last_stop_name
-        })
+        if coords:
+            direction_candidates.append({
+                "coords": coords,
+                "last_stop": last_stop_name
+            })
+        else:
+            print(f"[DEBUG] routeStop {rs.id} had NO valid coords → skipping")
 
-    # Try to match inbound/outbound by last_stop vs trip_end_location
+    # NEW SAFETY CHECK — prevents IndexError
+    if not direction_candidates:
+        print("[DEBUG] No valid routeStops produced coords → returning []")
+        return []
+
+    # Try matching by trip_end_location
+    trip_end_location = (trip_end_location or "").lower().strip()
+
     for d in direction_candidates:
-        if d["last_stop"] and trip_end_location.lower().strip() in d["last_stop"].lower():
+        ls = (d["last_stop"] or "").lower().strip()
+        if trip_end_location and ls and trip_end_location in ls:
             print(f"[DEBUG] MATCH FOUND: using direction with last_stop '{d['last_stop']}'")
             return d["coords"]
 
-    # Fallback to the first direction
-    print("[DEBUG] NO MATCH FOUND → using default direction")
+    print("[DEBUG] NO MATCH FOUND → using default (first routeStop)")
     return direction_candidates[0]["coords"]
 
 def get_progress(trip):
