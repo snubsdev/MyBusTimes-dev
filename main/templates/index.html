@@ -32,6 +32,7 @@
 
 <h2>Message of The Day</h2>
 <p>{{ message }}</p>
+
 <h2>Search</h2>
 <p>Search for operators or routes</p>
 <div class="homeSearch">
@@ -46,6 +47,22 @@
 <script src="{% static 'js/status-home.js' %}"></script>
 <br>
 <div class="ad-box" id="body-ad-1"></div>
+
+{% if suggested_theme == False %}
+<div class="suggested_theme">
+  <h2>Try our new <strong style="color: #{{ suggested_theme_obj.light_main_colour }}">{{ suggested_theme_obj.theme_name }}</strong> Theme</strong></h2>
+    <input type="hidden" name="theme_id" value="{{ suggested_theme_obj.id }}">
+    <input type="hidden" id="suggested-dark-mode" name="darkMode" value="{{ themeDark|lower }}">
+    <br>
+    <button id="tryitnow" class="button" style="margin-top: -15px; display: block;">
+      Try it now
+    </button>
+</div><br>
+
+<div class="ad-box" id="body-ad-1"></div>
+<br>
+{% endif %}
+
 <div class="panes">
   <div class="pane">
     <div class="helpful-links">

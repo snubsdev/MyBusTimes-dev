@@ -42,6 +42,9 @@
           {% if user.is_superuser %}
           <li class="chip"><a href="/tracking/{{ operator.operator_slug }}/start/">Test Live Tracking</a></li>
           {% endif %}
+          {% if 'owner' in helper_permissions %}
+          <li class="chip"><a href="#" onclick="printTable()">Print Fleet</a></li>
+          {% endif %}
         </ul>
       </div>
     {% endif %}

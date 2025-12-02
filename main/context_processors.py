@@ -30,20 +30,50 @@ def theme_settings(request):
     favicon_96x96 = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/favicon/favicon-96x96.png'
     favicon_touch = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/favicon/apple-touch-icon.png'
 
-    # Default theme filename and dark_mode fallback
+    # Default fallback (light)
     theme_filename = 'MBT_Light.css'
-
+    dark_mode = 'False'
+    brand_colour = '8cb9d5'
+    suggested_theme = False
+    suggested_theme_obj = theme.objects.filter(sugggested=True).first()
     if user.is_authenticated:
-        # Use user's selected theme if available
-        if user.theme and user.theme.css:
-            theme_filename = user.theme.css.name.split('/')[-1]  # get filename from FileField
-        dark_mode = 'True' if user.theme and user.theme.dark_theme else 'False'
-        brand_colour = user.theme.main_colour if user.theme else '8cb9d5'  # default to black if no theme
+        print(user.theme)
+        if user.theme:
+            suggested_theme = user.theme.sugggested
+            # Determine dark mode from user settings
+            dark_mode = 'True' if getattr(user, "dark_mode", False) else 'False'
+            print(f"User {user.username} has dark mode set to {dark_mode}")
+            # CSS filename based on dark mode
+            if dark_mode == 'True' and user.theme.dark_css:
+                theme_filename = user.theme.dark_css.name.split('/')[-1]
+                brand_colour = user.theme.dark_main_colour or '8cb9d5'
+                print(f"User {user.username} has dark main colour set to {brand_colour}")
+
+            elif user.theme.light_css:
+                theme_filename = user.theme.light_css.name.split('/')[-1]
+                brand_colour = user.theme.light_main_colour or '8cb9d5'
+                print(f"User {user.username} has light main colour set to {brand_colour}")
+        else:
+            # No theme assigned → defaults stay
+            pass
+
     else:
-        # Use cookie values if not logged in
-        theme_filename = request.COOKIES.get('theme', theme_filename)
-        dark_mode = request.COOKIES.get('themeDark', dark_mode)
-        brand_colour = request.COOKIES.get('brandColour', brand_colour)
+        # Anonymous users → cookies override defaults
+        # CSS file
+        theme_filename = request.COOKIES.get('themeLight', theme_filename)
+
+        # Dark mode
+        dark_mode = request.COOKIES.get('darkMode', dark_mode)
+
+        if dark_mode == 'True':
+            # Load dark CSS and dark colour if present
+            dark_css = request.COOKIES.get('themeDarkCSS', None)
+            if dark_css:
+                theme_filename = dark_css
+
+            brand_colour = request.COOKIES.get('brandColour', brand_colour)
+        else:
+            brand_colour = request.COOKIES.get('brandColour', brand_colour)
 
     # Special Logos Variables
     if (datetime.now().month == 9):
@@ -201,6 +231,8 @@ def theme_settings(request):
         'user_banned': user_account_banned,
         'theme': theme_filename,
         'themeDark': dark_mode,
+        'suggested_theme': suggested_theme,
+        'suggested_theme_obj': suggested_theme_obj,
         'brand_colour': brand_colour,
         'menuLogo': menu_logo,
         'burgerMenuLogo': burger_menu_logo,

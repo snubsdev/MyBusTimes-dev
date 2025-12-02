@@ -37,9 +37,9 @@ class MBTAdminPermissionAdmin(SimpleHistoryAdmin):
 
 @admin.register(theme)
 class ThemeAdmin(SimpleHistoryAdmin):
-    list_display = ('theme_name', 'dark_theme', 'main_colour', 'weight')
+    list_display = ('theme_name', 'public', 'light_main_colour', 'dark_main_colour', 'weight')
     search_fields = ('theme_name',)
-    list_filter = ('dark_theme',)
+    list_filter = ('public',)
 
 @admin.register(StripeSubscription)
 class StripeSubscriptionAdmin(SimpleHistoryAdmin):

@@ -52,15 +52,18 @@ class MBTTeam(models.Model):
 class theme(models.Model):
     id = models.AutoField(primary_key=True)
     theme_name = models.CharField(max_length=50, blank=True, null=True)
-    css = models.FileField(upload_to='themes/', help_text='Upload a CSS file. <a href="https://cdn.mybustimes.cc/mybustimes/staticfiles/themes/templateTheme.css" target="_blank">Download template</a>')
-    main_colour = models.CharField(max_length=50, blank=True)
-    dark_theme = models.BooleanField(default=False)  # Boolean for dark mode
+    light_css = models.FileField(upload_to='themes/', help_text='Upload a CSS file. <a href="https://cdn.mybustimes.cc/mybustimes/staticfiles/themes/templateTheme.css" target="_blank">Download template</a>')
+    dark_css = models.FileField(upload_to='themes/', help_text='Upload a CSS file. <a href="https://cdn.mybustimes.cc/mybustimes/staticfiles/themes/templateTheme.css" target="_blank">Download template</a>')
+    light_main_colour = models.CharField(max_length=50, blank=True)
+    dark_main_colour = models.CharField(max_length=50, blank=True)
+    public = models.BooleanField(default=False)  # Boolean for dark mode
+    sugggested = models.BooleanField(default=False)
     weight = models.IntegerField(default=0)
 
     history = HistoricalRecords()
 
     def __str__(self):
-        return f"{self.theme_name} - {'Dark' if self.dark_theme else 'Light'} - {self.weight}"
+        return f"{self.theme_name} - {'Dark' if self.public else 'Disabled'} - {self.weight}"
 
 class ad(models.Model):
     ad_name = models.CharField(max_length=100)
@@ -85,6 +88,7 @@ class CustomUser(AbstractUser):
     mbt_team = models.ForeignKey('MBTTeam', on_delete=models.SET_NULL, null=True, blank=True, related_name='team_members', help_text="Team the user belongs to")
     join_date = models.DateTimeField(auto_now_add=True)
     theme = models.ForeignKey(theme, on_delete=models.SET_NULL, null=True)
+    dark_mode = models.BooleanField(default=False)
     badges = models.ManyToManyField(badge, related_name='badges', blank=True)
     ticketer_code = models.CharField(max_length=50, blank=True, null=True)
     static_ticketer_code = models.BooleanField(default=True)

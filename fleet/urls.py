@@ -111,4 +111,5 @@ urlpatterns = [
 
     # Trips
     path('<str:operator_slug>/vehicles/mass-log-trips', mass_log_trips, name='operator_mass_log_trips'),
+    path('<str:operator_slug>/vehicles/mass-assign', mass_assign_boards, name='operator_mass_assign_boards'),
 ]

@@ -182,6 +182,7 @@
     <hr>
     <ul class="footer-info">
       <li><a href="/about">About</a></li>•
+      <li><a href="https://mybustimes.cc/stats">Site Stats</a></li>•
       <li><a href="/report">Bug Report</a></li>•
       <li><a href="/site-updates">Site Updates</a></li>•
       <li><a href="/contact">Contact Us</a></li>
@@ -220,6 +221,8 @@
       {% endif %}
     </select>
     <br>
+    <input type="checkbox" id="dark-mode-toggle" name="dark_mode" {% if themeDark == 'True' %}checked{% endif %}><label for="dark-mode-toggle">Dark Mode</label>
+    <br>
     <ul class="footer-info">
       <li id="users-stats">Online: {{ online_users_count }} | Total: {{ total_users_count }}</li>
     </ul>
@@ -227,7 +230,7 @@
     <ul class="footer-info">
       <li><a href="https://status.mybustimes.cc/status/mbt">Site Status</a></li>•
       <li><a href="/status">Feature Status</a></li>•
-      <li><a href="/patch-notes">Patch Notes</a></li>
+      <li><a href="/patch-notes">Patch Notes</a></li>•
       <li><a href="/data">Data Sources</a></li>
     </ul>
     <hr>
@@ -271,35 +274,4 @@
   <p style="position: absolute;left: 0; background: var(--brand-color);padding: 5px;border-radius: 0px 10px 0px 0px;">
     MyBusTimes: V2.2.2</p>
 </body>
-
-{% if themeDark == "True" %}
-<style>
-  :root {
-    --header-image: url("https://raw.githubusercontent.com/NextStopLabs/MBT-Media-Kit/refs/heads/main/banner1.svg") center;
-    --brand-color: #08594A;
-    --brand-color-darker: #08594A;
-    --brand-color-darker-darker: #1E9271;
-    --border-color: var(--brand-color-darker);
-    --border-color-darker: var(--brand-color-darker-darker);
-    --background-color: #222;
-    --text-color: #ffffff;
-    --link-color: #FF4141;
-  }
-</style>
-{% else %}
-<style>
-  :root {
-    --header-image: url("https://raw.githubusercontent.com/NextStopLabs/MBT-Media-Kit/refs/heads/main/banner1.svg") center;
-    --brand-color: #16846F;
-    --brand-color-darker: #107B67;
-    --brand-color-darker-darker: #1E9271;
-    --border-color: var(--brand-color-darker);
-    --border-color-darker: var(--brand-color-darker-darker);
-    --background-color: #eee;
-    --text-color: #222;
-    --link-color: #D02121;
-  }
-</style>
-{% endif %}
-</html>
 {% endif %}
