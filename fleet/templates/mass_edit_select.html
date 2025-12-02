@@ -17,7 +17,7 @@
   <label for="model-filter">Vehicle Model:</label>
   <select id="model-filter">
     {% for type in vehicle_types %}
-      <option value="{{ vehicle.vehicleType.type_name }}">{{ vehicle.vehicleType.type_name }}</option>
+    <option value="{{ type.type_name }}">{{ type.type_name }}</option>
     {% endfor %}
   </select>
 
