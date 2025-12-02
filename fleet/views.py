@@ -2212,7 +2212,12 @@ def get_timetable(request, route_id, direction):
             return trips
 
         inbound_trips = parse_entry(inbound_entry, "INBOUND")
-        outbound_trips = parse_entry(outbound_entry, "OUTBOUND")
+
+        if outbound_entry is not None:
+            outbound_trips = parse_entry(outbound_entry, "OUTBOUND")
+        else:
+            log("NO OUTBOUND ENTRY → OUTBOUND TRIPS = []")
+            outbound_trips = []
 
         log("INBOUND TRIPS COUNT =", len(inbound_trips))
         log("OUTBOUND TRIPS COUNT =", len(outbound_trips))
@@ -2262,11 +2267,10 @@ def get_timetable(request, route_id, direction):
             log("UPDATED CURRENT TIME =", current_time)
 
             # Flip direction
-            doing_inbound = not doing_inbound
-            if not one_way_inbound_only:
-                doing_inbound = not doing_inbound
+            if one_way_inbound_only:
+                doing_inbound = True
             else:
-                doing_inbound = True  # always inbound
+                doing_inbound = not doing_inbound
 
         log("FINAL RESULT COUNT =", len(result))
         return JsonResponse(result, safe=False)
