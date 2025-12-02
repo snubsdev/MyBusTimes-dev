@@ -1,32 +1,12 @@
 {% extends 'mbtbase.html' %}
 {% block title %}Select Vehicles to Mass Edit{% endblock %}
-{% load static %}
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/narrow.css' %}">
 <style>
-  .floating-btn {
-    position: fixed;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-  }
-
-  .big-checkbox {
-    width: 24px;
-    height: 24px;
-    text-align: center;
-  }
-
-  @media (max-width: 768px) {
-    table.fleet thead { display: none; }
-    table.fleet, table.fleet tbody, table.fleet tr, table.fleet td { display: block; width: calc(100% - 5px); }
-    table.fleet tr { margin-bottom: 15px; border: 1px solid var(--border-color); padding: 10px; border-radius: 8px; }
-    table.fleet td { border: none; text-align: center; }
-  }
-
-  .filter-container {
-    margin-bottom: 15px;
-  }
+  .floating-btn { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); }
+  .big-checkbox { width: 24px; height: 24px; }
+  .filter-container { margin-bottom: 15px; }
+  .filter-container label { margin-right: 5px; }
+  .filter-container select { margin-right: 15px; }
 </style>
 {% endblock %}
 
@@ -34,11 +14,24 @@
 <h1>Select Vehicles to Mass Edit</h1>
 
 <div class="filter-container">
-  <label for="type-filter">Filter by Vehicle Type:</label>
-  <select id="type-filter">
-    <option value="">All Types</option>
+  <label for="model-filter">Vehicle Model:</label>
+  <select id="model-filter" multiple size="5">
     {% for type in vehicle_types %}
-    <option value="{{ type.type_name }}">{{ type.type_name }}</option>
+      <option value="{{ type.type_name }}">{{ type.type_name }}</option>
+    {% endfor %}
+  </select>
+
+  <label for="in-service-filter">In Service:</label>
+  <select id="in-service-filter">
+    {% for value, label in in_service_options %}
+      <option value="{{ value }}">{{ label }}</option>
+    {% endfor %}
+  </select>
+
+  <label for="open-top-filter">Open Top:</label>
+  <select id="open-top-filter">
+    {% for value, label in open_top_options %}
+      <option value="{{ value }}">{{ label }}</option>
     {% endfor %}
   </select>
 </div>
@@ -52,7 +45,9 @@
           <th>Select</th>
           <th>Fleet Number</th>
           <th>Registration</th>
-          <th>Type</th>
+          <th>Model</th>
+          <th>In Service</th>
+          <th>Open Top</th>
         </tr>
       </thead>
       <tbody>
@@ -62,6 +57,8 @@
           <td>{{ vehicle.fleet_number }}</td>
           <td>{{ vehicle.reg }}</td>
           <td>{{ vehicle.vehicleType.type_name }}</td>
+          <td>{{ vehicle.in_service|yesno:"Yes,No" }}</td>
+          <td>{{ vehicle.open_top|yesno:"Yes,No" }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -73,42 +70,41 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-  const checkboxes = document.querySelectorAll('input[name="selected_vehicles"]');
+  const modelFilter = document.getElementById('model-filter');
+  const inServiceFilter = document.getElementById('in-service-filter');
+  const openTopFilter = document.getElementById('open-top-filter');
   const rows = document.querySelectorAll('table.fleet tbody tr');
-  const dropdown = document.getElementById('type-filter');
 
   function filterRows() {
-    const selectedType = dropdown.value;
+    const selectedModels = Array.from(modelFilter.selectedOptions).map(opt => opt.value);
+    const inServiceVal = inServiceFilter.value;
+    const openTopVal = openTopFilter.value;
 
     rows.forEach(row => {
-      const typeName = row.cells[3].textContent.trim();
-      if (!selectedType || typeName === selectedType) {
-        row.style.display = '';
-      } else {
-        row.style.display = 'none';
-      }
+      const model = row.cells[3].textContent.trim();
+      const inService = row.cells[4].textContent.trim();
+      const openTop = row.cells[5].textContent.trim();
+
+      let show = true;
+
+      // Vehicle Model filter (multi-select)
+      if (selectedModels.length && !selectedModels.includes(model)) show = false;
+
+      // In Service filter
+      if (inServiceVal === 'true' && inService !== 'Yes') show = false;
+      if (inServiceVal === 'false' && inService !== 'No') show = false;
+
+      // Open Top filter
+      if (openTopVal === 'true' && openTop !== 'Yes') show = false;
+      if (openTopVal === 'false' && openTop !== 'No') show = false;
+
+      row.style.display = show ? '' : 'none';
     });
   }
 
-  dropdown.addEventListener('change', filterRows);
-
-  // Optional: keep original checkbox selection filtering if needed
-  checkboxes.forEach(cb => cb.addEventListener('change', () => {
-    // Optional: integrate checkbox + dropdown filtering
-    const selectedType = dropdown.value;
-    const selectedTypes = new Set();
-    checkboxes.forEach(c => { if (c.checked) selectedTypes.add(c.closest('tr').cells[3].textContent.trim()); });
-
-    rows.forEach(row => {
-      const typeName = row.cells[3].textContent.trim();
-      if ((selectedType === "" || typeName === selectedType) &&
-          (selectedTypes.size === 0 || selectedTypes.has(typeName))) {
-        row.style.display = '';
-      } else {
-        row.style.display = 'none';
-      }
-    });
-  }));
+  modelFilter.addEventListener('change', filterRows);
+  inServiceFilter.addEventListener('change', filterRows);
+  openTopFilter.addEventListener('change', filterRows);
 });
 </script>
 {% endblock %}
