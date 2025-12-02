@@ -25,7 +25,7 @@ def deduplicate_routes(modeladmin, request, queryset):
     modeladmin.message_user(request, f"{len(duplicates)} duplicate routes removed.")
 
 class routeAdmin(SimpleHistoryAdmin):
-    search_fields = ['route_num']
+    search_fields = ['id', 'route_num']
     list_filter = ['route_operators']
     list_display = ['route_num', 'route_name', 'inbound_destination', 'outbound_destination']
     actions = [deduplicate_routes]
