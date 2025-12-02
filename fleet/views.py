@@ -750,6 +750,94 @@ def route_detail(request, operator_slug, route_id):
 
     return render(request, 'route_detail.html', context)
 
+def trackable_status(request, operator_slug, route_id):
+    response = feature_enabled(request, "view_routes")
+    if response:
+        return response
+
+    operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
+    route_instance = get_object_or_404(route, id=route_id)
+
+    inbound_timetable_entries = timetableEntry.objects.filter(route=route_instance, inbound=True)
+    outbound_timetable_entries = timetableEntry.objects.filter(route=route_instance, inbound=False)
+
+    inbound_route_stops = routeStop.objects.filter(route=route_instance, inbound=True).first()
+    outbound_route_stops = routeStop.objects.filter(route=route_instance, inbound=False).first()
+
+    # circular route = no outbound direction
+    is_circular = False
+    if route_instance.outbound_destination == "":
+        is_circular = True
+
+    has_in_timetable = inbound_timetable_entries.exists()
+    has_out_timetable = outbound_timetable_entries.exists()
+    has_in_stops = inbound_route_stops is not None
+    has_out_stops = outbound_route_stops is not None
+
+    # Inbound status
+    if has_in_timetable and has_in_stops:
+        inbound_status = "Ok"
+    elif has_in_timetable and not has_in_stops:
+        inbound_status = "Missing Stops"
+    else:
+        inbound_status = "No Timetable"
+
+    # Outbound status
+    if is_circular:
+        outbound_status = "Circular (no outbound)"
+    else:
+        if has_out_timetable and has_out_stops:
+            outbound_status = "Ok"
+        elif has_out_timetable and not has_out_stops:
+            outbound_status = "Missing Stops"
+        else:
+            outbound_status = "No Timetable"
+
+    # Overall
+    if inbound_status == "Ok" and outbound_status == "Ok":
+        overall_status = "Ok"
+    elif inbound_status == "Ok" and outbound_status != "Ok":
+        overall_status = "Missing Outbound Data"
+    elif inbound_status != "Ok" and outbound_status == "Ok":
+        overall_status = "Missing Inbound Data"
+    else:
+        overall_status = "Incomplete"
+
+    status_report = {
+        'inbound': inbound_status,
+        'outbound': outbound_status,
+        'overall': overall_status,
+        'is_circular': is_circular,
+        'all': {
+            'inbound': {
+                'has_timetable': has_in_timetable,
+                'has_stops': has_in_stops
+            },
+            'outbound': {
+                'has_timetable': has_out_timetable,
+                'has_stops': has_out_stops
+            },
+            'overall': {
+                'inbound': has_in_timetable and has_in_stops,
+                'outbound': has_out_timetable and has_out_stops
+            }
+        }
+    }
+
+    breadcrumbs = [
+        {'name': 'Home', 'url': '/'},
+        {'name': operator.operator_name, 'url': f'/operator/{operator.operator_slug}/'},
+        {'name': route_instance.route_num or 'Route Details', 'url': f'/operator/{operator.operator_slug}/route/{route_id}/'}
+    ]
+
+    context = {
+        'breadcrumbs': breadcrumbs,
+        'operator': operator,
+        'status_report_json': json.dumps(status_report)  # send to JS
+    }
+
+    return render(request, 'route_status.html', context)
+
 def vehicles(request, operator_slug, depot=None, withdrawn=False):
     operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
 
