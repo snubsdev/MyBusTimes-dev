@@ -18,32 +18,23 @@
   }
 
   @media (max-width: 768px) {
-    table.fleet thead {
-      display: none;
-    }
-
-    table.fleet,
-    table.fleet tbody,
-    table.fleet tr,
-    table.fleet td {
+    table.fleet thead { display: none; }
+    table.fleet, table.fleet tbody, table.fleet tr, table.fleet td {
       display: block;
       width: calc(100% - 5px);
     }
-
     table.fleet tr {
       margin-bottom: 15px;
       border: 1px solid var(--border-color);
       padding: 10px;
       border-radius: 8px;
     }
-
     table.fleet td {
       border: none;
       text-align: center;
     }
   }
 
-  /* Dropdown styling */
   #typeFilter {
     margin-bottom: 15px;
     padding: 6px 10px;
@@ -61,9 +52,6 @@
 <label for="typeFilter"><strong>Filter by Vehicle Type:</strong></label>
 <select id="typeFilter">
   <option value="">All Types</option>
-  {% for type in vehicle_types %}
-    <option value="{{ type }}">{{ type }}</option>
-  {% endfor %}
 </select>
 
 <form method="POST">
@@ -95,46 +83,52 @@
 </form>
 
 <script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const checkboxes = document.querySelectorAll('input[name="selected_vehicles"]');
-    const rows = document.querySelectorAll('table.fleet tbody tr');
-    const dropdown = document.getElementById('typeFilter');
+document.addEventListener('DOMContentLoaded', () => {
+  const rows = document.querySelectorAll('table.fleet tbody tr');
+  const dropdown = document.getElementById('typeFilter');
+  const checkboxes = document.querySelectorAll('input[name="selected_vehicles"]');
 
-    // Get currently selected type names from checkboxes
-    function getSelectedTypeNames() {
-      const selectedTypeNames = new Set();
-      checkboxes.forEach(cb => {
-        if (cb.checked) {
-          const typeName = cb.closest('tr').cells[3].textContent.trim();
-          selectedTypeNames.add(typeName);
-        }
-      });
-      return selectedTypeNames;
-    }
-
-    // Filter rows based on dropdown and checkbox selection
-    function filterRows() {
-      const selectedType = dropdown.value;
-      const selectedTypeNames = getSelectedTypeNames();
-
-      rows.forEach(row => {
-        const typeName = row.cells[3].textContent.trim();
-        
-        // Show row if it matches dropdown AND checkbox filters
-        const matchesDropdown = selectedType === "" || typeName === selectedType;
-        const matchesCheckbox = selectedTypeNames.size === 0 || selectedTypeNames.has(typeName);
-
-        if (matchesDropdown && matchesCheckbox) {
-          row.style.display = '';
-        } else {
-          row.style.display = 'none';
-        }
-      });
-    }
-
-    // Event listeners
-    checkboxes.forEach(cb => cb.addEventListener('change', filterRows));
-    dropdown.addEventListener('change', filterRows);
+  // 1️⃣ Collect unique type names from table
+  const typeSet = new Set();
+  rows.forEach(row => {
+    const typeName = row.cells[3].textContent.trim();
+    typeSet.add(typeName);
   });
+
+  // 2️⃣ Populate dropdown
+  typeSet.forEach(type => {
+    const option = document.createElement('option');
+    option.value = type;
+    option.textContent = type;
+    dropdown.appendChild(option);
+  });
+
+  // 3️⃣ Filter rows based on dropdown + checkboxes
+  function getSelectedTypeNames() {
+    const selectedTypeNames = new Set();
+    checkboxes.forEach(cb => {
+      if (cb.checked) {
+        const typeName = cb.closest('tr').cells[3].textContent.trim();
+        selectedTypeNames.add(typeName);
+      }
+    });
+    return selectedTypeNames;
+  }
+
+  function filterRows() {
+    const selectedType = dropdown.value;
+    const selectedTypeNames = getSelectedTypeNames();
+
+    rows.forEach(row => {
+      const typeName = row.cells[3].textContent.trim();
+      const matchesDropdown = selectedType === "" || typeName === selectedType;
+      const matchesCheckbox = selectedTypeNames.size === 0 || selectedTypeNames.has(typeName);
+      row.style.display = (matchesDropdown && matchesCheckbox) ? '' : 'none';
+    });
+  }
+
+  checkboxes.forEach(cb => cb.addEventListener('change', filterRows));
+  dropdown.addEventListener('change', filterRows);
+});
 </script>
 {% endblock %}
