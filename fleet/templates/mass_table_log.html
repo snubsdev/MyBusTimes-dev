@@ -191,7 +191,52 @@ document.addEventListener("DOMContentLoaded", function() {
     applyGlobalBoardType();
     document.querySelectorAll(".board-type").forEach(el => filterBoards(el));
 
+
+    // -----------------------------------------
+    // Track used board IDs & hide from others
+    // -----------------------------------------
+    function updateUsedBoards() {
+        const used = new Set();
+
+        // Collect all selected board IDs
+        document.querySelectorAll(".board-id").forEach(sel => {
+            if (sel.value) used.add(sel.value);
+        });
+
+        // Apply hiding to all select boxes
+        document.querySelectorAll(".board-id").forEach(sel => {
+            sel.querySelectorAll("option").forEach(opt => {
+                if (!opt.value) return;
+
+                // If this vehicle has selected it → keep visible
+                if (sel.value === opt.value) {
+                    opt.hidden = false;
+                    return;
+                }
+
+                // Hide if selected by another vehicle
+                opt.hidden = used.has(opt.value);
+            });
+        });
+    }
+
+    // -------------------------------
+    // Hook into every board-id change
+    // -------------------------------
+    document.querySelectorAll(".board-id").forEach(el =>
+        el.addEventListener("change", () => {
+            saveElement(el);
+            updateUsedBoards();
+        })
+    );
+
+    // -------------------------------
+    // Run on first load
+    // -------------------------------
+    updateUsedBoards();
+
 });
 </script>
+
 
 {% endblock %}
