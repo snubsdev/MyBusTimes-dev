@@ -5340,7 +5340,7 @@ def mass_log_trips(request, operator_slug):
     # Load data for GET
     duties = duty.objects.filter(duty_operator=operator, board_type='duty').order_by('duty_name')
     running_boards = duty.objects.filter(duty_operator=operator, board_type='running-boards').order_by('duty_name')
-    vehicles = fleet.objects.filter(Q(operator=operator ) | Q(loan_operator=operator)).order_by('fleet_number')
+    vehicles = fleet.objects.filter(Q(operator=operator ) | Q(loan_operator=operator)).order_by('fleet_number_sort')
     routes = route.objects.filter(route_operators=operator).order_by('route_num')
 
     breadcrumbs = [
