@@ -131,7 +131,6 @@
     <li><a href="/operator/{{ operator.operator_slug }}/vehicles?withdrawn=true">Show Withdrawn</a></li>
     {% endif %}
 </ul>
-<br>
 {% if is_paginated %}
 <div class="pagination">
 
@@ -174,7 +173,6 @@
 
 </div>
 {% endif %}
-<button onclick="printTable()" class="no-print">Print</button>
 
 <div id="printable-area"  class="table-wrapper">
     {% if vehicles %}
