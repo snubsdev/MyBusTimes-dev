@@ -518,7 +518,13 @@ class EstimatedPositionSerializer(serializers.Serializer):
     destination = serializers.CharField()
     heading = serializers.FloatField()
 
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
+
+@method_decorator(cache_page(30), name="dispatch")
 class VehiclePositionAPIView(generics.ListAPIView):
+    serializer_class = EstimatedPositionSerializer
+    permission_classes = [AllowAny]
     serializer_class = EstimatedPositionSerializer
     permission_classes = [AllowAny]
 
