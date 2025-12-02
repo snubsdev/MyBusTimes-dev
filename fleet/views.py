@@ -971,7 +971,7 @@ def vehicle_detail(request, operator_slug, vehicle_id):
         operator = MBTOperator.objects.get(operator_slug=operator_slug)
         vehicle = fleet.objects.get(id=vehicle_id, operator=operator)
         all_trip_dates = Trip.objects.filter(trip_vehicle=vehicle).values_list('trip_start_at', flat=True).distinct()
-
+        
         all_trip_dates = sorted(
             {
                 timezone.localtime(trip_date).date()
@@ -1052,6 +1052,7 @@ def vehicle_detail(request, operator_slug, vehicle_id):
         'tabs': tabs,
         'now': now,
         'trips': trips,
+        'show_board': any(t.trip_board for t in trips),
         'trips_json': trips_json,
     }
     return render(request, 'vehicle_detail.html', context)
@@ -5308,14 +5309,16 @@ def mass_log_trips(request, operator_slug):
             start_dt = make_aware(datetime.combine(selected_date, trip.start_time))
             end_dt = make_aware(datetime.combine(selected_date, trip.end_time))
 
-            routeLink = None
+            routeLink = trip.route_link if trip.route_link else None
 
-            if trip.route_link:
-                routeLink = trip.route_link
-            else:
-                routeLink = None
+            board_obj = None
+            if duty_id:
+                board_obj = selected_duty
+            elif running_board_id:
+                board_obj = selected_rb
 
-            trip = Trip(
+
+            created_trip = Trip(
                 trip_vehicle=vehicle,
                 trip_route=routeLink,
                 trip_route_num=trip.route.route_num if hasattr(trip.route, "route_num") else trip.route,
@@ -5323,11 +5326,12 @@ def mass_log_trips(request, operator_slug):
                 trip_end_location=trip.end_at,
                 trip_start_at=start_dt,
                 trip_end_at=end_dt,
+                trip_board=board_obj, 
             )
 
             try:
-                trip.full_clean()
-                trip.save()
+                created_trip.full_clean()
+                created_trip.save()
             except ValidationError as e:
                 for field, errors in e.message_dict.items():
                     for error in errors:
