@@ -3,7 +3,7 @@ import json
 from django.db import models
 from simple_history.models import HistoricalRecords
 from fleet.models import fleet
-from routes.models import route
+from routes.models import route, duty
 from gameData.models import game
 from django.utils import timezone
 from datetime import timedelta
@@ -34,7 +34,7 @@ class Trip(models.Model):
     trip_updated_at = models.DateTimeField(auto_now=True, db_index=True)
     trip_ended = models.BooleanField(default=False, db_index=True)
     trip_missed = models.BooleanField(default=False, db_index=True)
-    #trip_duty = models.ForeignKey('duty.Duty', on_delete=models.CASCADE, null=True, blank=True, db_index=True)
+    trip_board = models.ForeignKey(duty, on_delete=models.SET_NULL, null=True, blank=True, db_index=True)
 
     history = HistoricalRecords()
 
