@@ -59,7 +59,7 @@ from routes.serializers import *
 from main.models import featureToggle, update
 from tracking.models import Tracking, Trip
 from gameData.models import *
-from fleet.models import *
+
 import requests
 
 DISCORD_FULL_OPERATOR_LOGS_ID = 1432690197228818482
@@ -5429,23 +5429,3 @@ def route_update_delete(request, operator_slug, route_id, update_id):
         'route_id': route_id,
         'operator_slug': operator_slug
     })
-
-@login_required
-@require_http_methods(["GET", "POST"])
-def select_vehicles(request):
-    # Get all vehicles for this operator
-    vehicles = Fleet.objects.filter(operator=request.user.operator)
-
-    # Only get vehicle types present in these vehicles
-    vehicle_types = VehicleType.objects.filter(vehicle__in=vehicles).distinct().order_by('type_name')
-
-    in_service_options = [('all', 'All'), ('true', 'In Service'), ('false', 'Withdrawn')]
-    open_top_options = [('all', 'All'), ('true', 'Open Top'), ('false', 'Closed Top')]
-
-    context = {
-        'vehicles': vehicles,
-        'vehicle_types': vehicle_types,
-        'in_service_options': in_service_options,
-        'open_top_options': open_top_options,
-    }
-    return render(request, 'vehicles_mass_edit.html', context)
