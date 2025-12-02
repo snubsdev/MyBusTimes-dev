@@ -267,11 +267,13 @@ document.addEventListener("DOMContentLoaded", function() {
                     {% endif %}
                 </td>
                 <td>{{ trip.trip_end_location }}</td>
-                {% if trip.trip_board.duty_name %}
+                {% if show_board %}
                     {% if trip.trip_board.board_type == "duty" %}
                         <td><a href="http://localhost:8000/operator/{{ operator.operator_slug }}/duty/{{ trip.trip_board.id }}/">{{ trip.trip_board.duty_name }}</a></td>
                     {% elif trip.trip_board.board_type == "running-boards" %}
                         <td><a href="http://localhost:8000/operator/{{ operator.operator_slug }}/running-boards/{{ trip.trip_board.id }}/">{{ trip.trip_board.duty_name }}</a></td>
+                    {% else %}
+                        <td></td>
                     {% endif %}
                 {% endif %}
                 <td class="link">
