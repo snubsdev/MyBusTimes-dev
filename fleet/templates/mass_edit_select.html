@@ -13,9 +13,9 @@
 {% block content %}
 <h1>Select Vehicles to Mass Edit</h1>
 
-<div class="filter-container">
+<div class="filter-container fleet-edit-wrapper"> 
   <label for="model-filter">Vehicle Model:</label>
-  <select id="model-filter" multiple size="5">
+  <select id="model-filter">
     {% for type in vehicle_types %}
       <option value="{{ type.type_name }}">{{ type.type_name }}</option>
     {% endfor %}
