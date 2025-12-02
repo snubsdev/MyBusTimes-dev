@@ -34,10 +34,12 @@ def theme_settings(request):
     theme_filename = 'MBT_Light.css'
     dark_mode = 'False'
     brand_colour = '8cb9d5'
-
+    suggested_theme = False
+    suggested_theme_obj = theme.objects.filter(sugggested=True).first()
     if user.is_authenticated:
         print(user.theme)
         if user.theme:
+            suggested_theme = user.theme.sugggested
             # Determine dark mode from user settings
             dark_mode = 'True' if getattr(user, "dark_mode", False) else 'False'
             print(f"User {user.username} has dark mode set to {dark_mode}")
@@ -229,6 +231,8 @@ def theme_settings(request):
         'user_banned': user_account_banned,
         'theme': theme_filename,
         'themeDark': dark_mode,
+        'suggested_theme': suggested_theme,
+        'suggested_theme_obj': suggested_theme_obj,
         'brand_colour': brand_colour,
         'menuLogo': menu_logo,
         'burgerMenuLogo': burger_menu_logo,
