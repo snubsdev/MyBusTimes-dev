@@ -2160,8 +2160,8 @@ def get_timetable(request, route_id, direction):
         log("INBOUND ENTRY EXISTS =", bool(inbound_entry))
         log("OUTBOUND ENTRY EXISTS =", bool(outbound_entry))
 
-        if not inbound_entry or not outbound_entry:
-            return JsonResponse({"error": "Both inbound and outbound timetables required"}, status=400)
+        #if not inbound_entry or not outbound_entry:
+        #    return JsonResponse({"error": "Both inbound and outbound timetables required"}, status=400)
 
         # -------- PARSE TIMETABLE ENTRY --------
         def parse_entry(entry, label):
