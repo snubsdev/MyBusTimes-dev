@@ -2115,7 +2115,7 @@ def duty_add_trip(request, operator_slug, duty_id):
             'is_running_board': is_running_board,  # Pass this to your template if needed
         }
         return render(request, 'add_duty_trip.html', context)
-    
+
 def get_timetable(request, route_id, direction):
     import json
     import sys
@@ -2151,6 +2151,11 @@ def get_timetable(request, route_id, direction):
 
         inbound_entry = timetableEntry.objects.filter(route=r, inbound=True).first()
         outbound_entry = timetableEntry.objects.filter(route=r, inbound=False).first()
+
+        one_way_inbound_only = False
+        if outbound_entry is None:
+            log("OUTBOUND MISSING → ONE-WAY MODE ENABLED (INBOUND ONLY)")
+            one_way_inbound_only = True
 
         log("INBOUND ENTRY EXISTS =", bool(inbound_entry))
         log("OUTBOUND ENTRY EXISTS =", bool(outbound_entry))
@@ -2259,6 +2264,10 @@ def get_timetable(request, route_id, direction):
 
             # Flip direction
             doing_inbound = not doing_inbound
+            if not one_way_inbound_only:
+                doing_inbound = not doing_inbound
+            else:
+                doing_inbound = True  # always inbound
 
         log("FINAL RESULT COUNT =", len(result))
         return JsonResponse(result, safe=False)

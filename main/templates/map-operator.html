@@ -49,9 +49,7 @@
   }
 
   /* Hide markers by default */
-  .maplibregl-marker {
-    display: none;
-  }
+
 </style>
 {% endblock %}
 
@@ -83,7 +81,7 @@
   const operatorRoutesUrl = `/api/operator/route/?route_operators=${operatorId}&stops_have_cords=true`;
 
   let currentDirection = "inbound";
-  let showStops = false; // OFF BY DEFAULT
+  let showStops = false;
 
   {% if themeDark == 'True' %}
     tilesJSON = 'https://tiles.snubs.dev/styles/dark/style.json';
@@ -100,129 +98,207 @@
 
   map.addControl(new maplibregl.NavigationControl(), 'top-left');
 
-  let markers = [];
-  let routeLayers = [];
+  let markers = [];        // stop markers
+  let routeLayers = [];    // route polylines
+  let vehicleMarkers = {}; // real vehicles
+  let btMarkers = [];      // BT simulated
+  let btEnabled = true;
 
-  // Load ALL operator routes
-  async function loadOperatorRoutes(direction) {
-    // Clear markers
-    markers.forEach(m => m.remove());
-    markers = [];
+  /* =============================
+      SAME ICON MAKER AS MAIN MAP
+  ============================== */
+  function createLiveryIcon({ label = '', rotation = 0, bg = '#0000', css = null, textColour = '#fff', textStroke = "#0000", strokeWidth = "0px" } = {}) {
+    const normalisedRotation = ((rotation % 360) + 360) % 360;
+    const cellRotation = (normalisedRotation < 90 || normalisedRotation > 270) ? 0 : 180;
+    const backgroundStyle = css ? `background:${css};` : `background:${bg};`;
 
-    // Remove old route layers
-    for (const id of routeLayers) {
-      if (map.getLayer(id)) map.removeLayer(id);
-      if (map.getSource(id)) map.removeSource(id);
-    }
-    routeLayers = [];
+    const html = document.createElement('div');
+    html.innerHTML = `
+      <div style="display:inline-block; transform:rotate(${rotation}deg);">
+        <svg width="24" height="16" class="vehicle-marker"
+          style="stroke:${textStroke}; ${backgroundStyle} transform:rotate(${cellRotation}deg);
+                 border:1px solid rgba(0,0,0); color:${textColour}; fill:${textColour};
+                 stroke-width:${strokeWidth};">
+          <text x="12" y="12">${label}</text>
+        </svg>
+        <span style="display:flex; margin-top:-27px; margin-left:16px; color:black;">
+          <svg width="24" height="24" viewBox="0 0 24 24">
+            <path d="M8 6.65v10.69c0 .64.76.99 1.24.56l6.11-5.35c.34-.3.34-.83 0-1.13L9.24 6.07C8.76 5.65 8 5.99 8 6.63Z"/>
+          </svg>
+        </span>
+      </div>`;
+    return html;
+  }
 
-    // Fetch routes belonging to the operator
-    const resRoutes = await fetch(operatorRoutesUrl);
-    const operatorData = await resRoutes.json();
-    const routes = operatorData.results ?? [];
+  /* =============================
+       REAL VEHICLES (MATCHES MAIN MAP)
+  ============================== */
+  async function refreshMarkers() {
+    try {
+      const res = await fetch('/api/active_trips/');
+      const data = await res.json();
+      const vehicles = data.results || [];
 
-    let globalBounds = new maplibregl.LngLatBounds();
+      const stillPresent = new Set();
 
-    for (const route of routes) {
-      await loadSingleRoute(route.id, direction, globalBounds);
-    }
+      for (const v of vehicles) {
+        const tr = v.tracking_data || v.tracking || {};
+        const lat = tr.X ?? tr.lat ?? tr.latitude;
+        const lng = tr.Y ?? tr.lon ?? tr.longitude;
+        if (!lat || !lng) continue;
 
-    // Fit map to include ALL routes if bounds are valid
-    if (!globalBounds.isEmpty()) {
-      map.fitBounds(globalBounds, { padding: 60 });
+        const id = v.id || v.tracking_vehicle?.id;
+        if (!id) continue;
+
+        stillPresent.add(id);
+
+        const heading = tr.heading ?? tr.bearing ?? 0;
+        const routeNum = v.tracking_route?.route_num || v.route || '?';
+
+        const veh = v.tracking_vehicle || {};
+        const css = veh.livery?.left_css || veh.livery?.css || veh.livery?.colour || null;
+        const textColour = veh.livery?.text_colour || '#000';
+
+        if (vehicleMarkers[id]) {
+          // smooth interpolation
+          const marker = vehicleMarkers[id];
+          const oldPos = marker.getLngLat();
+          const newPos = [lng, lat];
+          const startTime = performance.now();
+          const duration = 500;
+
+          const animate = (time) => {
+            const t = Math.min(1, (time - startTime) / duration);
+            const lngInterp = oldPos.lng + (newPos[0] - oldPos.lng) * t;
+            const latInterp = oldPos.lat + (newPos[1] - oldPos.lat) * t;
+            marker.setLngLat([lngInterp, latInterp]);
+            if (t < 1) requestAnimationFrame(animate);
+          };
+          requestAnimationFrame(animate);
+
+          marker.getElement().querySelector('svg').style.transform = `rotate(${heading}deg)`;
+        } else {
+          const el = createLiveryIcon({
+            label: String(routeNum),
+            css,
+            textColour,
+            rotation: heading
+          });
+
+          vehicleMarkers[id] = new maplibregl.Marker({ element: el })
+            .setLngLat([lng, lat])
+            .addTo(map);
+        }
+      }
+
+      // cleanup
+      for (const id in vehicleMarkers) {
+        if (!stillPresent.has(Number(id))) {
+          vehicleMarkers[id].remove();
+          delete vehicleMarkers[id];
+        }
+      }
+
+    } catch (e) {
+      console.error("vehicle refresh failed", e);
     }
   }
 
-  // Load a single route and overlay it
-  async function loadSingleRoute(routeId, direction, globalBounds) {
-    const res = await fetch(`/api/routes/${routeId}/stops/?direction=${direction}`);
-    if (!res.ok) return;
+  /* =============================
+       BT VEHICLES (MATCHES MAIN MAP)
+  ============================== */
+  async function fetchBTVehicles() {
+    const b = map.getBounds();
+    const q = new URLSearchParams({
+      ymax: b.getNorth(),
+      ymin: b.getSouth(),
+      xmax: b.getEast(),
+      xmin: b.getWest()
+    }).toString();
 
-    const stops = await res.json();
-    const coords = stops
-      .map(s => s.cords?.split(',').map(Number))
-      .filter(c => c && c.length === 2 && !isNaN(c[0]) && !isNaN(c[1]))
-      .map(([lat, lon]) => [lon, lat]);
+    try {
+      const res = await fetch(`/api/trips/estimated_positions/?${q}`);
+      const data = await res.json();
 
-    const layerId = `routeLine_${routeId}`;
+      let vehicles = Array.isArray(data.results) ? data.results : (data.features || []);
+      clearBTMarkers();
 
-    // Draw route polyline
-    if (coords.length >= 2) {
-      map.addSource(layerId, {
-        type: 'geojson',
-        data: {
-          type: 'Feature',
-          geometry: { type: 'LineString', coordinates: coords }
-        }
-      });
+      if (vehicles.length > 2000) return;
 
-      map.addLayer({
-        id: layerId,
-        type: 'line',
-        source: layerId,
-        paint: {
-          'line-color': '#2f80ed',
-          'line-width': 3
-        }
-      });
+      for (const v of vehicles.slice(0, 2000)) {
+        const lng = v.lng;
+        const lat = v.lat;
 
-      // Track layers so they can be removed later
-      routeLayers.push(layerId);
+        let heading = v.heading ?? 0;
 
-      // Expand global bounds
-      coords.forEach(c => globalBounds.extend(c));
-    }
+        // flip like main map
+        heading = heading + 180;
+        const rotation = heading;
+        heading = heading + 90;
 
-    // Add stop markers
-    for (const stop of stops) {
-      const [lat, lon] = stop.cords.split(',').map(Number);
-      if (isNaN(lat) || isNaN(lon)) continue;
+        const line = v.service?.line_name || '';
+        const dest = v.destination || '';
+        const serviceLink = v.service?.url || '';
+        const vehicleLink = v.vehicle?.url || '';
+        const vehicleName = v.vehicle?.name || '';
 
-      const el = document.createElement('div');
-      el.style.cssText = `
-        width:10px;height:10px;
-        border:3px solid #2f80ea;
-        border-radius:50%;
-        background:#fff;
-        cursor:pointer;
-      `;
+        let css = v.vehicle?.left_css;
+        if (rotation > 180 && rotation < 360) css = v.vehicle?.right_css;
+        if (!css) css = v.vehicle?.css;
 
-      const marker = new maplibregl.Marker({ element: el })
-        .setLngLat([lon, lat])
-        .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(
-          `<a href="/stop/?name=${encodeURIComponent(stop.stop)}">${stop.stop}</a>`
-        ))
-        .addTo(map);
+        let textColour = v.vehicle?.text_colour || (v.vehicle?.white_text ? '#fff' : '#000');
+        let textStroke = v.vehicle?.stroke_colour ?? false;
+        let strokeWidth = textStroke ? "2px" : "0px";
 
-      markers.push(marker);
+        const el = createLiveryIcon({
+          label: line,
+          css,
+          textColour,
+          rotation: heading,
+          textStroke,
+          strokeWidth
+        });
+
+        const popup = `
+          <a href="${serviceLink}">${line} to ${dest}</a><br>
+          ${vehicleName ? `<a href="${vehicleLink}">${vehicleName}</a><br>` : ''}
+          <span>Simulated Location</span>
+        `;
+
+        const m = new maplibregl.Marker({ element: el })
+          .setLngLat([lng, lat])
+          .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(popup))
+          .addTo(map);
+
+        btMarkers.push(m);
+      }
+    } catch (e) {
+      console.error("BT fetch failed", e);
     }
   }
 
-  // Toggle direction
-  const toggleBtn = document.getElementById('directionToggle');
-  toggleBtn.addEventListener('click', () => {
-    if (currentDirection === 'inbound') {
-      currentDirection = 'outbound';
-      toggleBtn.textContent = 'Show Inbound';
-    } else {
-      currentDirection = 'inbound';
-      toggleBtn.textContent = 'Show Outbound';
-    }
-    loadOperatorRoutes(currentDirection);
+  function clearBTMarkers() {
+    btMarkers.forEach(m => m.remove());
+    btMarkers = [];
+  }
+
+  /* =============================
+        TICKERS
+  ============================== */
+  (async () => {
+    await refreshMarkers();
+    await fetchBTVehicles();
+  })();
+
+  map.on('moveend', async () => {
+    await refreshMarkers();
+    await fetchBTVehicles();
   });
 
-  const stopsBtn = document.getElementById('stopsToggle');
-
-  stopsBtn.addEventListener('click', () => {
-    showStops = !showStops;
-
-    document.querySelectorAll('.maplibregl-marker').forEach(el => {
-      el.style.display = showStops ? "block" : "none";
-    });
-
-    stopsBtn.textContent = showStops ? "Hide Stops" : "Show Stops";
-  });
-  map.on('load', () => loadOperatorRoutes(currentDirection));
+  setInterval(async () => {
+    await refreshMarkers();
+    await fetchBTVehicles();
+  }, 30000);
 </script>
 
 {% endblock %}
