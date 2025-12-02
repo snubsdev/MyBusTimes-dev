@@ -75,13 +75,14 @@ class serviceUpdateAdmin(SimpleHistoryAdmin):
 
 class dutyAdmin(SimpleHistoryAdmin):
     list_display = ['duty_name', 'get_day_types', 'duty_operator']
-
+    search_fields = ['duty_operator', 'duty_day']
     def get_day_types(self, obj):
         return ", ".join([duty_day.name for duty_day in obj.duty_day.all()])
     get_day_types.short_description = 'Day Types'
 
 class dutyAdminTrip(SimpleHistoryAdmin):
     list_display = ['duty', 'route', 'start_time', 'start_at', 'end_time', 'end_at']
+    autocomplete_fields = ['duty', 'route_link']
 
 @admin.register(transitAuthoritiesColour)
 class TransitAuthoritiesColourAdmin(SimpleHistoryAdmin):
