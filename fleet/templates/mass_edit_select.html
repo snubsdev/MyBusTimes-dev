@@ -1,40 +1,70 @@
 {% extends 'mbtbase.html' %}
 {% block title %}Select Vehicles to Mass Edit{% endblock %}
+{% load static %}
 {% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/narrow.css' %}">
 <style>
-  .floating-btn { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); }
-  .big-checkbox { width: 24px; height: 24px; }
-  .filter-container { margin-bottom: 15px; }
-  .filter-container label { margin-right: 5px; }
-  .filter-container select { margin-right: 15px; }
+  .floating-btn {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .big-checkbox {
+    width: 24px;
+    height: 24px;
+    text-align: center;
+  }
+
+  @media (max-width: 768px) {
+    table.fleet thead {
+      display: none;
+    }
+
+    table.fleet,
+    table.fleet tbody,
+    table.fleet tr,
+    table.fleet td {
+      display: block;
+      width: calc(100% - 5px);
+    }
+
+    table.fleet tr {
+      margin-bottom: 15px;
+      border: 1px solid var(--border-color);
+      padding: 10px;
+      border-radius: 8px;
+    }
+
+    table.fleet td {
+      border: none;
+      text-align: center;
+    }
+  }
+
+  /* Dropdown styling */
+  #typeFilter {
+    margin-bottom: 15px;
+    padding: 6px 10px;
+    font-size: 16px;
+    border-radius: 5px;
+    border: 1px solid var(--border-color);
+  }
 </style>
 {% endblock %}
 
 {% block content %}
 <h1>Select Vehicles to Mass Edit</h1>
 
-<div class="filter-container fleet-edit-wrapper"> 
-  <label for="model-filter">Vehicle Model:</label>
-  <select id="model-filter">
-    {% for type in vehicle_types %}
-    <option value="{{ type.type_name }}">{{ type.type_name }}</option>
-    {% endfor %}
-  </select>
-
-  <label for="in-service-filter">In Service:</label>
-  <select id="in-service-filter">
-    {% for value, label in in_service_options %}
-      <option value="{{ value }}">{{ label }}</option>
-    {% endfor %}
-  </select>
-
-  <label for="open-top-filter">Open Top:</label>
-  <select id="open-top-filter">
-    {% for value, label in open_top_options %}
-      <option value="{{ value }}">{{ label }}</option>
-    {% endfor %}
-  </select>
-</div>
+<!-- Dropdown Filter -->
+<label for="typeFilter"><strong>Filter by Vehicle Type:</strong></label>
+<select id="typeFilter">
+  <option value="">All Types</option>
+  {% for type in vehicle_types %}
+    <option value="{{ type }}">{{ type }}</option>
+  {% endfor %}
+</select>
 
 <form method="POST">
   {% csrf_token %}
@@ -45,9 +75,7 @@
           <th>Select</th>
           <th>Fleet Number</th>
           <th>Registration</th>
-          <th>Model</th>
-          <th>In Service</th>
-          <th>Open Top</th>
+          <th>Type</th>
         </tr>
       </thead>
       <tbody>
@@ -57,8 +85,6 @@
           <td>{{ vehicle.fleet_number }}</td>
           <td>{{ vehicle.reg }}</td>
           <td>{{ vehicle.vehicleType.type_name }}</td>
-          <td>{{ vehicle.in_service|yesno:"Yes,No" }}</td>
-          <td>{{ vehicle.open_top|yesno:"Yes,No" }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -69,42 +95,46 @@
 </form>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-  const modelFilter = document.getElementById('model-filter');
-  const inServiceFilter = document.getElementById('in-service-filter');
-  const openTopFilter = document.getElementById('open-top-filter');
-  const rows = document.querySelectorAll('table.fleet tbody tr');
+  document.addEventListener('DOMContentLoaded', () => {
+    const checkboxes = document.querySelectorAll('input[name="selected_vehicles"]');
+    const rows = document.querySelectorAll('table.fleet tbody tr');
+    const dropdown = document.getElementById('typeFilter');
 
-  function filterRows() {
-    const selectedModels = Array.from(modelFilter.selectedOptions).map(opt => opt.value);
-    const inServiceVal = inServiceFilter.value;
-    const openTopVal = openTopFilter.value;
+    // Get currently selected type names from checkboxes
+    function getSelectedTypeNames() {
+      const selectedTypeNames = new Set();
+      checkboxes.forEach(cb => {
+        if (cb.checked) {
+          const typeName = cb.closest('tr').cells[3].textContent.trim();
+          selectedTypeNames.add(typeName);
+        }
+      });
+      return selectedTypeNames;
+    }
 
-    rows.forEach(row => {
-      const model = row.cells[3].textContent.trim();
-      const inService = row.cells[4].textContent.trim();
-      const openTop = row.cells[5].textContent.trim();
+    // Filter rows based on dropdown and checkbox selection
+    function filterRows() {
+      const selectedType = dropdown.value;
+      const selectedTypeNames = getSelectedTypeNames();
 
-      let show = true;
+      rows.forEach(row => {
+        const typeName = row.cells[3].textContent.trim();
+        
+        // Show row if it matches dropdown AND checkbox filters
+        const matchesDropdown = selectedType === "" || typeName === selectedType;
+        const matchesCheckbox = selectedTypeNames.size === 0 || selectedTypeNames.has(typeName);
 
-      // Vehicle Model filter (multi-select)
-      if (selectedModels.length && !selectedModels.includes(model)) show = false;
+        if (matchesDropdown && matchesCheckbox) {
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+    }
 
-      // In Service filter
-      if (inServiceVal === 'true' && inService !== 'Yes') show = false;
-      if (inServiceVal === 'false' && inService !== 'No') show = false;
-
-      // Open Top filter
-      if (openTopVal === 'true' && openTop !== 'Yes') show = false;
-      if (openTopVal === 'false' && openTop !== 'No') show = false;
-
-      row.style.display = show ? '' : 'none';
-    });
-  }
-
-  modelFilter.addEventListener('change', filterRows);
-  inServiceFilter.addEventListener('change', filterRows);
-  openTopFilter.addEventListener('change', filterRows);
-});
+    // Event listeners
+    checkboxes.forEach(cb => cb.addEventListener('change', filterRows));
+    dropdown.addEventListener('change', filterRows);
+  });
 </script>
 {% endblock %}
