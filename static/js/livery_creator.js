@@ -443,41 +443,6 @@ $(document).ready(function () {
 
     updateCells();
   });
-  
-  $("#transportthing-livery").on("select2:select", function (e) {
-    const selectedOption = transportthingSelect.options[transportthingSelect.selectedIndex];
-
-    const selected = e.params.data;
-
-    const leftCss = selected.left_css || "";
-    const rightCss = selected.right_css || "";
-    const textColour = selected.text_colour || "";
-    const textStrokeColour = selected.stroke_colour || "";
-    const liveryName = selected.text || "";
-    const liveryColour = selected.livery_colour || "";
-
-
-    document.getElementById("text-colour").value = textColour;
-    document.getElementById("text-stroke-colour").value = textStrokeColour;
-    document.getElementById("livery-name").value = liveryName;
-    document.getElementById("livery-colour").value = liveryColour;
-
-    const leftHexes = extractHexColors(leftCss);
-    const rightHexes = extractHexColors(rightCss);
-
-    const existingInputs = document.querySelectorAll(".color-picker");
-    existingInputs.forEach((el) => el.remove());
-
-    const leftInputs = displayColorPickers(leftHexes, "left");
-    const rightInputs = displayColorPickers(rightHexes, "right");
-
-    complexLeft.value = leftCss;
-    complexRight.value = rightCss;
-
-    updateCells();
-  });
-
-
 
   $("#livery").on("select2:select", function (e) {
     const selectedOption = liverySelect.options[liverySelect.selectedIndex];
