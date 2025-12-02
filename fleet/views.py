@@ -5425,3 +5425,26 @@ def route_update_delete(request, operator_slug, route_id, update_id):
         'route_id': route_id,
         'operator_slug': operator_slug
     })
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def select_vehicles(request):
+    # Get all vehicles for this operator
+    vehicles = fleet.objects.filter(operator=request.user.operator)  # or whichever operator context you use
+
+    # Only get vehicle types actually present in this fleet
+    vehicle_types = vehicleType.objects.filter(
+        fleet_operator__in=vehicles
+    ).distinct().order_by('type_name')
+
+    in_service_options = [('all', 'All'), ('true', 'In Service'), ('false', 'Withdrawn')]
+    open_top_options = [('all', 'All'), ('true', 'Open Top'), ('false', 'Closed Top')]
+
+    context = {
+        'vehicles': vehicles,
+        'vehicle_types': vehicle_types,
+        'in_service_options': in_service_options,
+        'open_top_options': open_top_options,
+    }
+    return render(request, 'vehicles_mass_edit.html', context)
