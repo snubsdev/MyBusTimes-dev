@@ -2186,11 +2186,23 @@ def get_timetable(request, route_id, direction):
             trips = []
             for i in range(trip_count):
                 trip_stops = []
+
                 for stop in stops_list:
+                    raw_time = stop["times"][i]
+
+                    # If this stop is blank for this trip → skip this stop only
+                    if not raw_time or raw_time.strip() == "":
+                        continue
+
                     trip_stops.append({
                         "stop": stop["stopname"],
-                        "time": stop["times"][i]
+                        "time": raw_time
                     })
+
+                # If trip has fewer than 2 stops, it's invalid → skip it
+                if len(trip_stops) < 2:
+                    log(f"SKIPPING TRIP {i}: too few valid stops")
+                    continue
 
                 start_t = trip_stops[0]["time"]
                 end_t = trip_stops[-1]["time"]
