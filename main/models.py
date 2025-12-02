@@ -57,6 +57,7 @@ class theme(models.Model):
     light_main_colour = models.CharField(max_length=50, blank=True)
     dark_main_colour = models.CharField(max_length=50, blank=True)
     public = models.BooleanField(default=False)  # Boolean for dark mode
+    sugggested = models.BooleanField(default=False)
     weight = models.IntegerField(default=0)
 
     history = HistoricalRecords()
