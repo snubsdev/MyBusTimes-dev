@@ -518,58 +518,99 @@ class EstimatedPositionSerializer(serializers.Serializer):
     destination = serializers.CharField()
     heading = serializers.FloatField()
 
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
+
+@method_decorator(cache_page(30), name="dispatch")
 class VehiclePositionAPIView(generics.ListAPIView):
     serializer_class = EstimatedPositionSerializer
     permission_classes = [AllowAny]
+    serializer_class = EstimatedPositionSerializer
+    permission_classes = [AllowAny]
+
     def get_queryset(self):
         now = timezone.now()
         print(f"[DEBUG] VehiclePositionAPIView: now = {now}")
-        # Fetch active trips
+
+        # -------------------------------
+        # NEW: read filters from query params
+        # -------------------------------
+        filter_route_id = self.request.query_params.get("route_id")
+        filter_operator_id = self.request.query_params.get("operator_id")
+
+        if filter_route_id:
+            print(f"[DEBUG] filtering by route_id={filter_route_id}")
+
+        if filter_operator_id:
+            print(f"[DEBUG] filtering by operator_id={filter_operator_id}")
+
+        # -------------------------------
+        # Base queryset
+        # -------------------------------
         trips = Trip.objects.filter(
             trip_start_at__lte=now,
             trip_end_at__gte=now,
             trip_ended=False
         )
-        print(f"[DEBUG] VehiclePositionAPIView: found {trips.count()} active trips")
-        # Bounding box (optional)
+
+        # -------------------------------
+        # Apply route filter
+        # -------------------------------
+        if filter_route_id:
+            trips = trips.filter(trip_route_id=filter_route_id)
+
+        # -------------------------------
+        # Apply operator filter
+        # -------------------------------
+        if filter_operator_id:
+            trips = trips.filter(
+                trip_vehicle__operator_id=filter_operator_id
+            )
+
+        print(f"[DEBUG] VehiclePositionAPIView: filtered active trips = {trips.count()}")
+
+        # -------------------------------
+        # Existing bounding box code
+        # -------------------------------
         min_lat = self.request.query_params.get("ymin")
         max_lat = self.request.query_params.get("ymax")
         min_lng = self.request.query_params.get("xmin")
         max_lng = self.request.query_params.get("xmax")
+
         print(f"[DEBUG] VehiclePositionAPIView: bounding box = min_lat={min_lat}, max_lat={max_lat}, min_lng={min_lng}, max_lng={max_lng}")
+
         results = []
+
+        # -------------------------------
+        # PROCESS TRIPS
+        # -------------------------------
         for trip in trips:
             print(f"[DEBUG] VehiclePositionAPIView: processing trip_id={trip.pk}")
+
             coords = get_route_coordinates(
                 trip.trip_route_id,
                 trip.trip_end_location or ""
             )
+
             progress = get_progress(trip)
             lat, lng, seg_index = interpolate(coords, progress)
 
             if lat is None or lng is None:
                 continue
 
-            # compute heading (if possible)
+            # compute heading
             heading = None
             if seg_index < len(coords) - 1:
                 next_lat, next_lng = coords[seg_index + 1]
                 heading = calculate_heading(lat, lng, next_lat, next_lng)
 
-            # Bounding box filter
-            if min_lat and lat < float(min_lat):
-                print(f"[DEBUG] VehiclePositionAPIView: skipping trip_id={trip.pk} (lat < min_lat)")
-                continue
-            if max_lat and lat > float(max_lat):
-                print(f"[DEBUG] VehiclePositionAPIView: skipping trip_id={trip.pk} (lat > max_lat)")
-                continue
-            if min_lng and lng < float(min_lng):
-                print(f"[DEBUG] VehiclePositionAPIView: skipping trip_id={trip.pk} (lng < min_lng)")
-                continue
-            if max_lng and lng > float(max_lng):
-                print(f"[DEBUG] VehiclePositionAPIView: skipping trip_id={trip.pk} (lng > max_lng)")
-                continue
-            result = {
+            # bbox skip
+            if min_lat and lat < float(min_lat): continue
+            if max_lat and lat > float(max_lat): continue
+            if min_lng and lng < float(min_lng): continue
+            if max_lng and lng > float(max_lng): continue
+
+            results.append({
                 "trip_id": trip.pk,
                 "vehicle": trip.trip_vehicle_id,
                 "service_id": trip.trip_route_id,
@@ -579,8 +620,7 @@ class VehiclePositionAPIView(generics.ListAPIView):
                 "lng": lng,
                 "heading": heading,
                 "destination": trip.trip_end_location or ""
-            }
-            print(f"[DEBUG] VehiclePositionAPIView: adding result = {result}")
-            results.append(result)
+            })
+
         print(f"[DEBUG] VehiclePositionAPIView: returning {len(results)} results")
         return results

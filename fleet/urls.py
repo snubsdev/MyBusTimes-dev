@@ -50,6 +50,7 @@ urlpatterns = [
     path('<str:operator_slug>/route/<int:route_id>/edit/', route_edit, name='edit-route'),
     path('<str:operator_slug>/route/<int:route_id>/delete/', route_delete, name='delete-route'),
     path("<str:operator_slug>/route/<int:route_id>/vehicles/", route_vehicles, name="route_vehicles"),
+    path('<str:operator_slug>/route/<int:route_id>/status/', trackable_status, name='trackable_status'),
     path('<str:operator_slug>/routes/dedupe', deduplicate_operator_routes, name='deduplicate_routes'),
 
     # Route Updates
@@ -111,4 +112,5 @@ urlpatterns = [
 
     # Trips
     path('<str:operator_slug>/vehicles/mass-log-trips', mass_log_trips, name='operator_mass_log_trips'),
+    path('<str:operator_slug>/vehicles/mass-assign', mass_assign_boards, name='operator_mass_assign_boards'),
 ]

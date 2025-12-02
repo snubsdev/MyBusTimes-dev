@@ -750,6 +750,94 @@ def route_detail(request, operator_slug, route_id):
 
     return render(request, 'route_detail.html', context)
 
+def trackable_status(request, operator_slug, route_id):
+    response = feature_enabled(request, "view_routes")
+    if response:
+        return response
+
+    operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
+    route_instance = get_object_or_404(route, id=route_id)
+
+    inbound_timetable_entries = timetableEntry.objects.filter(route=route_instance, inbound=True)
+    outbound_timetable_entries = timetableEntry.objects.filter(route=route_instance, inbound=False)
+
+    inbound_route_stops = routeStop.objects.filter(route=route_instance, inbound=True).first()
+    outbound_route_stops = routeStop.objects.filter(route=route_instance, inbound=False).first()
+
+    # circular route = no outbound direction
+    is_circular = False
+    if route_instance.outbound_destination == "":
+        is_circular = True
+
+    has_in_timetable = inbound_timetable_entries.exists()
+    has_out_timetable = outbound_timetable_entries.exists()
+    has_in_stops = inbound_route_stops is not None
+    has_out_stops = outbound_route_stops is not None
+
+    # Inbound status
+    if has_in_timetable and has_in_stops:
+        inbound_status = "Ok"
+    elif has_in_timetable and not has_in_stops:
+        inbound_status = "Missing Stops"
+    else:
+        inbound_status = "No Timetable"
+
+    # Outbound status
+    if is_circular:
+        outbound_status = "Circular (no outbound)"
+    else:
+        if has_out_timetable and has_out_stops:
+            outbound_status = "Ok"
+        elif has_out_timetable and not has_out_stops:
+            outbound_status = "Missing Stops"
+        else:
+            outbound_status = "No Timetable"
+
+    # Overall
+    if inbound_status == "Ok" and outbound_status == "Ok":
+        overall_status = "Ok"
+    elif inbound_status == "Ok" and outbound_status != "Ok":
+        overall_status = "Missing Outbound Data"
+    elif inbound_status != "Ok" and outbound_status == "Ok":
+        overall_status = "Missing Inbound Data"
+    else:
+        overall_status = "Incomplete"
+
+    status_report = {
+        'inbound': inbound_status,
+        'outbound': outbound_status,
+        'overall': overall_status,
+        'is_circular': is_circular,
+        'all': {
+            'inbound': {
+                'has_timetable': has_in_timetable,
+                'has_stops': has_in_stops
+            },
+            'outbound': {
+                'has_timetable': has_out_timetable,
+                'has_stops': has_out_stops
+            },
+            'overall': {
+                'inbound': has_in_timetable and has_in_stops,
+                'outbound': has_out_timetable and has_out_stops
+            }
+        }
+    }
+
+    breadcrumbs = [
+        {'name': 'Home', 'url': '/'},
+        {'name': operator.operator_name, 'url': f'/operator/{operator.operator_slug}/'},
+        {'name': route_instance.route_num or 'Route Details', 'url': f'/operator/{operator.operator_slug}/route/{route_id}/'}
+    ]
+
+    context = {
+        'breadcrumbs': breadcrumbs,
+        'operator': operator,
+        'status_report_json': json.dumps(status_report)  # send to JS
+    }
+
+    return render(request, 'route_status.html', context)
+
 def vehicles(request, operator_slug, depot=None, withdrawn=False):
     operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
 
@@ -971,7 +1059,7 @@ def vehicle_detail(request, operator_slug, vehicle_id):
         operator = MBTOperator.objects.get(operator_slug=operator_slug)
         vehicle = fleet.objects.get(id=vehicle_id, operator=operator)
         all_trip_dates = Trip.objects.filter(trip_vehicle=vehicle).values_list('trip_start_at', flat=True).distinct()
-
+        
         all_trip_dates = sorted(
             {
                 timezone.localtime(trip_date).date()
@@ -1052,6 +1140,7 @@ def vehicle_detail(request, operator_slug, vehicle_id):
         'tabs': tabs,
         'now': now,
         'trips': trips,
+        'show_board': any(t.trip_board for t in trips),
         'trips_json': trips_json,
     }
     return render(request, 'vehicle_detail.html', context)
@@ -2114,7 +2203,7 @@ def duty_add_trip(request, operator_slug, duty_id):
             'is_running_board': is_running_board,  # Pass this to your template if needed
         }
         return render(request, 'add_duty_trip.html', context)
-    
+
 def get_timetable(request, route_id, direction):
     import json
     import sys
@@ -2151,11 +2240,16 @@ def get_timetable(request, route_id, direction):
         inbound_entry = timetableEntry.objects.filter(route=r, inbound=True).first()
         outbound_entry = timetableEntry.objects.filter(route=r, inbound=False).first()
 
+        one_way_inbound_only = False
+        if outbound_entry is None:
+            log("OUTBOUND MISSING → ONE-WAY MODE ENABLED (INBOUND ONLY)")
+            one_way_inbound_only = True
+
         log("INBOUND ENTRY EXISTS =", bool(inbound_entry))
         log("OUTBOUND ENTRY EXISTS =", bool(outbound_entry))
 
-        if not inbound_entry or not outbound_entry:
-            return JsonResponse({"error": "Both inbound and outbound timetables required"}, status=400)
+        #if not inbound_entry or not outbound_entry:
+        #    return JsonResponse({"error": "Both inbound and outbound timetables required"}, status=400)
 
         # -------- PARSE TIMETABLE ENTRY --------
         def parse_entry(entry, label):
@@ -2181,11 +2275,23 @@ def get_timetable(request, route_id, direction):
             trips = []
             for i in range(trip_count):
                 trip_stops = []
+
                 for stop in stops_list:
+                    raw_time = stop["times"][i]
+
+                    # If this stop is blank for this trip → skip this stop only
+                    if not raw_time or raw_time.strip() == "":
+                        continue
+
                     trip_stops.append({
                         "stop": stop["stopname"],
-                        "time": stop["times"][i]
+                        "time": raw_time
                     })
+
+                # If trip has fewer than 2 stops, it's invalid → skip it
+                if len(trip_stops) < 2:
+                    log(f"SKIPPING TRIP {i}: too few valid stops")
+                    continue
 
                 start_t = trip_stops[0]["time"]
                 end_t = trip_stops[-1]["time"]
@@ -2207,7 +2313,12 @@ def get_timetable(request, route_id, direction):
             return trips
 
         inbound_trips = parse_entry(inbound_entry, "INBOUND")
-        outbound_trips = parse_entry(outbound_entry, "OUTBOUND")
+
+        if outbound_entry is not None:
+            outbound_trips = parse_entry(outbound_entry, "OUTBOUND")
+        else:
+            log("NO OUTBOUND ENTRY → OUTBOUND TRIPS = []")
+            outbound_trips = []
 
         log("INBOUND TRIPS COUNT =", len(inbound_trips))
         log("OUTBOUND TRIPS COUNT =", len(outbound_trips))
@@ -2257,7 +2368,10 @@ def get_timetable(request, route_id, direction):
             log("UPDATED CURRENT TIME =", current_time)
 
             # Flip direction
-            doing_inbound = not doing_inbound
+            if one_way_inbound_only:
+                doing_inbound = True
+            else:
+                doing_inbound = not doing_inbound
 
         log("FINAL RESULT COUNT =", len(result))
         return JsonResponse(result, safe=False)
@@ -5308,14 +5422,16 @@ def mass_log_trips(request, operator_slug):
             start_dt = make_aware(datetime.combine(selected_date, trip.start_time))
             end_dt = make_aware(datetime.combine(selected_date, trip.end_time))
 
-            routeLink = None
+            routeLink = trip.route_link if trip.route_link else None
 
-            if trip.route_link:
-                routeLink = trip.route_link
-            else:
-                routeLink = None
+            board_obj = None
+            if duty_id:
+                board_obj = selected_duty
+            elif running_board_id:
+                board_obj = selected_rb
 
-            trip = Trip(
+
+            created_trip = Trip(
                 trip_vehicle=vehicle,
                 trip_route=routeLink,
                 trip_route_num=trip.route.route_num if hasattr(trip.route, "route_num") else trip.route,
@@ -5323,11 +5439,12 @@ def mass_log_trips(request, operator_slug):
                 trip_end_location=trip.end_at,
                 trip_start_at=start_dt,
                 trip_end_at=end_dt,
+                trip_board=board_obj, 
             )
 
             try:
-                trip.full_clean()
-                trip.save()
+                created_trip.full_clean()
+                created_trip.save()
             except ValidationError as e:
                 for field, errors in e.message_dict.items():
                     for error in errors:
@@ -5361,6 +5478,161 @@ def mass_log_trips(request, operator_slug):
         'current_date_time': timezone.now().strftime("%Y-%m-%d %H:%M"),
     }
     return render(request, 'mass-log-trips.html', context)
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def mass_assign_boards(request, operator_slug):
+    """Assign duties or running boards to multiple vehicles and bulk log trips."""
+    
+    # Feature flag support (if you use it)
+    response = feature_enabled(request, "mass_log_trips")
+    if response:
+        return response
+
+    operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
+
+    # Permissions
+    userPerms = get_helper_permissions(request.user, operator)
+    if (
+        request.user != operator.owner
+        and 'Mass Log Trips' not in userPerms
+        and not request.user.is_superuser
+    ):
+        messages.error(request, "You do not have permission to log trips for this operator.")
+        return redirect(f'/operator/{operator_slug}/')
+
+    # ----------------------------------------------------------------------
+    # POST: Process all assignments from the table
+    # ----------------------------------------------------------------------
+    if request.method == "POST":
+        date_str = request.POST.get("date")
+        if not date_str:
+            messages.error(request, "A date is required.")
+            return redirect(request.path)
+
+        try:
+            selected_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            messages.error(request, "Invalid date format.")
+            return redirect(request.path)
+
+        # Format:
+        # assignments[123][board_type] = "duty"
+        # assignments[123][board_id] = "52"
+        assignments = {}
+        for key, value in request.POST.items():
+            if key.startswith("assignments["):
+                # assignments[12][board_type]
+                parts = key.split("[")
+                # parts = ["assignments", "12]", "board_type]"]
+
+                if len(parts) != 3:
+                    continue
+
+                vehicle_id = parts[1].replace("]", "")
+                field = parts[2].replace("]", "")
+
+                assignments.setdefault(vehicle_id, {})[field] = value
+
+
+        # Nothing submitted?
+        if not assignments:
+            messages.error(request, "No vehicle assignments found.")
+            return redirect(request.path)
+
+        # Process each vehicle one-by-one
+        for vehicle_id, data in assignments.items():
+            board_type = data.get("board_type")
+            board_id = data.get("board_id")
+
+            # Skip empty rows
+            if not board_type or not board_id:
+                continue
+
+            vehicle = get_object_or_404(fleet, id=vehicle_id)
+
+            # Load duty or running board
+            if board_type == "duty":
+                board_obj = get_object_or_404(
+                    duty,
+                    id=board_id,
+                    board_type="duty",
+                    duty_operator=operator
+                )
+            else:
+                board_obj = get_object_or_404(
+                    duty,
+                    id=board_id,
+                    board_type="running-boards",
+                    duty_operator=operator
+                )
+
+            trip_set = board_obj.duty_trips.all()
+
+            # Create trips for this board
+            for trip in trip_set:
+                start_dt = make_aware(datetime.combine(selected_date, trip.start_time))
+                end_dt = make_aware(datetime.combine(selected_date, trip.end_time))
+
+                created_trip = Trip(
+                    trip_vehicle=vehicle,
+                    trip_route=trip.route_link,
+                    trip_route_num=(
+                        trip.route.route_num
+                        if hasattr(trip.route, "route_num")
+                        else trip.route
+                    ),
+                    trip_start_location=trip.start_at,
+                    trip_end_location=trip.end_at,
+                    trip_start_at=start_dt,
+                    trip_end_at=end_dt,
+                    trip_board=board_obj,
+                )
+
+                try:
+                    created_trip.full_clean()
+                    created_trip.save()
+                except ValidationError as e:
+                    for field, errors in e.message_dict.items():
+                        for error in errors:
+                            messages.error(request, f"Vehicle {vehicle}: {error}")
+                    return redirect(request.path)
+
+        messages.success(request, "All assigned trips logged successfully.")
+        return redirect(request.path)
+
+    # ----------------------------------------------------------------------
+    # GET: Load table
+    # ----------------------------------------------------------------------
+    duties_list = duty.objects.filter(
+        duty_operator=operator, board_type='duty'
+    ).order_by('duty_name')
+
+    running_list = duty.objects.filter(
+        duty_operator=operator, board_type='running-boards'
+    ).order_by('duty_name')
+
+    vehicles = fleet.objects.filter(
+        Q(operator=operator) | Q(loan_operator=operator)
+    ).order_by('fleet_number_sort')
+
+    breadcrumbs = [
+        {'name': 'Home', 'url': '/'},
+        {'name': operator.operator_name, 'url': f'/operator/{operator_slug}/'},
+        {'name': 'Vehicles', 'url': f'/operator/{operator_slug}/vehicles/'},
+        {'name': 'Mass Board Assign', 'url': request.path},
+    ]
+
+    context = {
+        'breadcrumbs': breadcrumbs,
+        'operator': operator,
+        'duties': duties_list,
+        'running_boards': running_list,
+        'vehicles': vehicles,
+        'current_date': timezone.now().strftime("%Y-%m-%d"),
+    }
+    return render(request, 'mass_table_log.html', context)
+
 
 @login_required
 @require_http_methods(["GET", "POST"])

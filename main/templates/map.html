@@ -111,7 +111,7 @@
 
   function timeAgo(dateString) {
     if (!dateString) return '';
-    const seconds = Math.floor((new Date() - new Date(dateString)) / 1000);
+    const seconds = Math.floor((new Date() - new Date(dateString)) / 5000);
     if (seconds < 60) return `${seconds} sec${seconds !== 1 ? 's' : ''} ago`;
     const minutes = Math.floor(seconds / 60);
     if (minutes < 60) return `${minutes} min${minutes !== 1 ? 's' : ''} ago`;
@@ -141,9 +141,6 @@
 
     return html;
   }
-
-
-
 
   const vehicleMarkers = [];
   const stopMarkers = [];
@@ -295,16 +292,16 @@
     }).toString();
 
     try {
-      const res = await fetch(`/api/trips/estimated_positions/?${q}`);
+      const res = await fetch(`/api/trips/estimated_positions/?${q}&limit=5000`);
       const data = await res.json();
 
       console.log('BT vehicle data:', data);
       let vehicles = Array.isArray(data.results) ? data.results : (data.features || []);
       clearMarkers(btMarkers);
 
-      if (vehicles.length > 2000) return;
+      if (vehicles.length > 5000) return;
 
-      for (const v of vehicles.slice(0, 2000)) {
+      for (const v of vehicles.slice(0, 5000)) {
         const lng = v.lng;
         const lat = v.lat;
 

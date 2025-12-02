@@ -18,36 +18,41 @@
   }
 
   @media (max-width: 768px) {
-    table.fleet thead {
-      display: none;
-      /* Hide headers on mobile */
-    }
-
-    table.fleet,
-    table.fleet tbody,
-    table.fleet tr,
-    table.fleet td {
+    table.fleet thead { display: none; }
+    table.fleet, table.fleet tbody, table.fleet tr, table.fleet td {
       display: block;
       width: calc(100% - 5px);
     }
-
     table.fleet tr {
       margin-bottom: 15px;
       border: 1px solid var(--border-color);
       padding: 10px;
       border-radius: 8px;
     }
-
     table.fleet td {
       border: none;
       text-align: center;
     }
+  }
+
+  #typeFilter {
+    margin-bottom: 15px;
+    padding: 6px 10px;
+    font-size: 16px;
+    border-radius: 5px;
+    border: 1px solid var(--border-color);
   }
 </style>
 {% endblock %}
 
 {% block content %}
 <h1>Select Vehicles to Mass Edit</h1>
+
+<!-- Dropdown Filter -->
+<label for="typeFilter"><strong>Filter by Vehicle Type:</strong></label>
+<select id="typeFilter">
+  <option value="">All Types</option>
+</select>
 
 <form method="POST">
   {% csrf_token %}
@@ -76,42 +81,54 @@
 
   <button type="submit" class="btn floating-btn">Continue to Edit Selected</button>
 </form>
+
 <script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const checkboxes = document.querySelectorAll('input[name="selected_vehicles"]');
-    const rows = document.querySelectorAll('table.fleet tbody tr');
+document.addEventListener('DOMContentLoaded', () => {
+  const rows = document.querySelectorAll('table.fleet tbody tr');
+  const dropdown = document.getElementById('typeFilter');
+  const checkboxes = document.querySelectorAll('input[name="selected_vehicles"]');
 
-    function getSelectedTypeNames() {
-      const selectedTypeNames = new Set();
-      checkboxes.forEach(cb => {
-        if (cb.checked) {
-          // vehicleType.type_name is in the 4th cell (index 3)
-          const typeName = cb.closest('tr').cells[3].textContent.trim();
-          selectedTypeNames.add(typeName);
-        }
-      });
-      return selectedTypeNames;
-    }
-
-    function filterRows() {
-      const selectedTypeNames = getSelectedTypeNames();
-      if (selectedTypeNames.size === 0) {
-        // No selection: show all
-        rows.forEach(row => row.style.display = '');
-        return;
-      }
-
-      rows.forEach(row => {
-        const typeName = row.cells[3].textContent.trim();
-        if (selectedTypeNames.has(typeName)) {
-          row.style.display = '';
-        } else {
-          row.style.display = 'none';
-        }
-      });
-    }
-
-    checkboxes.forEach(cb => cb.addEventListener('change', filterRows));
+  // 1️⃣ Collect unique type names from table
+  const typeSet = new Set();
+  rows.forEach(row => {
+    const typeName = row.cells[3].textContent.trim();
+    typeSet.add(typeName);
   });
+
+  // 2️⃣ Populate dropdown
+  typeSet.forEach(type => {
+    const option = document.createElement('option');
+    option.value = type;
+    option.textContent = type;
+    dropdown.appendChild(option);
+  });
+
+  // 3️⃣ Filter rows based on dropdown + checkboxes
+  function getSelectedTypeNames() {
+    const selectedTypeNames = new Set();
+    checkboxes.forEach(cb => {
+      if (cb.checked) {
+        const typeName = cb.closest('tr').cells[3].textContent.trim();
+        selectedTypeNames.add(typeName);
+      }
+    });
+    return selectedTypeNames;
+  }
+
+  function filterRows() {
+    const selectedType = dropdown.value;
+    const selectedTypeNames = getSelectedTypeNames();
+
+    rows.forEach(row => {
+      const typeName = row.cells[3].textContent.trim();
+      const matchesDropdown = selectedType === "" || typeName === selectedType;
+      const matchesCheckbox = selectedTypeNames.size === 0 || selectedTypeNames.has(typeName);
+      row.style.display = (matchesDropdown && matchesCheckbox) ? '' : 'none';
+    });
+  }
+
+  checkboxes.forEach(cb => cb.addEventListener('change', filterRows));
+  dropdown.addEventListener('change', filterRows);
+});
 </script>
 {% endblock %}

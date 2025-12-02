@@ -25,7 +25,7 @@ def deduplicate_routes(modeladmin, request, queryset):
     modeladmin.message_user(request, f"{len(duplicates)} duplicate routes removed.")
 
 class routeAdmin(SimpleHistoryAdmin):
-    search_fields = ['route_num']
+    search_fields = ['id', 'route_num']
     list_filter = ['route_operators']
     list_display = ['route_num', 'route_name', 'inbound_destination', 'outbound_destination']
     actions = [deduplicate_routes]
@@ -75,13 +75,14 @@ class serviceUpdateAdmin(SimpleHistoryAdmin):
 
 class dutyAdmin(SimpleHistoryAdmin):
     list_display = ['duty_name', 'get_day_types', 'duty_operator']
-
+    search_fields = ['duty_name',]
     def get_day_types(self, obj):
         return ", ".join([duty_day.name for duty_day in obj.duty_day.all()])
     get_day_types.short_description = 'Day Types'
 
 class dutyAdminTrip(SimpleHistoryAdmin):
     list_display = ['duty', 'route', 'start_time', 'start_at', 'end_time', 'end_at']
+    autocomplete_fields = ['duty', 'route_link']
 
 @admin.register(transitAuthoritiesColour)
 class TransitAuthoritiesColourAdmin(SimpleHistoryAdmin):

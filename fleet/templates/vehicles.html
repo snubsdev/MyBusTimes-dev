@@ -131,9 +131,48 @@
     <li><a href="/operator/{{ operator.operator_slug }}/vehicles?withdrawn=true">Show Withdrawn</a></li>
     {% endif %}
 </ul>
+{% if is_paginated %}
+<div class="pagination">
 
-<button onclick="printTable()" class="no-print">Print</button>
-<br>
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}{% if request.GET.withdrawn %}&withdrawn={{ request.GET.withdrawn }}{% endif %}">&laquo; Previous</a>
+    {% endif %}
+
+    {% for num in page_obj.paginator.page_range %}
+        {% if num == page_obj.number %}
+            <span class="current">{{ num }}</span>
+        {% elif num == 1 or num == page_obj.paginator.num_pages %}
+            <a href="?page={{ num }}{% if request.GET.withdrawn %}&withdrawn={{ request.GET.withdrawn }}{% endif %}">{{ num }}</a>
+        {% elif num >= page_obj.number|add:'-2' and num <= page_obj.number|add:'2' %}
+            <a href="?page={{ num }}{% if request.GET.withdrawn %}&withdrawn={{ request.GET.withdrawn }}{% endif %}">{{ num }}</a>
+        {% elif num == page_obj.number|add:'-3' or num == page_obj.number|add:'3' %}
+            <span class="dots">…</span>
+        {% endif %}
+    {% endfor %}
+
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}{% if request.GET.withdrawn %}&withdrawn={{ request.GET.withdrawn }}{% endif %}">Next &raquo;</a>
+    {% endif %}
+
+    <!-- 📌 DROPDOWN PAGE SELECTOR -->
+    <form method="get" class="page-jump-form" style="display:inline-block; margin-left:10px;">
+        <label for="page-select">Jump to:</label>
+        <select id="page-select" name="page" onchange="this.form.submit()">
+            {% for num in page_obj.paginator.page_range %}
+                <option value="{{ num }}" {% if num == page_obj.number %}selected{% endif %}>
+                    Page {{ num }}
+                </option>
+            {% endfor %}
+        </select>
+
+        {% if request.GET.withdrawn %}
+            <input type="hidden" name="withdrawn" value="{{ request.GET.withdrawn }}">
+        {% endif %}
+    </form>
+    <!-- 📌 END DROPDOWN -->
+
+</div>
+{% endif %}
 
 <div id="printable-area"  class="table-wrapper">
     {% if vehicles %}

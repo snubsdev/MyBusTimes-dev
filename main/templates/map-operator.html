@@ -48,9 +48,23 @@
     cursor: pointer;
   }
 
-  /* Hide markers by default */
-  .maplibregl-marker {
-    display: none;
+  .vehicle-marker {
+    text-align: center;
+    color: #000;
+    fill: currentColor;
+    text-anchor: middle;
+    paint-order: stroke;
+    stroke-width: 2px;
+    line-height: 16px;
+    z-index: 20;
+  }
+
+  .maplibregl-popup-tip,
+  .maplibregl-popup-content {
+    background: var(--background-color) !important;
+    color: var(--text-color) !important;
+    border-radius: 0.5em !important;
+    font-size: 12px !important;
   }
 </style>
 {% endblock %}
@@ -79,150 +93,216 @@
 <div id="map"></div>
 
 <script>
-  const operatorId = "{{ operator.id }}";
-  const operatorRoutesUrl = `/api/operator/route/?route_operators=${operatorId}&stops_have_cords=true`;
+const operatorId = "{{ operator.id }}";
+let currentDirection = "inbound";
+let showStops = false;
 
-  let currentDirection = "inbound";
-  let showStops = false; // OFF BY DEFAULT
+{% if themeDark == 'True' %}
+  tilesJSON = 'https://tiles.snubs.dev/styles/dark/style.json';
+{% else %}
+  tilesJSON = 'https://tiles.snubs.dev/styles/light/style.json';
+{% endif %}
 
-  {% if themeDark == 'True' %}
-    tilesJSON = 'https://tiles.snubs.dev/styles/dark/style.json';
-  {% else %}
-    tilesJSON = 'https://tiles.snubs.dev/styles/light/style.json';
-  {% endif %}
+const map = new maplibregl.Map({
+  container: 'map',
+  style: tilesJSON,
+  center: [-1.9, 54.9],
+  zoom: 8
+});
+map.addControl(new maplibregl.NavigationControl(), 'top-left');
 
-  const map = new maplibregl.Map({
-    container: 'map',
-    style: tilesJSON,
-    center: [-1.9, 54.9],
-    zoom: 6
-  });
+const routeLayers = [];
+let stopMarkers = [];
+let btMarkers = [];
 
-  map.addControl(new maplibregl.NavigationControl(), 'top-left');
+async function loadOperatorRoutes() {
+  // remove polyline layers
+  for (const id of routeLayers) {
+    if (map.getLayer(id)) map.removeLayer(id);
+    if (map.getSource(id)) map.removeSource(id);
+  }
+  routeLayers.length = 0;
 
-  let markers = [];
-  let routeLayers = [];
+  // remove stops
+  stopMarkers.forEach(m => m.remove());
+  stopMarkers = [];
 
-  // Load ALL operator routes
-  async function loadOperatorRoutes(direction) {
-    // Clear markers
-    markers.forEach(m => m.remove());
-    markers = [];
+  const routesRes = await fetch(`/api/operator/route/?route_operators=${operatorId}&stops_have_cords=true`);
+  const routesData = await routesRes.json();
+  const routes = routesData.results ?? [];
 
-    // Remove old route layers
-    for (const id of routeLayers) {
-      if (map.getLayer(id)) map.removeLayer(id);
-      if (map.getSource(id)) map.removeSource(id);
-    }
-    routeLayers = [];
+  const bounds = new maplibregl.LngLatBounds();
 
-    // Fetch routes belonging to the operator
-    const resRoutes = await fetch(operatorRoutesUrl);
-    const operatorData = await resRoutes.json();
-    const routes = operatorData.results ?? [];
-
-    let globalBounds = new maplibregl.LngLatBounds();
-
-    for (const route of routes) {
-      await loadSingleRoute(route.id, direction, globalBounds);
-    }
-
-    // Fit map to include ALL routes if bounds are valid
-    if (!globalBounds.isEmpty()) {
-      map.fitBounds(globalBounds, { padding: 60 });
-    }
+  for (const r of routes) {
+    await addRoutePolyline(r.id, bounds);
   }
 
-  // Load a single route and overlay it
-  async function loadSingleRoute(routeId, direction, globalBounds) {
-    const res = await fetch(`/api/routes/${routeId}/stops/?direction=${direction}`);
-    if (!res.ok) return;
+  if (!bounds.isEmpty()) {
+    map.fitBounds(bounds, { padding: 60 });
+  }
+}
 
-    const stops = await res.json();
-    const coords = stops
-      .map(s => s.cords?.split(',').map(Number))
-      .filter(c => c && c.length === 2 && !isNaN(c[0]) && !isNaN(c[1]))
-      .map(([lat, lon]) => [lon, lat]);
+async function addRoutePolyline(routeId, bounds) {
+  const res = await fetch(`/api/routes/${routeId}/stops/?direction=${currentDirection}`);
+  if (!res.ok) return;
 
-    const layerId = `routeLine_${routeId}`;
+  const stops = await res.json();
+  const coords = stops
+    .map(s => s.cords?.split(',').map(Number))
+    .filter(c => c && c.length === 2)
+    .map(([lat, lon]) => [lon, lat]);
 
-    // Draw route polyline
-    if (coords.length >= 2) {
-      map.addSource(layerId, {
-        type: 'geojson',
-        data: {
-          type: 'Feature',
-          geometry: { type: 'LineString', coordinates: coords }
-        }
-      });
+  const lid = `route_${routeId}`;
 
-      map.addLayer({
-        id: layerId,
-        type: 'line',
-        source: layerId,
-        paint: {
-          'line-color': '#2f80ed',
-          'line-width': 3
-        }
-      });
+  if (coords.length >= 2) {
+    map.addSource(lid, {
+      type: 'geojson',
+      data: {
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: coords }
+      }
+    });
 
-      // Track layers so they can be removed later
-      routeLayers.push(layerId);
+    map.addLayer({
+      id: lid,
+      type: 'line',
+      source: lid,
+      paint: {
+        'line-color': '#2f80ed',
+        'line-width': 3
+      }
+    });
 
-      // Expand global bounds
-      coords.forEach(c => globalBounds.extend(c));
-    }
+    routeLayers.push(lid);
+    coords.forEach(c => bounds.extend(c));
+  }
 
-    // Add stop markers
+  if (showStops) {
     for (const stop of stops) {
       const [lat, lon] = stop.cords.split(',').map(Number);
-      if (isNaN(lat) || isNaN(lon)) continue;
-
       const el = document.createElement('div');
       el.style.cssText = `
         width:10px;height:10px;
         border:3px solid #2f80ea;
         border-radius:50%;
         background:#fff;
-        cursor:pointer;
       `;
-
-      const marker = new maplibregl.Marker({ element: el })
+      const m = new maplibregl.Marker({ element: el })
         .setLngLat([lon, lat])
         .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(
           `<a href="/stop/?name=${encodeURIComponent(stop.stop)}">${stop.stop}</a>`
         ))
         .addTo(map);
-
-      markers.push(marker);
+      stopMarkers.push(m);
     }
   }
+}
 
-  // Toggle direction
-  const toggleBtn = document.getElementById('directionToggle');
-  toggleBtn.addEventListener('click', () => {
-    if (currentDirection === 'inbound') {
-      currentDirection = 'outbound';
-      toggleBtn.textContent = 'Show Inbound';
-    } else {
-      currentDirection = 'inbound';
-      toggleBtn.textContent = 'Show Outbound';
-    }
-    loadOperatorRoutes(currentDirection);
+function createLiveryIcon({ label = '', rotation = 0, bg = '#0000', css = null, textColour = '#fff', textStroke = "#0000", strokeWidth = "0px" } = {}) {
+    const normalisedRotation = ((rotation % 360) + 360) % 360;
+    const cellRotation = (normalisedRotation < 90 || normalisedRotation > 270) ? 0 : 180;
+    const backgroundStyle = css ? `background: ${css};` : `background: ${bg};`;
+    const html = document.createElement('div');
+    html.innerHTML = `
+      <div style="display:inline-block; transform: rotate(${rotation}deg);">
+        <svg width="24" height="16" data-vehicle-id="51623" class="vehicle-marker" style="stroke: ${textStroke}; text-align: center; ${backgroundStyle} transform: rotate(${cellRotation}deg); border: 1px solid rgba(0,0,0); color: ${textColour}; fill: ${textColour}; stroke-width: ${strokeWidth};">
+          <text x="12" y="12">${label}</text>
+        </svg>
+        <span style="display:flex; margin-top: -27px; margin-left: 16px; color:black;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M8 6.65v10.69c0 .64.76.99 1.24.56l6.11-5.35c.34-.3.34-.83 0-1.13L9.24 6.07C8.76 5.65 8 5.99 8 6.63Z" />
+          </svg>
+        </span>
+      </div>
+    `;
+
+    return html;
+  }
+
+async function loadOperatorBT() {
+  const b = map.getBounds();
+
+  const q = new URLSearchParams({
+    ymax: b.getNorth(),
+    ymin: b.getSouth(),
+    xmax: b.getEast(),
+    xmin: b.getWest(),
+    operator_id: operatorId
   });
 
-  const stopsBtn = document.getElementById('stopsToggle');
+  const url = `/api/trips/estimated_positions/?${q}`;
 
-  stopsBtn.addEventListener('click', () => {
-    showStops = !showStops;
+  const res = await fetch(url);
+  const data = await res.json();
+  const vehicles = Array.isArray(data.results) ? data.results : [];
 
-    document.querySelectorAll('.maplibregl-marker').forEach(el => {
-      el.style.display = showStops ? "block" : "none";
+  btMarkers.forEach(m => m.remove());
+  btMarkers = [];
+
+  for (const v of vehicles) {
+    const lat = v.lat;
+    const lng = v.lng;
+    if (!lat || !lng) continue;
+
+    let heading = (v.heading ?? 0) + 180;
+    const line = v.service?.line_name || "";
+    const dest = v.destination || "";
+    const serviceLink = v.service?.url || "";
+    const vehicleLink = v.vehicle?.url || "";
+
+    // livery logic (copied from your working page)
+    const css = v.vehicle?.css || v.vehicle?.left_css || "#fff";
+    const textColour = v.vehicle?.text_colour || (v.vehicle?.white_text ? "#fff" : "#000");
+    const textStroke = v.vehicle?.stroke_colour ?? false;
+    const strokeWidth = textStroke ? "2px" : "0px";
+    heading = heading + 90;
+
+    const el = createLiveryIcon({
+      label: line,
+      css,
+      textColour,
+      rotation: heading,
+      textStroke,
+      strokeWidth
     });
 
-    stopsBtn.textContent = showStops ? "Hide Stops" : "Show Stops";
-  });
-  map.on('load', () => loadOperatorRoutes(currentDirection));
+    const m = new maplibregl.Marker({ element: el })
+      .setLngLat([lng, lat])
+      .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(`
+        <a href="${serviceLink}">${line} to ${dest}</a><br>
+        ${vehicleLink ? `<a href="${vehicleLink}">Vehicle</a><br>` : ""}
+        <span>Simulated Location</span>
+      `))
+      .addTo(map);
+
+    btMarkers.push(m);
+  }
+}
+
+
+document.getElementById("directionToggle").addEventListener("click", async () => {
+  currentDirection = currentDirection === "inbound" ? "outbound" : "inbound";
+  document.getElementById("directionToggle").innerText =
+    currentDirection === "inbound" ? "Show Outbound" : "Show Inbound";
+  await loadOperatorRoutes();
+  await loadOperatorBT();
+});
+
+document.getElementById("stopsToggle").addEventListener("click", async () => {
+  showStops = !showStops;
+  document.getElementById("stopsToggle").innerText = showStops ? "Hide Stops" : "Show Stops";
+  await loadOperatorRoutes();
+});
+
+
+(async () => {
+  await loadOperatorRoutes();
+  await loadOperatorBT();
+})();
+
+map.on("moveend", loadOperatorBT);
+setInterval(loadOperatorBT, 30000);
 </script>
+
 
 {% endblock %}
