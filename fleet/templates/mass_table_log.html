@@ -1,0 +1,197 @@
+{% extends 'mbtbase.html' %}
+{% load static %}
+
+{% block title %}Mass Log Trips - {{ operator.operator_name }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/narrow.css' %}">
+{% endblock %}
+
+
+{% block content %}
+
+<h2>Mass Log Trips - {{ operator.operator_name }}</h2>
+
+    <!-- GLOBAL BOARD TYPE -->
+    <div class="fleet-edit-wrapper">
+        <label>Global Board Type:</label>
+        <select id="global-board-type">
+            <option value="">(none)</option>
+            <option value="duty">Duty</option>
+            <option value="running">Running Board</option>
+        </select>
+    </div>
+
+    <form method="POST" id="assignForm">
+        {% csrf_token %}
+
+        <!-- DATE -->
+        <div class="fleet-edit-wrapper">
+            <label><strong>Select Date:</strong></label>
+            <input type="date" name="date" id="assign-date" value="{{ current_date }}">
+        </div><br>
+
+        <!-- VEHICLE TABLE -->
+        <div class="table-wrapper">
+            <table class="fleet" border="0" cellpadding="10" cellspacing="0">
+                <thead>
+                    <tr>
+                        <th>Vehicle</th>
+                        <th>Board Type</th>
+                        <th>Duty / Running Board</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for v in vehicles %}
+                    <tr>
+
+                        <td> 
+                            {{ v.fleet_number }} - {{ v.reg }} - {{ v.vehicleType }}
+                        </td>
+
+                        <!-- TYPE -->
+                        <td>
+                            <select 
+                                name="assignments[{{ v.id }}][board_type]"
+                                class="board-type"
+                                data-vehicle="{{ v.id }}"
+                            >
+                                <option value="">Select…</option>
+                                <option value="duty">Duty</option>
+                                <option value="running">Running Board</option>
+                            </select>
+                        </td>
+
+                        <!-- BOARD -->
+                        <td>
+                            <select 
+                                name="assignments[{{ v.id }}][board_id]"
+                                class="board-id"
+                                data-vehicle="{{ v.id }}"
+                            >
+                                <option value="">Select…</option>
+
+                                {% for d in duties %}
+                                <option value="{{ d.id }}" data-type="duty">
+                                    Duty: {{ d.duty_name }}
+                                </option>
+                                {% endfor %}
+
+                                {% for rb in running_boards %}
+                                <option value="{{ rb.id }}" data-type="running">
+                                    RB: {{ rb.duty_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <button>Save Assignments</button>
+    </form>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+
+    // -------------------------------
+    // Stable key generator
+    // -------------------------------
+    function getKey(el) {
+
+        if (el.classList.contains("board-type"))
+            return "massassign_vehicle_" + el.dataset.vehicle + "_type";
+
+        if (el.classList.contains("board-id"))
+            return "massassign_vehicle_" + el.dataset.vehicle + "_id";
+
+        if (el.id === "global-board-type")
+            return "massassign_global_type";
+
+        if (el.id === "assign-date")
+            return "massassign_date";
+
+        return "massassign_" + el.id;
+    }
+
+    // -------------------------------
+    // Load saved values
+    // -------------------------------
+    document.querySelectorAll(".board-type, .board-id, #assign-date, #global-board-type")
+        .forEach(el => {
+            const stored = localStorage.getItem(getKey(el));
+            if (stored !== null) el.value = stored;
+        });
+
+    // -------------------------------
+    // Save on change
+    // -------------------------------
+    function saveElement(el) {
+        localStorage.setItem(getKey(el), el.value);
+    }
+
+    document.querySelectorAll(".board-type, .board-id, #assign-date, #global-board-type")
+        .forEach(el => el.addEventListener("change", () => {
+            saveElement(el);
+
+            if (el.id === "global-board-type")
+                applyGlobalBoardType();
+
+            if (el.classList.contains("board-type"))
+                filterBoards(el);
+        }));
+
+    // -------------------------------
+    // Filter duty/running options
+    // -------------------------------
+    function filterBoards(typeSelect) {
+        const vehicle = typeSelect.dataset.vehicle;
+        const type = typeSelect.value;
+
+        const boardSelect = document.querySelector(
+            'select.board-id[data-vehicle="' + vehicle + '"]'
+        );
+
+        boardSelect.querySelectorAll("option").forEach(opt => {
+            if (!opt.dataset.type) return;
+            opt.hidden = (opt.dataset.type !== type);
+        });
+
+        // Reset invalid selection
+        const selected = boardSelect.selectedOptions[0];
+        if (selected && selected.dataset.type !== type) {
+            boardSelect.value = "";
+            saveElement(boardSelect);
+        }
+    }
+
+    // -------------------------------
+    // Apply global type
+    // -------------------------------
+    function applyGlobalBoardType() {
+        const globalType = document.getElementById("global-board-type").value;
+
+        document.querySelectorAll(".board-type").forEach(el => {
+
+            // Only apply if blank OR if user selected a new global type
+            if (!el.value || globalType !== localStorage.getItem(getKey(el))) {
+                el.value = globalType;
+                saveElement(el);
+                filterBoards(el);
+            }
+        });
+    }
+
+    // -------------------------------
+    // Initial load
+    // -------------------------------
+    applyGlobalBoardType();
+    document.querySelectorAll(".board-type").forEach(el => filterBoards(el));
+
+});
+</script>
+
+{% endblock %}

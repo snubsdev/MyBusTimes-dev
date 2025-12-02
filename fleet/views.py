@@ -5368,6 +5368,161 @@ def mass_log_trips(request, operator_slug):
 
 @login_required
 @require_http_methods(["GET", "POST"])
+def mass_assign_boards(request, operator_slug):
+    """Assign duties or running boards to multiple vehicles and bulk log trips."""
+    
+    # Feature flag support (if you use it)
+    response = feature_enabled(request, "mass_log_trips")
+    if response:
+        return response
+
+    operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
+
+    # Permissions
+    userPerms = get_helper_permissions(request.user, operator)
+    if (
+        request.user != operator.owner
+        and 'Mass Log Trips' not in userPerms
+        and not request.user.is_superuser
+    ):
+        messages.error(request, "You do not have permission to log trips for this operator.")
+        return redirect(f'/operator/{operator_slug}/')
+
+    # ----------------------------------------------------------------------
+    # POST: Process all assignments from the table
+    # ----------------------------------------------------------------------
+    if request.method == "POST":
+        date_str = request.POST.get("date")
+        if not date_str:
+            messages.error(request, "A date is required.")
+            return redirect(request.path)
+
+        try:
+            selected_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            messages.error(request, "Invalid date format.")
+            return redirect(request.path)
+
+        # Format:
+        # assignments[123][board_type] = "duty"
+        # assignments[123][board_id] = "52"
+        assignments = {}
+        for key, value in request.POST.items():
+            if key.startswith("assignments["):
+                # assignments[12][board_type]
+                parts = key.split("[")
+                # parts = ["assignments", "12]", "board_type]"]
+
+                if len(parts) != 3:
+                    continue
+
+                vehicle_id = parts[1].replace("]", "")
+                field = parts[2].replace("]", "")
+
+                assignments.setdefault(vehicle_id, {})[field] = value
+
+
+        # Nothing submitted?
+        if not assignments:
+            messages.error(request, "No vehicle assignments found.")
+            return redirect(request.path)
+
+        # Process each vehicle one-by-one
+        for vehicle_id, data in assignments.items():
+            board_type = data.get("board_type")
+            board_id = data.get("board_id")
+
+            # Skip empty rows
+            if not board_type or not board_id:
+                continue
+
+            vehicle = get_object_or_404(fleet, id=vehicle_id)
+
+            # Load duty or running board
+            if board_type == "duty":
+                board_obj = get_object_or_404(
+                    duty,
+                    id=board_id,
+                    board_type="duty",
+                    duty_operator=operator
+                )
+            else:
+                board_obj = get_object_or_404(
+                    duty,
+                    id=board_id,
+                    board_type="running-boards",
+                    duty_operator=operator
+                )
+
+            trip_set = board_obj.duty_trips.all()
+
+            # Create trips for this board
+            for trip in trip_set:
+                start_dt = make_aware(datetime.combine(selected_date, trip.start_time))
+                end_dt = make_aware(datetime.combine(selected_date, trip.end_time))
+
+                created_trip = Trip(
+                    trip_vehicle=vehicle,
+                    trip_route=trip.route_link,
+                    trip_route_num=(
+                        trip.route.route_num
+                        if hasattr(trip.route, "route_num")
+                        else trip.route
+                    ),
+                    trip_start_location=trip.start_at,
+                    trip_end_location=trip.end_at,
+                    trip_start_at=start_dt,
+                    trip_end_at=end_dt,
+                    trip_board=board_obj,
+                )
+
+                try:
+                    created_trip.full_clean()
+                    created_trip.save()
+                except ValidationError as e:
+                    for field, errors in e.message_dict.items():
+                        for error in errors:
+                            messages.error(request, f"Vehicle {vehicle}: {error}")
+                    return redirect(request.path)
+
+        messages.success(request, "All assigned trips logged successfully.")
+        return redirect(request.path)
+
+    # ----------------------------------------------------------------------
+    # GET: Load table
+    # ----------------------------------------------------------------------
+    duties_list = duty.objects.filter(
+        duty_operator=operator, board_type='duty'
+    ).order_by('duty_name')
+
+    running_list = duty.objects.filter(
+        duty_operator=operator, board_type='running-boards'
+    ).order_by('duty_name')
+
+    vehicles = fleet.objects.filter(
+        Q(operator=operator) | Q(loan_operator=operator)
+    ).order_by('fleet_number_sort')
+
+    breadcrumbs = [
+        {'name': 'Home', 'url': '/'},
+        {'name': operator.operator_name, 'url': f'/operator/{operator_slug}/'},
+        {'name': 'Vehicles', 'url': f'/operator/{operator_slug}/vehicles/'},
+        {'name': 'Mass Board Assign', 'url': request.path},
+    ]
+
+    context = {
+        'breadcrumbs': breadcrumbs,
+        'operator': operator,
+        'duties': duties_list,
+        'running_boards': running_list,
+        'vehicles': vehicles,
+        'current_date': timezone.now().strftime("%Y-%m-%d"),
+    }
+    return render(request, 'mass_table_log.html', context)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
 def route_updates_options(request, operator_slug, route_id):
     route_obj = get_object_or_404(route, id=route_id)
     updates = route_obj.service_updates.all()
