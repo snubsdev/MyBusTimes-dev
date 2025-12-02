@@ -137,6 +137,9 @@
     <li><a href="/operator/{{ operator.operator_slug|urlencode }}/route/{{ route.id }}/updates/options">Route Update
             Options</a></li>
     {% endif %}
+    {% if 'owner' in helperPermsData %}
+    <li><a href="/operator/{{ operator.operator_slug|urlencode }}/route/{{ route.id }}/status">Check Trackable Status</a></li>
+    {% endif %}
     {% if user.is_superuser %}<a style="font-size: 14px;" href="/api-admin/routes/route/{{ route.id }}/change/">✎</a>{% endif %}
 </ul>
 
