@@ -18,36 +18,30 @@
   }
 
   @media (max-width: 768px) {
-    table.fleet thead {
-      display: none;
-      /* Hide headers on mobile */
-    }
+    table.fleet thead { display: none; }
+    table.fleet, table.fleet tbody, table.fleet tr, table.fleet td { display: block; width: calc(100% - 5px); }
+    table.fleet tr { margin-bottom: 15px; border: 1px solid var(--border-color); padding: 10px; border-radius: 8px; }
+    table.fleet td { border: none; text-align: center; }
+  }
 
-    table.fleet,
-    table.fleet tbody,
-    table.fleet tr,
-    table.fleet td {
-      display: block;
-      width: calc(100% - 5px);
-    }
-
-    table.fleet tr {
-      margin-bottom: 15px;
-      border: 1px solid var(--border-color);
-      padding: 10px;
-      border-radius: 8px;
-    }
-
-    table.fleet td {
-      border: none;
-      text-align: center;
-    }
+  .filter-container {
+    margin-bottom: 15px;
   }
 </style>
 {% endblock %}
 
 {% block content %}
 <h1>Select Vehicles to Mass Edit</h1>
+
+<div class="filter-container">
+  <label for="type-filter">Filter by Vehicle Type:</label>
+  <select id="type-filter">
+    <option value="">All Types</option>
+    {% for type in vehicle_types %}
+    <option value="{{ type.type_name }}">{{ type.type_name }}</option>
+    {% endfor %}
+  </select>
+</div>
 
 <form method="POST">
   {% csrf_token %}
@@ -76,42 +70,45 @@
 
   <button type="submit" class="btn floating-btn">Continue to Edit Selected</button>
 </form>
+
 <script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const checkboxes = document.querySelectorAll('input[name="selected_vehicles"]');
-    const rows = document.querySelectorAll('table.fleet tbody tr');
+document.addEventListener('DOMContentLoaded', () => {
+  const checkboxes = document.querySelectorAll('input[name="selected_vehicles"]');
+  const rows = document.querySelectorAll('table.fleet tbody tr');
+  const dropdown = document.getElementById('type-filter');
 
-    function getSelectedTypeNames() {
-      const selectedTypeNames = new Set();
-      checkboxes.forEach(cb => {
-        if (cb.checked) {
-          // vehicleType.type_name is in the 4th cell (index 3)
-          const typeName = cb.closest('tr').cells[3].textContent.trim();
-          selectedTypeNames.add(typeName);
-        }
-      });
-      return selectedTypeNames;
-    }
+  function filterRows() {
+    const selectedType = dropdown.value;
 
-    function filterRows() {
-      const selectedTypeNames = getSelectedTypeNames();
-      if (selectedTypeNames.size === 0) {
-        // No selection: show all
-        rows.forEach(row => row.style.display = '');
-        return;
+    rows.forEach(row => {
+      const typeName = row.cells[3].textContent.trim();
+      if (!selectedType || typeName === selectedType) {
+        row.style.display = '';
+      } else {
+        row.style.display = 'none';
       }
+    });
+  }
 
-      rows.forEach(row => {
-        const typeName = row.cells[3].textContent.trim();
-        if (selectedTypeNames.has(typeName)) {
-          row.style.display = '';
-        } else {
-          row.style.display = 'none';
-        }
-      });
-    }
+  dropdown.addEventListener('change', filterRows);
 
-    checkboxes.forEach(cb => cb.addEventListener('change', filterRows));
-  });
+  // Optional: keep original checkbox selection filtering if needed
+  checkboxes.forEach(cb => cb.addEventListener('change', () => {
+    // Optional: integrate checkbox + dropdown filtering
+    const selectedType = dropdown.value;
+    const selectedTypes = new Set();
+    checkboxes.forEach(c => { if (c.checked) selectedTypes.add(c.closest('tr').cells[3].textContent.trim()); });
+
+    rows.forEach(row => {
+      const typeName = row.cells[3].textContent.trim();
+      if ((selectedType === "" || typeName === selectedType) &&
+          (selectedTypes.size === 0 || selectedTypes.has(typeName))) {
+        row.style.display = '';
+      } else {
+        row.style.display = 'none';
+      }
+    });
+  }));
+});
 </script>
 {% endblock %}
