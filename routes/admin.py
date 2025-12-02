@@ -75,7 +75,7 @@ class serviceUpdateAdmin(SimpleHistoryAdmin):
 
 class dutyAdmin(SimpleHistoryAdmin):
     list_display = ['duty_name', 'get_day_types', 'duty_operator']
-    search_fields = ['duty_operator', 'duty_name']
+    search_fields = ['duty_name',]
     def get_day_types(self, obj):
         return ", ".join([duty_day.name for duty_day in obj.duty_day.all()])
     get_day_types.short_description = 'Day Types'
