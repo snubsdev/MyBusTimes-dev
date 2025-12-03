@@ -1,7 +1,6 @@
 {% extends "mbtbase.html" %}
 {% load static %}
 
-
 {% block extra_css %}
 <link rel="stylesheet" type="text/css" href="{% static 'css/narrow.css' %}">
 {% endblock %}
@@ -13,16 +12,23 @@
 {% block content %}
 <h1>{{ duty.duty_name }}</h1>
 <div class="ad-box" id="body-ad-1"></div>
-<button onclick='window.location.href="{% url 'generate_pdf' duty.duty_operator.operator_slug duty.id %}"'>Print/Download</button>
-{% if 'Edit Duties' in user_perms or 'owner' in user_perms %}
-<button onclick='window.location.href="{% url 'edit-duty' duty.duty_operator.operator_slug duty.id %}"'>Edit Duty</button>
-{% endif %}
-{% if user.is_superuser %}<a style="font-size: 14px;" href="/api-admin/routes/duty/{{ duty.id }}/change/">✎</a>{% endif %}
+
+<div style="margin-bottom: 10px;">
+    <button onclick='window.location.href="{% url 'generate_pdf' duty.duty_operator.operator_slug duty.id %}"'>Print/Download</button>
+    {% if 'Edit Duties' in user_perms or 'owner' in user_perms %}
+        <button onclick='window.location.href="{% url 'edit-duty' duty.duty_operator.operator_slug duty.id %}"'>Edit Duty</button>
+    {% endif %}
+    {% if user.is_superuser %}
+        <a style="font-size: 14px;" href="/api-admin/routes/duty/{{ duty.id }}/change/">✎</a>
+    {% endif %}
+</div>
+
 <p>Days:
     {% for day in duty.duty_day.all %}
         <span>{{ day.name }}{% if not forloop.last %},{% endif %}</span>
     {% endfor %}
 </p>
+
 <p>Operator: <a href="{% url 'operator' duty.duty_operator.operator_slug %}">{{ duty.duty_operator.operator_name }}</a></p>
 
 <p>Trips:<br>
@@ -32,15 +38,10 @@
                 <a href="/operator/{% for op in trip.route_link.route_operators.all %}{% if forloop.first %}{{ op.operator_slug }}{% endif %}{% endfor %}/route/{{ trip.route_link.id }}">
                     {{ trip.route }}
                 </a>
-                {% if trip.outbound_destination %}
-                    → {{ trip.outbound_destination }}
-                {% endif %}
             {% else %}
                 {{ trip.route }}
-                {% if trip.outbound_destination %}
-                    → {{ trip.outbound_destination }}
-                {% endif %}
             {% endif %}
+            {% if trip.destination %} → {{ trip.destination }}{% endif %}
         </span><br>
     {% endfor %}
 </p>
