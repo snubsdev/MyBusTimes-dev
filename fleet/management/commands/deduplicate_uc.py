@@ -53,20 +53,21 @@ def send_service_to_discord(removed, before_count, after_count):
 
 
 def deduplicate_queryset(queryset):
-    seen = {}
-    duplicates = []
+    seen = set()
+    duplicates_to_delete = []
 
     for obj in queryset:
         key = (obj.reg.strip().upper(), obj.fleet_number.strip().upper())
         if key in seen:
-            duplicates.append(obj)
+            duplicates_to_delete.append(obj.id)
         else:
-            seen[key] = obj
+            seen.add(key)
 
-    for dup in duplicates:
-        dup.delete()
-
-    return len(duplicates)
+    # Bulk delete duplicates and return count
+    if duplicates_to_delete:
+        deleted_count, _ = fleet.objects.filter(id__in=duplicates_to_delete).delete()
+        return deleted_count
+    return 0
 
 
 class Command(BaseCommand):
