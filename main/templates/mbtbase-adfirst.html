@@ -132,7 +132,7 @@
       </ol>
     </div>
     {% if ads_enabled %}
-    <div class="top-ad-container top-ad-border" style="position:sticky;top:0px;z-index:101;height:100px;border:">
+    <div class="top-ad-container top-ad-border" id="AFM_top_ad" style="position:sticky;top:0px;z-index:101;height:100px;border:">
       <div id="AFM_top_ad" style="margin:auto;"></div>
     </div>
     {% endif %}
@@ -178,7 +178,11 @@
   </main>
 
   <footer>
-    <div class="ad-box" id="footer-ad-1"></div>
+    <div class="in-page-ad" id="footer-ad-1">
+      <div class="incontent-ad-container" style="height:100px;">
+        <div id="AFM_inContent_ad" style="margin:auto;"></div>
+      </div>
+    </div>
     <hr>
     <ul class="footer-info">
       <li><a href="/about">About</a></li>•
@@ -205,7 +209,11 @@
     </a>
     {% endif %}
     <br>
-    <div class="ad-box" id="footer-ad-2"></div>
+    <div class="in-page-ad" id="footer-ad-2">
+      <div class="incontent-ad-container" style="height:100px;">
+        <div id="AFM_inContent_ad" style="margin:auto;"></div>
+      </div>
+    </div>
     <br>
     <label for="theme-selector">Select Theme:</label>
     <select id="theme-selector" name="theme">
