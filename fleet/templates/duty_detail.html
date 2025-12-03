@@ -1,9 +1,23 @@
 {% extends "mbtbase.html" %}
 {% load static %}
 
-
 {% block extra_css %}
 <link rel="stylesheet" type="text/css" href="{% static 'css/narrow.css' %}">
+<style>
+    table.duty-trips {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+    }
+    table.duty-trips th, table.duty-trips td {
+        border: 1px solid #ccc;
+        padding: 6px 10px;
+        text-align: left;
+    }
+    table.duty-trips th {
+        background-color: #f2f2f2;
+    }
+</style>
 {% endblock %}
 
 {% block title %}
@@ -12,28 +26,60 @@
 
 {% block content %}
 <h1>{{ duty.duty_name }}</h1>
+
 <div class="ad-box" id="body-ad-1"></div>
-<button onclick='window.location.href="{% url 'generate_pdf' duty.duty_operator.operator_slug duty.id %}"'>Print/Download</button>
-{% if 'Edit Duties' in user_perms or 'owner' in user_perms %}
-<button onclick='window.location.href="{% url 'edit-duty' duty.duty_operator.operator_slug duty.id %}"'>Edit Duty</button>
-{% endif %}
-{% if user.is_superuser %}<a style="font-size: 14px;" href="/api-admin/routes/duty/{{ duty.id }}/change/">✎</a>{% endif %}
+
+<div style="margin-bottom: 10px;">
+    <button onclick='window.location.href="{% url 'generate_pdf' duty.duty_operator.operator_slug duty.id %}"'>Print/Download</button>
+    {% if 'Edit Duties' in user_perms or 'owner' in user_perms %}
+        <button onclick='window.location.href="{% url 'edit-duty' duty.duty_operator.operator_slug duty.id %}"'>Edit Duty</button>
+    {% endif %}
+    {% if user.is_superuser %}
+        <a style="font-size: 14px;" href="/api-admin/routes/duty/{{ duty.id }}/change/">✎</a>
+    {% endif %}
+</div>
+
 <p>Days:
     {% for day in duty.duty_day.all %}
-        <span>{{ day.name }}{% if not forloop.last %},{% endif %}</span>
+        <span>{{ day.name }}{% if not forloop.last %}, {% endif %}</span>
     {% endfor %}
 </p>
+
 <p>Operator: <a href="{% url 'operator' duty.duty_operator.operator_slug %}">{{ duty.duty_operator.operator_name }}</a></p>
 
-<p>Trips:<br>
-    {% for trip in trips %}
-        <span>{{ trip.start_time|date:"H:i" }} - {{ trip.end_time|date:"H:i" }}:
-            {% if trip.route_link %}
-                <a href="/operator/{% for op in trip.route_link.route_operators.all %}{% if forloop.first %}{{ op.operator_slug }}{% endif %}{% endfor %}/route/{{ trip.route_link.id }}">{{ trip.route }}</a>
-            {% else %}
-                {{ trip.route }}
-            {% endif %}
-        </span><br>
-    {% endfor %}
-</p>
+<h2>Trips</h2>
+<table class="duty-trips">
+    <thead>
+        <tr>
+            <th>Start Time</th>
+            <th>End Time</th>
+            <th>Route</th>
+            <th>Destination</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for trip in trips %}
+            <tr>
+                <td>{{ trip.start_time|date:"H:i" }}</td>
+                <td>{{ trip.end_time|date:"H:i" }}</td>
+                <td>
+                    {% if trip.route_link %}
+                        <a href="/operator/{% for op in trip.route_link.route_operators.all %}{% if forloop.first %}{{ op.operator_slug }}{% endif %}{% endfor %}/route/{{ trip.route_link.id }}">
+                            {{ trip.route }}
+                        </a>
+                    {% else %}
+                        {{ trip.route }}
+                    {% endif %}
+                </td>
+                <td>
+                    {% if forloop.counter|divisibleby:2 %}
+                        {{ trip.outbound_destination }}
+                    {% else %}
+                        {{ trip.inbound_destination }}
+                    {% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
 {% endblock %}
