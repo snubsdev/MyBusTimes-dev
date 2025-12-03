@@ -27,7 +27,7 @@ def send_service_to_discord(count):
 
     payload = {
         "channel_id": 1445566402957283378,
-        "content": <@281084640440090627>
+        "content": "<@281084640440090627>",
         "embeds": [embed]
     }
 
