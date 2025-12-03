@@ -1810,7 +1810,7 @@ def duty_detail(request, operator_slug, duty_id):
     response = feature_enabled(request, "view_boards")
     if response:
         return response
-
+    
     is_running_board = 'running-boards' in request.resolver_match.route
 
     if is_running_board:
@@ -1825,22 +1825,23 @@ def duty_detail(request, operator_slug, duty_id):
     operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
     duty_instance = get_object_or_404(duty, id=duty_id, duty_operator=operator)
 
+    # Get all vehicles for this operator
     vehicles = fleet.objects.filter(operator=operator).order_by('fleet_number')
+
     userPerms = get_helper_permissions(request.user, operator)
+
+    # Fetch trips for this duty
     trips = dutyTrip.objects.filter(duty=duty_instance).order_by('start_time')
 
-    # Add destination fields if they don’t exist or need computation
-    for idx, trip in enumerate(trips, start=1):
-        if not hasattr(trip, 'inbound_destination'):
-            trip.inbound_destination = getattr(trip, 'inbound_destination', '')  # default empty
-        if not hasattr(trip, 'outbound_destination'):
-            trip.outbound_destination = getattr(trip, 'outbound_destination', '')  # default empty
+    # Ensure each trip has a .destination attribute
+    for trip in trips:
+        # Use outbound_destination if it exists, otherwise fallback to route
+        trip.destination = getattr(trip, 'outbound_destination', '') or getattr(trip, 'route', '')
 
-        # Optional: If you want alternating logic here instead of template
-        trip.display_destination = trip.outbound_destination if idx % 2 == 0 else trip.inbound_destination
-
+    # Get all days associated with this duty
     days = duty_instance.duty_day.all()
 
+    # Breadcrumbs
     breadcrumbs = [
         {'name': 'Home', 'url': '/'},
         {'name': operator.operator_name, 'url': f'/operator/{operator_slug}/'},
