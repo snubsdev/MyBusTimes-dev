@@ -1717,6 +1717,7 @@ def duties(request, operator_slug):
         'add_perm': f"Add {title}",
     }
     return render(request, 'duties.html', context)
+
 def duty_detail(request, operator_slug, duty_id):
     response = feature_enabled(request, "view_boards")
     if response:
@@ -1736,18 +1737,17 @@ def duty_detail(request, operator_slug, duty_id):
     operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
     duty_instance = get_object_or_404(duty, id=duty_id, duty_operator=operator)
 
+    # Get all vehicles for this operator
     vehicles = fleet.objects.filter(operator=operator).order_by('fleet_number')
 
     userPerms = get_helper_permissions(request.user, operator)
 
-    # Fetch trips efficiently with related route and operators
-    trips = dutyTrip.objects.filter(duty=duty_instance) \
-        .select_related('route_link') \
-        .prefetch_related('route_link__route_operators') \
-        .order_by('start_time')
+    trips = dutyTrip.objects.filter(duty=duty_instance).order_by('start_time')
 
+    # Get all days associated with this duty
     days = duty_instance.duty_day.all()
 
+    # Breadcrumbs
     breadcrumbs = [
         {'name': 'Home', 'url': '/'},
         {'name': operator.operator_name, 'url': f'/operator/{operator_slug}/'},
@@ -1768,7 +1768,6 @@ def duty_detail(request, operator_slug, duty_id):
         'user_perms': userPerms,
     }
     return render(request, 'duty_detail.html', context)
-
 
 def wrap_text(text, max_chars):
     if not text:

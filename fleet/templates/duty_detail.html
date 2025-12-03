@@ -1,6 +1,7 @@
 {% extends "mbtbase.html" %}
 {% load static %}
 
+
 {% block extra_css %}
 <link rel="stylesheet" type="text/css" href="{% static 'css/narrow.css' %}">
 {% endblock %}
@@ -11,73 +12,28 @@
 
 {% block content %}
 <h1>{{ duty.duty_name }}</h1>
-
 <div class="ad-box" id="body-ad-1"></div>
-
-<!-- Action Buttons -->
-<button onclick='window.location.href="{% url 'generate_pdf' duty.duty_operator.operator_slug duty.id %}"'>
-    Print/Download
-</button>
+<button onclick='window.location.href="{% url 'generate_pdf' duty.duty_operator.operator_slug duty.id %}"'>Print/Download</button>
 {% if 'Edit Duties' in user_perms or 'owner' in user_perms %}
-<button onclick='window.location.href="{% url 'edit-duty' duty.duty_operator.operator_slug duty.id %}"'>
-    Edit Duty
-</button>
+<button onclick='window.location.href="{% url 'edit-duty' duty.duty_operator.operator_slug duty.id %}"'>Edit Duty</button>
 {% endif %}
-{% if user.is_superuser %}
-<a style="font-size: 14px;" href="/api-admin/routes/duty/{{ duty.id }}/change/">✎</a>
-{% endif %}
-
-<!-- Duty Info -->
-<p><strong>Days:</strong>
-{% for day in duty.duty_day.all %}
-    <span>{{ day.name }}{% if not forloop.last %},{% endif %}</span>
-{% endfor %}
+{% if user.is_superuser %}<a style="font-size: 14px;" href="/api-admin/routes/duty/{{ duty.id }}/change/">✎</a>{% endif %}
+<p>Days:
+    {% for day in duty.duty_day.all %}
+        <span>{{ day.name }}{% if not forloop.last %},{% endif %}</span>
+    {% endfor %}
 </p>
+<p>Operator: <a href="{% url 'operator' duty.duty_operator.operator_slug %}">{{ duty.duty_operator.operator_name }}</a></p>
 
-<p><strong>Operator:</strong> 
-<a href="{% url 'operator' duty.duty_operator.operator_slug %}">{{ duty.duty_operator.operator_name }}</a>
+<p>Trips:<br>
+    {% for trip in trips %}
+        <span>{{ trip.start_time|date:"H:i" }} - {{ trip.end_time|date:"H:i" }}:
+            {% if trip.route_link %}
+                <a href="/operator/{% for op in trip.route_link.route_operators.all %}{% if forloop.first %}{{ op.operator_slug }}{% endif %}{% endfor %}/route/{{ trip.route_link.id }}">{{ trip.route }}</a>
+            {% else %}
+                {{ trip.route }}
+            {% endif %}
+        </span><br>
+    {% endfor %}
 </p>
-
-<!-- Trips Table -->
-<h2>Trips</h2>
-<table class="trip-table" border="1" cellpadding="5" cellspacing="0">
-    <thead>
-        <tr>
-            <th>Start Time</th>
-            <th>End Time</th>
-            <th>Route</th>
-            <th>Destination</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for trip in trips %}
-        <tr>
-            <td>{{ trip.start_time|date:"H:i" }}</td>
-            <td>{{ trip.end_time|date:"H:i" }}</td>
-            <td>
-                {% if trip.route_link %}
-                    <a href="/operator/{% for op in trip.route_link.route_operators.all %}{% if forloop.first %}{{ op.operator_slug }}{% endif %}{% endfor %}/route/{{ trip.route_link.id }}">
-                        {{ trip.route }}
-                    </a>
-                {% else %}
-                    {{ trip.route }}
-                {% endif %}
-            </td>
-            <td>
-                {% if trip.destination %}
-                    {{ trip.destination }}
-                {% elif trip.route_link.destination %}
-                    {{ trip.route_link.destination }}
-                {% else %}
-                    N/A
-                {% endif %}
-            </td>
-        </tr>
-        {% empty %}
-        <tr>
-            <td colspan="4">No trips found.</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
 {% endblock %}
