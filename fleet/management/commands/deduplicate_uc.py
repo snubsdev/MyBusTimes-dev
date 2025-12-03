@@ -1,29 +1,17 @@
 from django.core.management.base import BaseCommand
-from fleet.models import fleet, MBTOperator
+from fleet.models import fleet
+from fleet.models import MBTOperator
 from django.conf import settings
+
 import requests
 from datetime import datetime
 
 
-def send_service_to_discord(removed, before_count, after_count):
-    # Determine color based on number of deleted vehicles
-    if removed <= 50:
-        color = 0x00FF00  # Green
-    elif removed <= 150:
-        color = 0xFFA500  # Orange
-    elif removed <= 300:
-        color = 0xFF0000  # Red
-    else:
-        color = 0xFF69B4  # Pink
-
+def send_service_to_discord(count):
     embed = {
-        "title": "🚗 UC Fleet Deduplication",
-        "description": (
-            f"**Before:** {before_count} vehicles\n"
-            f"**After:** {after_count} vehicles\n"
-            f"**Deleted:** {removed} duplicates"
-        ),
-        "color": color,
+        "title": "🚗 Deduplicated UC",
+        "description": f"**Deleted {count} Vehicles**",
+        "color": 0x0000FF,  # DeepSkyBlue
         "fields": [
             {
                 "name": "🕒 Time",
@@ -31,43 +19,44 @@ def send_service_to_discord(removed, before_count, after_count):
                 "inline": True
             }
         ],
-        "footer": {"text": "UC Fleet Report Manager"},
+        "footer": {
+            "text": "UC Fleet Report Manager"
+        },
         "timestamp": datetime.utcnow().isoformat()
     }
 
     payload = {
-        "channel_id": 1445566402957283378,             # Discord channel ID
-        "content": "<@281084640440090627>",           # Mention user
-        "allowed_mentions": {"users": [281084640440090627]},  # Allow ping
+        "channel_id": 1445566402957283378,
+        "content": "<@281084640440090627>",
         "embed": embed
     }
 
+    response = requests.post(
+        f"{settings.DISCORD_BOT_API_URL}/send-embed",
+        json=payload
+    )
+
     try:
-        response = requests.post(f"{settings.DISCORD_BOT_API_URL}/send-embed", json=payload)
         response.raise_for_status()
-        print("Discord embed sent successfully")
     except Exception as e:
         print(f"Discord notification failed: {e}")
-        if response is not None:
-            print("Response:", getattr(response, "text", ""))
 
 
 def deduplicate_queryset(queryset):
-    seen = set()
-    duplicates_to_delete = []
+    seen = {}
+    duplicates = []
 
     for obj in queryset:
         key = (obj.reg.strip().upper(), obj.fleet_number.strip().upper())
         if key in seen:
-            duplicates_to_delete.append(obj.id)
+            duplicates.append(obj)
         else:
-            seen.add(key)
+            seen[key] = obj
 
-    # Bulk delete duplicates and return count
-    if duplicates_to_delete:
-        deleted_count, _ = fleet.objects.filter(id__in=duplicates_to_delete).delete()
-        return deleted_count
-    return 0
+    for dup in duplicates:
+        dup.delete()
+
+    return len(duplicates)
 
 
 class Command(BaseCommand):
@@ -81,15 +70,11 @@ class Command(BaseCommand):
             return
 
         queryset = fleet.objects.filter(operator=operator)
-        before_count = queryset.count()
         removed = deduplicate_queryset(queryset)
-        after_count = fleet.objects.filter(operator=operator).count()
 
         # Send embed to Discord
-        send_service_to_discord(removed, before_count, after_count)
+        send_service_to_discord(removed)
 
         self.stdout.write(
-            self.style.SUCCESS(
-                f"UC dedupe complete — Before: {before_count}, After: {after_count}, Removed: {removed}"
-            )
+            self.style.SUCCESS(f"Removed {removed} duplicate vehicles for UC.")
         )
