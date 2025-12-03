@@ -30,7 +30,7 @@
 {% block content %}
 <h2>Add Trip for Duty: {{ duty_instance.duty_name }}</h2>
 <form method="post" class="fleet-edit-wrapper">
-  {% csrf_token %}
+  {% csrf_token %} 
   <div>
     <label for="trip_times">Trips:</label>
     <button type="button" id="add-trip">Add Trip</button>
