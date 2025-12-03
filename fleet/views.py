@@ -1717,13 +1717,14 @@ def duties(request, operator_slug):
         'add_perm': f"Add {title}",
     }
     return render(request, 'duties.html', context)
+
 def duty_detail(request, operator_slug, duty_id):
+    # Feature check
     response = feature_enabled(request, "view_boards")
     if response:
         return response
-    
-    is_running_board = 'running-boards' in request.resolver_match.route
 
+    is_running_board = 'running-boards' in request.resolver_match.route
     if is_running_board:
         title = "Running Board"
         titles = "Running Boards"
@@ -1733,26 +1734,21 @@ def duty_detail(request, operator_slug, duty_id):
         titles = "Duties"
         board_type = "duty"
 
+    # Get operator and duty
     operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
     duty_instance = get_object_or_404(duty, id=duty_id, duty_operator=operator)
 
-    # Get all vehicles for this operator
     vehicles = fleet.objects.filter(operator=operator).order_by('fleet_number')
-
     userPerms = get_helper_permissions(request.user, operator)
 
-    # Fetch trips for this duty
     trips = dutyTrip.objects.filter(duty=duty_instance).order_by('start_time')
 
-    # Ensure each trip has a .destination attribute
+    # Ensure each trip has outbound_destination
     for trip in trips:
-        # Use outbound_destination if it exists, otherwise fallback to route
-        trip.destination = getattr(trip, 'outbound_destination', '') or getattr(trip, 'route', '')
+        trip.outbound_destination = getattr(trip, 'outbound_destination', '')
 
-    # Get all days associated with this duty
     days = duty_instance.duty_day.all()
 
-    # Breadcrumbs
     breadcrumbs = [
         {'name': 'Home', 'url': '/'},
         {'name': operator.operator_name, 'url': f'/operator/{operator_slug}/'},
@@ -1772,6 +1768,7 @@ def duty_detail(request, operator_slug, duty_id):
         'tabs': tabs,
         'user_perms': userPerms,
     }
+
     return render(request, 'duty_detail.html', context)
 
 
