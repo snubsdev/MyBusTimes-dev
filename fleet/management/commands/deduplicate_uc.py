@@ -64,7 +64,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         try:
-            operator = MBTOperator.objects.get(code="UC")
+            operator = MBTOperator.objects.get(operator_code="UC")
         except MBTOperator.DoesNotExist:
             self.stdout.write(self.style.ERROR("Operator UC not found"))
             return
