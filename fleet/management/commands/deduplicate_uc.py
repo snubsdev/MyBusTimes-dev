@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 from fleet.models import fleet
-from operator.models import MBTOperator
+from fleet.models import MBTOperator
 from django.conf import settings
 
 import requests
