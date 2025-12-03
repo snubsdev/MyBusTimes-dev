@@ -82,6 +82,8 @@ class dutyAdmin(SimpleHistoryAdmin):
 
 class dutyAdminTrip(SimpleHistoryAdmin):
     list_display = ['duty', 'route', 'start_time', 'start_at', 'end_time', 'end_at']
+    list_filter = ['duty', 'route']
+    search_fields = ['duty__duty_name', 'route__route_num']
     autocomplete_fields = ['duty', 'route_link']
 
 @admin.register(transitAuthoritiesColour)
