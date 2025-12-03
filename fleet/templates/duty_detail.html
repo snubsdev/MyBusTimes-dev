@@ -12,16 +12,11 @@
 {% block content %}
 <h1>{{ duty.duty_name }}</h1>
 <div class="ad-box" id="body-ad-1"></div>
-
-<div style="margin-bottom: 10px;">
-    <button onclick='window.location.href="{% url 'generate_pdf' duty.duty_operator.operator_slug duty.id %}"'>Print/Download</button>
-    {% if 'Edit Duties' in user_perms or 'owner' in user_perms %}
-        <button onclick='window.location.href="{% url 'edit-duty' duty.duty_operator.operator_slug duty.id %}"'>Edit Duty</button>
-    {% endif %}
-    {% if user.is_superuser %}
-        <a style="font-size: 14px;" href="/api-admin/routes/duty/{{ duty.id }}/change/">✎</a>
-    {% endif %}
-</div>
+<button onclick='window.location.href="{% url 'generate_pdf' duty.duty_operator.operator_slug duty.id %}"'>Print/Download</button>
+{% if 'Edit Duties' in user_perms or 'owner' in user_perms %}
+<button onclick='window.location.href="{% url 'edit-duty' duty.duty_operator.operator_slug duty.id %}"'>Edit Duty</button>
+{% endif %}
+{% if user.is_superuser %}<a style="font-size: 14px;" href="/api-admin/routes/duty/{{ duty.id }}/change/">✎</a>{% endif %}
 
 <p>Days:
     {% for day in duty.duty_day.all %}
@@ -33,7 +28,8 @@
 
 <p>Trips:<br>
     {% for trip in trips %}
-        <span>{{ trip.start_time|date:"H:i" }} - {{ trip.end_time|date:"H:i" }}:
+        <span>
+            {{ trip.start_time|date:"H:i" }} - {{ trip.end_time|date:"H:i" }}:
             {% if trip.route_link %}
                 <a href="/operator/{% for op in trip.route_link.route_operators.all %}{% if forloop.first %}{{ op.operator_slug }}{% endif %}{% endfor %}/route/{{ trip.route_link.id }}">
                     {{ trip.route }}
@@ -41,7 +37,9 @@
             {% else %}
                 {{ trip.route }}
             {% endif %}
-            {% if trip.destination %} → {{ trip.destination }}{% endif %}
+            {% if trip.outbound_destination %}
+                → {{ trip.outbound_destination }}
+            {% endif %}
         </span><br>
     {% endfor %}
 </p>
