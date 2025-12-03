@@ -1717,14 +1717,13 @@ def duties(request, operator_slug):
         'add_perm': f"Add {title}",
     }
     return render(request, 'duties.html', context)
-
 def duty_detail(request, operator_slug, duty_id):
-    # Feature check
     response = feature_enabled(request, "view_boards")
     if response:
         return response
-
+    
     is_running_board = 'running-boards' in request.resolver_match.route
+
     if is_running_board:
         title = "Running Board"
         titles = "Running Boards"
@@ -1734,18 +1733,18 @@ def duty_detail(request, operator_slug, duty_id):
         titles = "Duties"
         board_type = "duty"
 
-    # Get operator and duty
     operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
     duty_instance = get_object_or_404(duty, id=duty_id, duty_operator=operator)
 
     vehicles = fleet.objects.filter(operator=operator).order_by('fleet_number')
+
     userPerms = get_helper_permissions(request.user, operator)
 
-    trips = dutyTrip.objects.filter(duty=duty_instance).order_by('start_time')
-
-    # Ensure each trip has outbound_destination
-    for trip in trips:
-        trip.outbound_destination = getattr(trip, 'outbound_destination', '')
+    # Fetch trips efficiently with related route and operators
+    trips = dutyTrip.objects.filter(duty=duty_instance) \
+        .select_related('route_link') \
+        .prefetch_related('route_link__route_operators') \
+        .order_by('start_time')
 
     days = duty_instance.duty_day.all()
 
@@ -1768,7 +1767,6 @@ def duty_detail(request, operator_slug, duty_id):
         'tabs': tabs,
         'user_perms': userPerms,
     }
-
     return render(request, 'duty_detail.html', context)
 
 
