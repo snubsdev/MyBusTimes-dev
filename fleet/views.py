@@ -2102,6 +2102,20 @@ def duty_add(request, operator_slug):
 @login_required
 @require_http_methods(["GET", "POST"])
 def duty_add_trip(request, operator_slug, duty_id):
+    """
+    Handle adding trips to a duty or running board for an operator.
+    
+    On GET, renders a form to add multiple trips to the specified duty/running board, providing available routes and context.
+    On POST, validates permission and posted trip arrays, parses times, creates dutyTrip records (associating an existing route object when found), counts successful creations, and redirects back to the duties/running-boards list with success or error messages.
+    
+    Parameters:
+        request (HttpRequest): The incoming request object.
+        operator_slug (str): Slug identifying the operator.
+        duty_id (int): Primary key of the duty or running board to which trips will be added.
+    
+    Returns:
+        HttpResponse: A redirect after POST (success or error) or a rendered template ('add_duty_trip.html') on GET.
+    """
     response = feature_enabled(request, "add_boards")
     if response:
         return response
@@ -2207,6 +2221,24 @@ def duty_add_trip(request, operator_slug, duty_id):
         return render(request, 'add_duty_trip.html', context)
     
 def get_timetable(request, route_id, direction):
+    """
+    Return a sequence of vehicle trips (timetable) for the given route starting at the specified time.
+    
+    Expects the request to include a GET parameter `start_time` in "HH:MM" format. The function looks up the route by `route_id`, parses inbound and outbound timetable entries (if present), and builds an alternating sequence of trips starting with inbound when `direction == "inbound"`. Each trip object in the returned JSON array contains:
+    - `times`: list of `{ "stop": <stopname>, "time": <HH:MM> }`
+    - `start_time`, `end_time`: string times for the trip endpoints
+    - `start_minutes`, `end_minutes`: endpoint times converted to minutes past midnight
+    - `start_stop`, `end_stop`: endpoint stop names
+    - `direction`: `"inbound"` or `"outbound"`
+    
+    Parameters:
+        request: Django HttpRequest containing GET parameter `start_time` (required).
+        route_id (int): Primary key of the route to query.
+        direction (str): If `"inbound"`, the generated sequence begins with inbound trips; otherwise it begins with outbound.
+    
+    Returns:
+        JSON response containing an array of trip objects as described above on success. Returns a JSON error object with HTTP 400 when `start_time` is missing or invalid, the route is not found, or on other processing errors.
+    """
     import json
     import sys
 
@@ -2225,6 +2257,15 @@ def get_timetable(request, route_id, direction):
             return JsonResponse({"error": "start_time is required (HH:MM)"}, status=400)
 
         def to_minutes(t):
+            """
+            Convert an "HH:MM" time string to the total number of minutes since midnight.
+            
+            Parameters:
+                t (str): Time in "HH:MM" format (hours and minutes).
+            
+            Returns:
+                int: Total minutes since midnight (hours * 60 + minutes).
+            """
             h, m = map(int, t.split(":"))
             return h * 60 + m
 
@@ -2248,6 +2289,28 @@ def get_timetable(request, route_id, direction):
 
         # -------- PARSE TIMETABLE ENTRY --------
         def parse_entry(entry, label):
+            """
+            Parse a timetable entry into a list of trip dictionaries with per-stop times and summary metadata.
+            
+            Parameters:
+                entry (object): Object containing a `stop_times` attribute, either a mapping of stop keys to
+                    stop objects (each with `stopname` and `times` list) or a JSON string encoding that mapping.
+                label (str): Human-readable label for the entry (used to populate the `direction` field, lowercased).
+            
+            Returns:
+                list[dict]: A list of trip dictionaries sorted by `start_minutes`. Each trip dict contains:
+                    - `times` (list[dict]): Ordered stop records for the trip, each with `stop` (str) and `time` (str).
+                    - `start_time` (str): Time string of the first stop.
+                    - `end_time` (str): Time string of the last stop.
+                    - `start_minutes` (int): Minutes-since-midnight for `start_time`.
+                    - `end_minutes` (int): Minutes-since-midnight for `end_time`.
+                    - `start_stop` (str): Name of the first stop.
+                    - `end_stop` (str): Name of the last stop.
+                    - `direction` (str): Lowercased value of `label`.
+            
+                Returns an empty list if `stop_times` is empty, cannot be parsed as JSON when provided as a string,
+                or if no valid trips (at least two stops with times) can be constructed.
+            """
             log(f"Parsing entry for {label}")
             data = entry.stop_times
             if isinstance(data, str):
@@ -5266,6 +5329,21 @@ def operator_ticket_delete(request, operator_slug, ticket_id):
 @login_required
 @require_http_methods(["GET", "POST"])
 def mass_log_trips(request, operator_slug):
+    """
+    Handle mass logging of Trip records for an operator from manual input, a Duty, or a Running Board.
+    
+    Processes POST submissions to create one or more Trip records:
+    - Manual mode: generates a sequence of trips for a selected route and vehicle using provided start time, duration, count, and break interval; sets trip start/end locations and determines inbound flag based on route endpoints.
+    - Duty/Running Board mode: creates trips for each DutyTrip in the selected duty or running board for a chosen date; associates created trips with the originating duty/board and propagates inbound status.
+    Performs permission checks, model validation (collecting and reporting ValidationError messages), and redirects back to the page on success or error. On GET, renders the mass-log-trips page with duties, running boards, vehicles, routes, and breadcrumbs in the context.
+    
+    Parameters:
+        request (HttpRequest): The incoming Django request object (GET or POST).
+        operator_slug (str): Slug identifying the operator for which trips are being logged.
+    
+    Returns:
+        HttpResponse: A redirect on form submission or validation error, or a rendered template response for the mass-log-trips page.
+    """
     response = feature_enabled(request, "mass_log_trips")
     if response:
         return response
@@ -5444,7 +5522,18 @@ def mass_log_trips(request, operator_slug):
 @login_required
 @require_http_methods(["GET", "POST"])
 def mass_assign_boards(request, operator_slug):
-    """Assign duties or running boards to multiple vehicles and bulk log trips."""
+    """
+    Assign duties or running boards to multiple vehicles and create corresponding Trip records for a selected date.
+    
+    Processes form POSTs that map vehicle IDs to a duty or running board, validates the provided date, creates Trip objects for each trip on the selected board (propagating the board's inbound flag), and reports success or per-vehicle validation errors via Django messages. On GET, renders the mass assignment table populated with the operator's duties, running boards, and vehicles.
+    
+    Parameters:
+        request: The Django HttpRequest containing GET or POST data and the current user.
+        operator_slug (str): The slug identifying the operator whose boards and vehicles are being managed.
+    
+    Returns:
+        HttpResponse: A redirect on form submission (success or error) or the rendered mass_table_log.html page on GET.
+    """
     
     # Feature flag support (if you use it)
     response = feature_enabled(request, "mass_log_trips")
