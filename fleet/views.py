@@ -2203,7 +2203,7 @@ def duty_add_trip(request, operator_slug, duty_id):
             'is_running_board': is_running_board,  # Pass this to your template if needed
         }
         return render(request, 'add_duty_trip.html', context)
-
+    
 def get_timetable(request, route_id, direction):
     import json
     import sys
@@ -2222,7 +2222,6 @@ def get_timetable(request, route_id, direction):
         if not start_time_str:
             return JsonResponse({"error": "start_time is required (HH:MM)"}, status=400)
 
-        # convert HH:MM → minutes
         def to_minutes(t):
             h, m = map(int, t.split(":"))
             return h * 60 + m
@@ -2245,12 +2244,6 @@ def get_timetable(request, route_id, direction):
             log("OUTBOUND MISSING → ONE-WAY MODE ENABLED (INBOUND ONLY)")
             one_way_inbound_only = True
 
-        log("INBOUND ENTRY EXISTS =", bool(inbound_entry))
-        log("OUTBOUND ENTRY EXISTS =", bool(outbound_entry))
-
-        #if not inbound_entry or not outbound_entry:
-        #    return JsonResponse({"error": "Both inbound and outbound timetables required"}, status=400)
-
         # -------- PARSE TIMETABLE ENTRY --------
         def parse_entry(entry, label):
             log(f"Parsing entry for {label}")
@@ -2262,35 +2255,24 @@ def get_timetable(request, route_id, direction):
                     log(f"JSON LOAD ERROR IN {label}:", str(e))
                     return []
 
-            log(f"{label} STOP KEYS =", list(data.keys()))
-
             stops_list = list(data.values())
             if not stops_list:
-                log(f"{label} EMPTY STOPS LIST")
                 return []
 
             trip_count = len(stops_list[0].get("times", []))
-            log(f"{label} TRIP COUNT =", trip_count)
-
             trips = []
             for i in range(trip_count):
                 trip_stops = []
-
                 for stop in stops_list:
                     raw_time = stop["times"][i]
-
-                    # If this stop is blank for this trip → skip this stop only
                     if not raw_time or raw_time.strip() == "":
                         continue
-
                     trip_stops.append({
                         "stop": stop["stopname"],
                         "time": raw_time
                     })
 
-                # If trip has fewer than 2 stops, it's invalid → skip it
                 if len(trip_stops) < 2:
-                    log(f"SKIPPING TRIP {i}: too few valid stops")
                     continue
 
                 start_t = trip_stops[0]["time"]
@@ -2304,24 +2286,14 @@ def get_timetable(request, route_id, direction):
                     "end_minutes": to_minutes(end_t),
                     "start_stop": trip_stops[0]["stop"],
                     "end_stop": trip_stops[-1]["stop"],
+                    "direction": label.lower(),        #  <<<<<< ADDED HERE
                 })
 
             trips.sort(key=lambda x: x["start_minutes"])
-            log(f"{label} FIRST 3 TRIPS (sorted)=",
-                [(t['start_time'], t['end_time']) for t in trips[:3]])
-
             return trips
 
         inbound_trips = parse_entry(inbound_entry, "INBOUND")
-
-        if outbound_entry is not None:
-            outbound_trips = parse_entry(outbound_entry, "OUTBOUND")
-        else:
-            log("NO OUTBOUND ENTRY → OUTBOUND TRIPS = []")
-            outbound_trips = []
-
-        log("INBOUND TRIPS COUNT =", len(inbound_trips))
-        log("OUTBOUND TRIPS COUNT =", len(outbound_trips))
+        outbound_trips = parse_entry(outbound_entry, "OUTBOUND") if outbound_entry else []
 
         # -------- BUILD VEHICLE RUN SEQUENCE --------
 
@@ -2330,19 +2302,12 @@ def get_timetable(request, route_id, direction):
         doing_inbound = inbound_first
 
         iteration = 0
-
         while True:
             iteration += 1
             if iteration > 5000:
-                log("!!! STOPPING: LOOP ITERATION LIMIT HIT !!!")
                 break
 
-            log(f"--- LOOP {iteration} ---")
-            log("CURRENT TIME =", current_time)
-            log("DOING INBOUND =", doing_inbound)
-
             pool = inbound_trips if doing_inbound else outbound_trips
-            log("POOL SIZE =", len(pool))
 
             next_trip = None
             for t in pool:
@@ -2351,29 +2316,17 @@ def get_timetable(request, route_id, direction):
                     break
 
             if not next_trip:
-                log("NO NEXT TRIP FOUND - BREAK")
                 break
 
-            # Safety: prevent freeze if end==start
             if next_trip["end_minutes"] <= current_time:
-                log("BREAK: END MINUTES <= CURRENT TIME (BAD TRIP)")
                 break
-
-            log("SELECTED TRIP =", next_trip["start_time"], "→", next_trip["end_time"])
 
             result.append(next_trip)
-
-            # Move current time forward
             current_time = next_trip["end_minutes"]
-            log("UPDATED CURRENT TIME =", current_time)
 
-            # Flip direction
-            if one_way_inbound_only:
-                doing_inbound = True
-            else:
+            if not one_way_inbound_only:
                 doing_inbound = not doing_inbound
 
-        log("FINAL RESULT COUNT =", len(result))
         return JsonResponse(result, safe=False)
 
     except Exception as e:
@@ -5381,6 +5334,9 @@ def mass_log_trips(request, operator_slug):
                     trip_end_at=trip_end,
                 )
 
+                # Determine inbound for generated trips
+                trip.trip_inbound = True if start_location == route_obj.inbound_destination else False
+
                 try:
                     trip.full_clean()  # runs model validation, including your 10-year check
                     trip.save()
@@ -5430,6 +5386,10 @@ def mass_log_trips(request, operator_slug):
             elif running_board_id:
                 board_obj = selected_rb
 
+            if board_obj:
+                created_trip.trip_inbound = board_obj.inbound
+            else:
+                created_trip.trip_inbound = False
 
             created_trip = Trip(
                 trip_vehicle=vehicle,
@@ -5582,6 +5542,7 @@ def mass_assign_boards(request, operator_slug):
                         if hasattr(trip.route, "route_num")
                         else trip.route
                     ),
+                    trip_inbound=board_obj.inbound,
                     trip_start_location=trip.start_at,
                     trip_end_location=trip.end_at,
                     trip_start_at=start_dt,
