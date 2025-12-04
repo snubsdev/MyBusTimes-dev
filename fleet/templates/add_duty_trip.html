@@ -140,20 +140,34 @@
     addInput('Start At:', 'text', 'start_at[]', true, values.start_at);
     addInput('End At:', 'text', 'end_at[]', true, values.end_at);
 
-    // -------- NEW: INBOUND CHECKBOX --------
+    // -------- UPDATED: INBOUND CHECKBOX WITH HIDDEN INPUT --------
     const inboundLabel = document.createElement('label');
     inboundLabel.textContent = "Inbound?";
     const inboundCheck = document.createElement('input');
     inboundCheck.type = "checkbox";
-    inboundCheck.name = "inbound[]";
+    inboundCheck.name = "inbound_trip_check[]";
+    inboundCheck.value = "true";
+
+    // Add a hidden input that will always be submitted
+    const inboundHidden = document.createElement('input');
+    inboundHidden.type = "hidden";
+    inboundHidden.name = "inbound_trip[]";
+    inboundHidden.value = "false";
+
+    // When checkbox changes, update the hidden input
+    inboundCheck.addEventListener('change', function() {
+      inboundHidden.value = this.checked ? "true" : "false";
+    });
 
     // backend sends either direction="inbound" OR inbound=true
     if (values.inbound === true || values.direction === "inbound") {
       inboundCheck.checked = true;
+      inboundHidden.value = "true";
     }
 
     tripGroup.appendChild(inboundLabel);
     tripGroup.appendChild(inboundCheck);
+    tripGroup.appendChild(inboundHidden);
     // ----------------------------------------
 
     // Remove button
