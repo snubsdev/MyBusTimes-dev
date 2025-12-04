@@ -35,6 +35,7 @@ class Trip(models.Model):
     trip_ended = models.BooleanField(default=False, db_index=True)
     trip_missed = models.BooleanField(default=False, db_index=True)
     trip_board = models.ForeignKey(duty, on_delete=models.SET_NULL, null=True, blank=True, db_index=True)
+    trip_inbound = models.BooleanField(null=True, blank=True, db_index=True)
 
     history = HistoricalRecords()
 
