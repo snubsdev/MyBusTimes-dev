@@ -15,12 +15,15 @@ from routes.models import dutyTrip, route, routeStop
 
 def normalize_location(text):
     """
-    Normalize free-text stop/destination names for fuzzy matching.
-    - lowercases
-    - removes punctuation
-    - removes common noise words (stand, bay, platform, adjacent, opposite, near)
-    - removes parenthetical content and numbers
-    - collapses whitespace
+    Normalize free-text stop or destination names for fuzzy matching.
+    
+    Performs normalization such as lowercasing, removing parenthetical content, punctuation, common noise words (e.g. "stand", "bay", "platform", "near"), standalone numbers, and collapsing whitespace.
+    
+    Parameters:
+        text: The free-text stop or destination value to normalize (may be any object; it will be converted to a string).
+    
+    Returns:
+        The normalized string (empty string for falsy input).
     """
     if not text:
         return ""
@@ -52,9 +55,17 @@ def normalize_location(text):
 
 def token_overlap_match(a, b, min_common_tokens=1):
     """
-    Returns True if tokens overlap enough to consider a match.
-    Uses normalized token sets and requires either substring containment
-    or at least min_common_tokens tokens in common or at least half of the smaller token set.
+    Determine whether two location strings have sufficient token overlap to be considered a match.
+    
+    Performs normalization of inputs, treats substring containment as a high-confidence match, and otherwise requires at least `min_common_tokens` tokens in common or at least half of the smaller token set.
+    
+    Parameters:
+        a (str): First location string to compare.
+        b (str): Second location string to compare.
+        min_common_tokens (int): Minimum number of shared tokens required to consider a match.
+    
+    Returns:
+        bool: `True` if the inputs match according to the overlap rules, `False` otherwise.
     """
     if not a or not b:
         return False
@@ -84,15 +95,30 @@ def token_overlap_match(a, b, min_common_tokens=1):
 
 def fuzzy_match(a, b):
     """
-    Unified fuzzy match: combine normalization + token_overlap heuristics.
+    Perform a fuzzy comparison of two location strings to determine if they match.
+    
+    Parameters:
+        a (str): First location string to compare.
+        b (str): Second location string to compare.
+    
+    Returns:
+        bool: `true` if the strings are considered a fuzzy match, `false` otherwise.
     """
     return token_overlap_match(a, b, min_common_tokens=1)
 
 
 def extract_stop_names_from_stops_json(stops_json):
     """
-    Given the routeStop.stops JSON (list of dicts), return the list of stop name strings.
-    Defensive: accepts JSON string or Python list.
+    Extract stop name strings from a routeStop.stops JSON structure.
+    
+    Parses either a JSON string or a Python list and returns a list of stop names.
+    For list inputs, each item may be a dict (common keys checked: "stop", "name", "stop_name") or a plain string; matching values are converted to strings. For malformed input the function attempts a best-effort fallback by searching for `"stop":"<value>"` patterns in a JSON-dumped representation.
+    
+    Parameters:
+        stops_json: JSON string or Python list representing route stops; falsy values return an empty list.
+    
+    Returns:
+        list: A list of stop name strings (empty if none found).
     """
     stops = []
     if not stops_json:
@@ -131,10 +157,15 @@ def extract_stop_names_from_stops_json(stops_json):
 
 def detect_direction_for_dutytrip(dt):
     """
+    Determine the travel direction (inbound or outbound) for a dutyTrip record.
+    
+    Uses route destinations, routeStop first/last stops, and aggregated stop-name matches to infer whether the trip is inbound or outbound. If the dutyTrip has no associated route_link or the heuristics cannot decide, the result is ambiguous.
+    
+    Parameters:
+        dt (dutyTrip): The dutyTrip model instance to analyze.
+    
     Returns:
-      True  => inbound
-      False => outbound
-      None  => ambiguous / not found
+        True if the trip is inbound, False if the trip is outbound, None if the direction is ambiguous or cannot be determined.
     """
 
     # Skip if no route_link
@@ -174,6 +205,17 @@ def detect_direction_for_dutytrip(dt):
 
     # helper to get first/last stop names for inbound/outbound
     def first_last_stops_for(direction_bool):
+        """
+        Get the first and last stop names for the given direction from the surrounding routeStop queryset.
+        
+        Attempts to find a routeStop row matching the provided direction and falls back to another available routeStop if none match. Returns the first and last stop names extracted from the row's stops JSON, or (None, None) if no suitable stops are available.
+        
+        Parameters:
+            direction_bool (bool): True to select inbound stops, False to select outbound stops.
+        
+        Returns:
+            (str | None, str | None): A tuple of (first_stop, last_stop); each is a string when available or None when not.
+        """
         try:
             rs = rstop_qs.get(inbound=direction_bool)
         except routeStop.DoesNotExist:
@@ -205,6 +247,18 @@ def detect_direction_for_dutytrip(dt):
         # Check whether duty start/end match first/last pair for inbound/outbound
         # We'll consider both (first->last) and (last->first) orderings to tolerate different list orders.
         def matches_first_last(start, end, first, last):
+            """
+            Check whether the start and end texts match the provided first and last stop names in either order.
+            
+            Parameters:
+                start (str): Start location text to compare.
+                end (str): End location text to compare.
+                first (str): Name of the first stop.
+                last (str): Name of the last stop.
+            
+            Returns:
+                bool: `True` if (`start` ≈ `first` and `end` ≈ `last`) or (`start` ≈ `last` and `end` ≈ `first`); `False` otherwise. Empty `first` or `last` yields `False`.
+            """
             if not first or not last:
                 return False
             # match start ≈ first AND end ≈ last OR start ≈ last AND end ≈ first
@@ -234,6 +288,16 @@ def detect_direction_for_dutytrip(dt):
                 outbound_stops.extend(names)
 
         def count_matches_in_list(text, stop_list):
+            """
+            Count how many strings in a list fuzzy-match a reference text.
+            
+            Parameters:
+                text (str): Reference text to match against each item.
+                stop_list (iterable): Iterable of stop name strings to compare.
+            
+            Returns:
+                int: Number of items in `stop_list` that fuzzy-match `text`.
+            """
             if not text or not stop_list:
                 return 0
             count = 0
@@ -269,6 +333,16 @@ class Command(BaseCommand):
     help = "Detect direction (inbound/outbound) for dutyTrip rows and save into dutyTrip.direction"
 
     def add_arguments(self, parser):
+        """
+        Add command-line arguments for the management command: --limit, --batch-size, and --force.
+        
+        Parameters:
+            parser: argparse.ArgumentParser
+                The argument parser to which the options are added. The added options are:
+                - --limit: integer; limits how many dutyTrip rows are processed.
+                - --batch-size: integer; number of rows to update per database transaction.
+                - --force: flag; when present, forces re-detection even if a dutyTrip already has a direction set.
+        """
         parser.add_argument(
             "--limit",
             type=int,
@@ -288,6 +362,16 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        """
+        Process dutyTrip rows, detect their inbound/outbound direction, and persist the detected direction to the database.
+        
+        This command iterates dutyTrip records (ordered by id), runs direction detection for each row, and updates the model's direction field with one of: True (inbound), False (outbound), or None (ambiguous). It accepts the following options via `options`:
+        - "limit": (int) restrict the number of rows processed.
+        - "batch_size": (int) number of rows to save in a single transaction.
+        - "force": (bool) re-run detection even when a row already has a direction set.
+        
+        Processing is performed in batches using database transactions; rows without an associated route_link are skipped. The method writes progress and a final summary (processed, updated, ambiguous, skipped, failed) to standard output/error.
+        """
         limit = options["limit"]
         batch_size = options["batch_size"]
         force = options["force"]
