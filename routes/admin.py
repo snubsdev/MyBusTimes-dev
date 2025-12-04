@@ -81,7 +81,7 @@ class dutyAdmin(SimpleHistoryAdmin):
     get_day_types.short_description = 'Day Types'
 
 class dutyAdminTrip(SimpleHistoryAdmin):
-    list_display = ['duty', 'route', 'start_time', 'start_at', 'end_time', 'end_at']
+    list_display = ['duty', 'inbound', 'route', 'start_time', 'start_at', 'end_time', 'end_at']
     list_filter = ['duty', 'route']
     search_fields = ['duty__duty_name', 'route__route_num']
     autocomplete_fields = ['duty', 'route_link']
