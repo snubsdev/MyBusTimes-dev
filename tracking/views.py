@@ -318,14 +318,14 @@ def get_route_coordinates(route_id, trip):
     # -------------------------------
     # EXPLICIT INBOUND/OUTBOUND CHOICE
     # -------------------------------
-    if trip.trip_inbound is True:
-        print("[DEBUG] trip_inbound=True → using inbound (index 1)")
+    if trip.trip_inbound is False:
+        print("[DEBUG] trip_inbound=False → using inbound (index 1)")
         if stops_qs.count() >= 2:
             return extract_coords_from_routeStop(stops_qs[1])
         return extract_coords_from_routeStop(stops_qs[0])
 
-    if trip.trip_inbound is False:
-        print("[DEBUG] trip_inbound=False → using outbound (index 0)")
+    if trip.trip_inbound is True:
+        print("[DEBUG] trip_inbound=True → using outbound (index 0)")
         return extract_coords_from_routeStop(stops_qs[0])
 
     # -------------------------------
