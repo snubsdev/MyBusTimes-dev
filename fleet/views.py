@@ -5633,7 +5633,7 @@ def mass_assign_boards(request, operator_slug):
                         if hasattr(trip.route, "route_num")
                         else trip.route
                     ),
-                    trip_inbound=trip.inbound,
+                    trip_inbound=board_obj.inbound,
                     trip_start_location=trip.start_at,
                     trip_end_location=trip.end_at,
                     trip_start_at=start_dt,
