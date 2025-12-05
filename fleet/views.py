@@ -2220,6 +2220,8 @@ def duty_add_trip(request, operator_slug, duty_id):
         }
         return render(request, 'add_duty_trip.html', context)
     
+
+    
 def get_timetable(request, route_id, direction):
     """
     Return a sequence of vehicle trips (timetable) for the given route starting at the specified time.
@@ -2289,29 +2291,8 @@ def get_timetable(request, route_id, direction):
 
         # -------- PARSE TIMETABLE ENTRY --------
         def parse_entry(entry, label):
-            """
-            Parse a timetable entry into a list of trip dictionaries with per-stop times and summary metadata.
-            
-            Parameters:
-                entry (object): Object containing a `stop_times` attribute, either a mapping of stop keys to
-                    stop objects (each with `stopname` and `times` list) or a JSON string encoding that mapping.
-                label (str): Human-readable label for the entry (used to populate the `direction` field, lowercased).
-            
-            Returns:
-                list[dict]: A list of trip dictionaries sorted by `start_minutes`. Each trip dict contains:
-                    - `times` (list[dict]): Ordered stop records for the trip, each with `stop` (str) and `time` (str).
-                    - `start_time` (str): Time string of the first stop.
-                    - `end_time` (str): Time string of the last stop.
-                    - `start_minutes` (int): Minutes-since-midnight for `start_time`.
-                    - `end_minutes` (int): Minutes-since-midnight for `end_time`.
-                    - `start_stop` (str): Name of the first stop.
-                    - `end_stop` (str): Name of the last stop.
-                    - `direction` (str): Lowercased value of `label`.
-            
-                Returns an empty list if `stop_times` is empty, cannot be parsed as JSON when provided as a string,
-                or if no valid trips (at least two stops with times) can be constructed.
-            """
             log(f"Parsing entry for {label}")
+
             data = entry.stop_times
             if isinstance(data, str):
                 try:
@@ -2324,19 +2305,33 @@ def get_timetable(request, route_id, direction):
             if not stops_list:
                 return []
 
-            trip_count = len(stops_list[0].get("times", []))
-            trips = []
-            for i in range(trip_count):
-                trip_stops = []
-                for stop in stops_list:
-                    raw_time = stop["times"][i]
-                    if not raw_time or raw_time.strip() == "":
-                        continue
-                    trip_stops.append({
-                        "stop": stop["stopname"],
-                        "time": raw_time
-                    })
+            # Determine TRUE number of trips from max times length
+            trip_count = max(len(stop.get("times", [])) for stop in stops_list)
+            log(f"{label}: detected trip_count = {trip_count}")
 
+            trips = []
+
+            # Build each trip individually
+            for trip_index in range(trip_count):
+                trip_stops = []
+
+                for stop in stops_list:
+                    stopname = stop["stopname"]
+                    times = stop.get("times", [])
+
+                    # If this stop has a time for this trip index → use it
+                    if trip_index < len(times):
+                        t = times[trip_index]
+                        if t and t.strip():
+                            trip_stops.append({"stop": stopname, "time": t})
+                        else:
+                            # Blank or missing time in the middle
+                            continue
+                    else:
+                        # Stop has no time for this trip (early terminated / skipped)
+                        continue
+
+                # Must have at least 2 stops to be a valid trip
                 if len(trip_stops) < 2:
                     continue
 
@@ -2351,9 +2346,10 @@ def get_timetable(request, route_id, direction):
                     "end_minutes": to_minutes(end_t),
                     "start_stop": trip_stops[0]["stop"],
                     "end_stop": trip_stops[-1]["stop"],
-                    "direction": label.lower(),        #  <<<<<< ADDED HERE
+                    "direction": label.lower()
                 })
 
+            # Sort by actual time
             trips.sort(key=lambda x: x["start_minutes"])
             return trips
 
@@ -5454,28 +5450,37 @@ def mass_log_trips(request, operator_slug):
             messages.error(request, "Invalid date selected for duty/running board.")
             return redirect(request.path)
 
+        trip_set = trip_set.order_by('id')
+
+        first_trip = trip_set.first()
+        first_pk = first_trip.id
+        first_start_time = first_trip.start_time
+
         for trip in trip_set:
-            start_dt = make_aware(datetime.combine(selected_date, trip.start_time))
-            end_dt = make_aware(datetime.combine(selected_date, trip.end_time))
+            # Determine rollover date logic
+            trip_date = selected_date
+            is_past_midnight = trip.start_time < first_start_time
+
+            if is_past_midnight and trip.id < first_pk:
+                trip_date = selected_date + timedelta(days=1)
+
+            start_dt = make_aware(datetime.combine(trip_date, trip.start_time))
+            end_dt = make_aware(datetime.combine(trip_date, trip.end_time))
 
             routeLink = trip.route_link if trip.route_link else None
 
-            board_obj = None
-            if duty_id:
-                board_obj = selected_duty
-            elif running_board_id:
-                board_obj = selected_rb
+            board_obj = selected_duty if duty_id else selected_rb
 
             created_trip = Trip(
                 trip_vehicle=vehicle,
                 trip_route=routeLink,
-                trip_route_num=trip.route.route_num if hasattr(trip.route, "route_num") else trip.route,
+                trip_route_num=trip.route_link.route_num if trip.route_link else trip.route,
                 trip_start_location=trip.start_at,
                 trip_end_location=trip.end_at,
                 trip_start_at=start_dt,
                 trip_end_at=end_dt,
-                trip_board=board_obj, 
-                trip_inbound = trip.inbound
+                trip_board=board_obj,
+                trip_inbound=trip.inbound,
             )
 
             try:
