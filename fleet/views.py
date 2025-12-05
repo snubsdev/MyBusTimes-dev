@@ -5454,28 +5454,37 @@ def mass_log_trips(request, operator_slug):
             messages.error(request, "Invalid date selected for duty/running board.")
             return redirect(request.path)
 
+        trip_set = trip_set.order_by('id')
+
+        first_trip = trip_set.first()
+        first_pk = first_trip.id
+        first_start_time = first_trip.start_time
+
         for trip in trip_set:
-            start_dt = make_aware(datetime.combine(selected_date, trip.start_time))
-            end_dt = make_aware(datetime.combine(selected_date, trip.end_time))
+            # Determine rollover date logic
+            trip_date = selected_date
+            is_past_midnight = trip.start_time < first_start_time
+
+            if is_past_midnight and trip.id < first_pk:
+                trip_date = selected_date + timedelta(days=1)
+
+            start_dt = make_aware(datetime.combine(trip_date, trip.start_time))
+            end_dt = make_aware(datetime.combine(trip_date, trip.end_time))
 
             routeLink = trip.route_link if trip.route_link else None
 
-            board_obj = None
-            if duty_id:
-                board_obj = selected_duty
-            elif running_board_id:
-                board_obj = selected_rb
+            board_obj = selected_duty if duty_id else selected_rb
 
             created_trip = Trip(
                 trip_vehicle=vehicle,
                 trip_route=routeLink,
-                trip_route_num=trip.route.route_num if hasattr(trip.route, "route_num") else trip.route,
+                trip_route_num=trip.route_link.route_num if trip.route_link else trip.route,
                 trip_start_location=trip.start_at,
                 trip_end_location=trip.end_at,
                 trip_start_at=start_dt,
                 trip_end_at=end_dt,
-                trip_board=board_obj, 
-                trip_inbound = trip.inbound
+                trip_board=board_obj,
+                trip_inbound=trip.inbound,
             )
 
             try:
