@@ -5466,11 +5466,6 @@ def mass_log_trips(request, operator_slug):
             elif running_board_id:
                 board_obj = selected_rb
 
-            if board_obj:
-                created_trip.trip_inbound = board_obj.inbound
-            else:
-                created_trip.trip_inbound = False
-
             created_trip = Trip(
                 trip_vehicle=vehicle,
                 trip_route=routeLink,
@@ -5481,6 +5476,11 @@ def mass_log_trips(request, operator_slug):
                 trip_end_at=end_dt,
                 trip_board=board_obj, 
             )
+            
+            if board_obj:
+                created_trip.trip_inbound = board_obj.inbound
+            else:
+                created_trip.trip_inbound = False
 
             try:
                 created_trip.full_clean()
