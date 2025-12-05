@@ -24,16 +24,16 @@
     {% endfor %}
 </p>
 <p>Operator: <a href="{% url 'operator' duty.duty_operator.operator_slug %}">{{ duty.duty_operator.operator_name }}</a></p>
+
 <p>Trips:<br>
     {% for trip in trips %}
-        <span>
-            {{ trip.start_time|date:"H:i" }} - {{ trip.end_time|date:"H:i" }}:
+        <span>{{ trip.start_time|date:"H:i" }} - {{ trip.end_time|date:"H:i" }}:
             {% if trip.route_link %}
                 <a href="/operator/{% for op in trip.route_link.route_operators.all %}{% if forloop.first %}{{ op.operator_slug }}{% endif %}{% endfor %}/route/{{ trip.route_link.id }}">
-                    {{ trip.route_link.route_inbound_destination }} → {{ trip.route_link.route_outbound_destination }}
+                    {{ trip.route_link.route_num }} → {{ trip.end_at }} | ({{ trip.inbound|yesno:"Inbound,Outbound" }})
                 </a>
             {% else %}
-                {{ trip.start_at }} → {{ trip.end_at }}
+                {{ trip.route }}
             {% endif %}
         </span><br>
     {% endfor %}
