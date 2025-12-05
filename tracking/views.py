@@ -616,7 +616,7 @@ class VehiclePositionAPIView(generics.ListAPIView):
 
             coords = get_route_coordinates(
                 trip.trip_route_id,
-                trip.trip_end_location or ""
+                trip
             )
 
             progress = get_progress(trip)
