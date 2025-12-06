@@ -90,6 +90,50 @@
   const markers = [];
   let routeLine = null;
 
+  async function snapSegment(from, to) {
+    key = '{{ user.snap_api_key }}';
+    if (!key || key.length < 10) {
+        alert("No Snap API key set, skipping snapping.");
+        return null;
+    }
+
+    const url =
+        `https://api.geoapify.com/v1/routing?` +
+        `waypoints=${from.lat},${from.lon}|${to.lat},${to.lon}` +
+        `&mode=bus` +       // BUS PROFILE
+        `&apiKey=${key}`;
+
+    try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Geoapify error: " + res.status);
+
+        const data = await res.json();
+
+        // Geoapify gives MultiLineString (array of arrays of lines)
+        const geom = data.features?.[0]?.geometry;
+
+        if (!geom || !geom.coordinates?.length) return null;
+
+        let coords = [];
+
+        if (geom.type === "MultiLineString") {
+            // flatten all segments
+            for (const segment of geom.coordinates) {
+                for (const pt of segment) {
+                    coords.push(pt); // already [lon,lat]
+                }
+            }
+        } else if (geom.type === "LineString") {
+            coords = geom.coordinates;
+        }
+
+        return coords;
+    } catch (e) {
+        console.error("Snap failed:", e);
+        return null;
+    }
+  }
+
   function addStopMarker(lat, lng, name, bearing = null) {
     const el = document.createElement('div');
     el.style.cssText = 'width:10px;height:10px;border:3px solid #2f80ea;border-radius:50%;background:#fff;cursor:pointer;';
@@ -135,41 +179,89 @@
     stopList.appendChild(tr);
   }
 
-  function updateRoute() {
-    // Only draw if we have at least 2 stops
-    if (selectedCoords.length < 2) {
-        if (map.getLayer('routeLine')) map.removeLayer('routeLine');
-        if (map.getSource('routeLine')) map.removeSource('routeLine');
+  async function updateRoute() {
+    const n = selectedCoords.length;
+
+    // remove route if no segments
+    if (n < 2) {
+        if (map.getLayer("routeLine")) map.removeLayer("routeLine");
+        if (map.getSource("routeLine")) map.removeSource("routeLine");
+        snappedSegments = [];
         return;
     }
 
-    const coords = selectedCoords.map(s => [s.lon, s.lat]);
+    // if stops removed, shrink snappedSegments
+    snappedSegments.length = n - 1;
 
-    // If the source exists, just update it — don't recreate the layer every time
-    if (map.getSource('routeLine')) {
-        map.getSource('routeLine').setData({
-        type: 'Feature',
-        geometry: { type: 'LineString', coordinates: coords }
+    let straightCoords = [];
+    for (let i = 0; i < n - 1; i++) {
+        const a = selectedCoords[i];
+        const b = selectedCoords[i + 1];
+        straightCoords.push([a.lon, a.lat], [b.lon, b.lat]);
+    }
+
+    if (map.getSource("routeLine")) {
+        map.getSource("routeLine").setData({
+            type: "Feature",
+            geometry: { type: "LineString", coordinates: straightCoords }
         });
     } else {
-        map.addSource('routeLine', {
-        type: 'geojson',
-        data: {
-            type: 'Feature',
-            geometry: { type: 'LineString', coordinates: coords }
-        }
+        map.addSource("routeLine", {
+            type: "geojson",
+            data: {
+                type: "Feature",
+                geometry: { type: "LineString", coordinates: straightCoords }
+            }
         });
         map.addLayer({
-        id: 'routeLine',
-        type: 'line',
-        source: 'routeLine',
-        paint: {
-            'line-color': '#2f80ed',
-            'line-width': 3
-        }
+            id: "routeLine",
+            type: "line",
+            source: "routeLine",
+            paint: {
+                "line-color": "#2f80ed",
+                "line-width": 3
+            }
         });
     }
+
+    // ------------------------------
+    // SNAP EACH SEGMENT INDIVIDUALLY
+    // ------------------------------
+    for (let i = 0; i < n - 1; i++) {
+        const from = selectedCoords[i];
+        const to = selectedCoords[i + 1];
+
+        snapSegment(from, to).then((snapped) => {
+            if (!snapped) {
+                snappedSegments[i] = null;
+            } else {
+                snappedSegments[i] = snapped;
+            }
+
+            // rebuild final route from all snapped segments
+            let combined = [];
+            for (let j = 0; j < snappedSegments.length; j++) {
+                const seg = snappedSegments[j];
+                if (seg && seg.length) {
+                    if (combined.length) seg[0] = null; // avoid duplicate point
+                    combined.push(...seg.filter(p => p));
+                } else {
+                    // fallback to straight
+                    const a = selectedCoords[j];
+                    const b = selectedCoords[j + 1];
+                    combined.push([a.lon, a.lat], [b.lon, b.lat]);
+                }
+            }
+
+            map.getSource("routeLine").setData({
+                type: "Feature",
+                geometry: { type: "LineString", coordinates: combined }
+            });
+
+            window.snappedFullGeometry = combined;
+        });
     }
+  }
 
   async function fetchStops() {
     const zoom = map.getZoom();
@@ -227,14 +319,23 @@
   // Save button
   document.getElementById("submitRoute").addEventListener("click", () => {
     const rows = stopList.querySelectorAll("tr");
+
     const formattedStops = Array.from(rows).map((row, i) => {
-      const stopName = selectedStops[i];
-      const coord = selectedCoords[i];
-      const timing = row.querySelector(".timing-point-check-box")?.checked || false;
-      return { stop: stopName, cords: `${coord.lat},${coord.lon}`, timing_point: timing };
+        const s = selectedCoords[i];
+        const timing = row.querySelector("input[type=checkbox]")?.checked || false;
+        return {
+            stop: selectedStops[i],
+            cords: `${s.lat},${s.lon}`,
+            timing_point: timing
+        };
     });
 
-    document.getElementById("routeDataInput").value = JSON.stringify(formattedStops);
+    const payload = {
+        stops: formattedStops,
+        snapped_geometry: window.snappedFullGeometry || []
+    };
+
+    document.getElementById("routeDataInput").value = JSON.stringify(payload);
     document.getElementById("routeForm").submit();
   });
 </script>

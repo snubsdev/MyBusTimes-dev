@@ -87,7 +87,7 @@ class CustomUserAdmin(SimpleHistoryAdmin, UserAdmin):
                 'reg_background', 'badges'
             )
         }),
-        ('Admin Notes', {'fields': ('admin_notes',)}),
+        ('Admin Notes', {'fields': ('admin_notes', 'snap_api_key')}),
     )
 
     add_fieldsets = (

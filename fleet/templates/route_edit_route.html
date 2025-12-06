@@ -59,6 +59,7 @@
   </div>
 
   <div class="stop-list-footer">
+    <button id="snapRoute">Snap Route To Road</button>
     <button id="addCustomStop">Add Custom Stop</button>
     <button id="submitRoute">Save {{ direction }} stops</button>
   </div>
@@ -66,10 +67,12 @@
 
 <form id="routeForm" action="" method="POST">
   {% csrf_token %}
+  <input type="hidden" name="snappedGeometry" id="snappedGeometryInput">
   <input type="hidden" name="routeData" id="routeDataInput">
 </form>
 
 {{ existing_stops|json_script:"existing-stops-data" }}
+{{ existing_snapped|json_script:"snapped-geometry" }}
 
 <script>
   let tilesJSON = 'https://tiles.snubs.dev/styles/light/style.json';
@@ -90,6 +93,40 @@
   const selectedStops = [];
   const selectedCoords = [];
   const markers = [];
+  let snappedSegments = [];
+  window.snappedFullGeometry = null;
+
+  async function snapSegment(from, to) {
+    key = '{{ user.snap_api_key }}';
+    if (!key || key.length < 10) {
+        alert("No Snap API key set, skipping snapping.");
+        return null;
+    }
+
+    const url =
+        `https://api.geoapify.com/v1/routing?` +
+        `waypoints=${from.lat},${from.lon}|${to.lat},${to.lon}` +
+        `&mode=bus` +       // BUS PROFILE
+        `&apiKey=${key}`;
+
+    try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Routing error");
+
+        const data = await res.json();
+        const geom = data.features?.[0]?.geometry;
+        if (!geom) return null;
+
+        if (geom.type === "LineString") return geom.coordinates;
+        if (geom.type === "MultiLineString") {
+            return geom.coordinates.flat(); // flatten
+        }
+        return null;
+    } catch (err) {
+        console.error("Snap failed:", err);
+        return null;
+    }
+  }
 
   function addStopMarker(lat, lng, name, timing_point = false) {
     const el = document.createElement('div');
@@ -100,12 +137,10 @@
       .addTo(map);
 
     el.addEventListener('click', () => {
-      if (!selectedStops.includes(name)) {
-        selectedStops.push(name);
-        selectedCoords.push({ lat, lon: lng, heading: null });
-        addStopToList(name, timing_point);
-        updateRoute();
-      }
+      selectedStops.push(name);
+      selectedCoords.push({ lat, lon: lng, heading: null });
+      addStopToList(name, timing_point);
+      updateRoute();
     });
 
     markers.push(marker);
@@ -138,41 +173,77 @@
     stopList.appendChild(tr);
   }
 
-  function updateRoute() {
+  async function updateRoute() {
     if (!map.isStyleLoaded()) {
-      map.once('load', updateRoute);
-      return;
+        map.once('load', updateRoute);
+        return;
     }
 
-    if (selectedCoords.length < 2) {
-      if (map.getLayer('routeLine')) map.removeLayer('routeLine');
-      if (map.getSource('routeLine')) map.removeSource('routeLine');
-      return;
+    const n = selectedCoords.length;
+    if (n < 2) {
+        if (map.getLayer('routeLine')) map.removeLayer('routeLine');
+        if (map.getSource('routeLine')) map.removeSource('routeLine');
+        return;
     }
 
-    const coords = selectedCoords.map(s => [s.lon, s.lat]);
+    let coords = selectedCoords.map(s => [s.lon, s.lat]);
 
-    if (map.getSource('routeLine')) {
-      map.getSource('routeLine').setData({
-        type: 'Feature',
-        geometry: { type: 'LineString', coordinates: coords }
-      });
+    if (!map.getSource("routeLine")) {
+        map.addSource("routeLine", {
+            type: "geojson",
+            data: { type: "Feature", geometry: { type: "LineString", coordinates: coords } }
+        });
+        map.addLayer({
+            id: "routeLine",
+            type: "line",
+            source: "routeLine",
+            paint: { "line-color": "#2f80ed", "line-width": 3 }
+        });
     } else {
-      map.addSource('routeLine', {
-        type: 'geojson',
-        data: {
-          type: 'Feature',
-          geometry: { type: 'LineString', coordinates: coords }
-        }
-      });
-      map.addLayer({
-        id: 'routeLine',
-        type: 'line',
-        source: 'routeLine',
-        paint: { 'line-color': '#2f80ed', 'line-width': 3 }
-      });
+        map.getSource("routeLine").setData({
+            type: "Feature",
+            geometry: { type: "LineString", coordinates: coords }
+        });
     }
   }
+
+  document.getElementById("snapRoute").addEventListener("click", async () => {
+    const n = selectedCoords.length;
+    if (n < 2) return alert("Need at least 2 stops.");
+
+    snappedSegments = [];
+
+    for (let i = 0; i < n - 1; i++) {
+        const from = selectedCoords[i];
+        const to   = selectedCoords[i + 1];
+
+        const snapped = await snapSegment(from, to);
+
+        if (snapped) snappedSegments[i] = snapped;
+        else snappedSegments[i] = [[from.lon, from.lat], [to.lon, to.lat]];
+    }
+
+    // combine all segments
+    let combined = [];
+    for (let i = 0; i < snappedSegments.length; i++) {
+        let seg = snappedSegments[i];
+        if (!seg) continue;
+
+        if (combined.length && seg.length) {
+            seg = seg.slice(1); // remove duplicate start
+        }
+        combined.push(...seg);
+    }
+
+    window.snappedFullGeometry = combined;
+
+    map.getSource("routeLine").setData({
+        type: "Feature",
+        geometry: { type: "LineString", coordinates: combined }
+    });
+
+    alert("Route snapped to road!");
+  });
 
   const existingStops = JSON.parse(document.getElementById("existing-stops-data").textContent);
   if (Array.isArray(existingStops)) {
@@ -212,17 +283,35 @@
     }
   }
 
-  map.on('moveend', fetchStops);
-  map.on('load', () => {
-    fetchStops();
-    updateRoute();
+  const snappedGeom = JSON.parse(document.getElementById("snapped-geometry")?.textContent || "null");
 
-    // If there are existing route coordinates, zoom to them
-    if (selectedCoords.length > 1) {
-      const coords = selectedCoords.map(s => [s.lon, s.lat]);
-      const bounds = new maplibregl.LngLatBounds();
-      coords.forEach(c => bounds.extend(c));
-      map.fitBounds(bounds, { padding: 80, animate: true });
+  map.on('moveend', fetchStops);
+  map.on("load", () => {
+    fetchStops();
+
+    if (snappedGeom && snappedGeom.length) {
+        window.snappedFullGeometry = snappedGeom;
+
+        map.addSource("routeLine", {
+            type: "geojson",
+            data: {
+                type: "Feature",
+                geometry: { type: "LineString", coordinates: snappedGeom }
+            }
+        });
+
+        map.addLayer({
+            id: "routeLine",
+            type: "line",
+            source: "routeLine",
+            paint: { "line-color": "#2f80ed", "line-width": 3 }
+        });
+
+        const bounds = new maplibregl.LngLatBounds();
+        snappedGeom.forEach(c => bounds.extend(c));
+        map.fitBounds(bounds, { padding: 80 });
+    } else {
+        updateRoute();
     }
   });
 
@@ -246,12 +335,22 @@
   document.getElementById("submitRoute").addEventListener("click", () => {
     const formatted = [];
     document.querySelectorAll('#stopList tr').forEach((row, i) => {
-      const stop = selectedStops[i];
-      const coord = selectedCoords[i];
-      const timing_point = row.querySelector('input[type="checkbox"]').checked;
-      formatted.push({ stop, cords: `${coord.lat},${coord.lon}`, timing_point });
+        const stop = selectedStops[i];
+        const coord = selectedCoords[i];
+        const timing_point = row.querySelector('input[type="checkbox"]').checked;
+        formatted.push({ stop, cords: `${coord.lat},${coord.lon}`, timing_point });
     });
+
     document.getElementById("routeDataInput").value = JSON.stringify(formatted);
+
+    // IMPORTANT: Save snapped geometry if it exists
+    if (window.snappedFullGeometry) {
+        document.getElementById("snappedGeometryInput").value =
+            JSON.stringify(window.snappedFullGeometry);
+    } else {
+        document.getElementById("snappedGeometryInput").value = "";
+    }
+
     document.getElementById("routeForm").submit();
   });
 </script>
