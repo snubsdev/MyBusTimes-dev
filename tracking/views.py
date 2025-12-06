@@ -280,22 +280,53 @@ class current_vehicle_trips(generics.ListAPIView):
         print(f"[DEBUG] current_vehicle_trips: found {queryset.count()} trips")
         return queryset
     
+def get_snapped_coords(rs):
+    """
+    Parse rs.snapped_route (JSON text) → list[(lat,lng)]
+    DB format is [[lng,lat], ...] so flip to (lat,lng).
+    """
+    if not rs.snapped_route:
+        return None
+
+    try:
+        data = json.loads(rs.snapped_route)
+        coords = []
+        for pair in data:
+            if not isinstance(pair, (list, tuple)) or len(pair) != 2:
+                continue
+            lng, lat = pair
+            coords.append((float(lat), float(lng)))
+        return coords if coords else None
+    except:
+        return None
+    
 def calculate_heading(lat1, lng1, lat2, lng2):
     """
     Returns heading in degrees (0–360),
     where 0 = North, 90 = East, 180 = South, 270 = West.
+    Handles identical or near-identical points safely.
     """
-    lat1 = math.radians(lat1)
-    lat2 = math.radians(lat2)
+
+    # If no movement → return 0 (or keep last heading outside this function)
+    if abs(lat1 - lat2) < 1e-9 and abs(lng1 - lng2) < 1e-9:
+        return 0.0
+
+    # Convert to radians
+    lat1_rad = math.radians(lat1)
+    lat2_rad = math.radians(lat2)
     d_lng = math.radians(lng2 - lng1)
 
-    x = math.sin(d_lng) * math.cos(lat2)
-    y = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(d_lng)
+    # Standard great-circle bearing
+    x = math.sin(d_lng) * math.cos(lat2_rad)
+    y = math.cos(lat1_rad) * math.sin(lat2_rad) - \
+        math.sin(lat1_rad) * math.cos(lat2_rad) * math.cos(d_lng)
 
     heading = math.degrees(math.atan2(x, y))
-    heading = (heading + 360) % 360
-    return heading
 
+    # Normalise 0–360
+    heading = (heading + 360) % 360
+
+    return heading
 def get_route_coordinates(route_id, trip):
     """
     Determine which routeStop direction to use.
@@ -361,12 +392,20 @@ def get_route_coordinates(route_id, trip):
 
 
 def extract_coords_from_routeStop(rs):
-    """Small helper that extracts coords only (in one list)."""
+    # Prefer snapped route if present
+    snapped = get_snapped_coords(rs)
+    if snapped:
+        return snapped
+
     coords, _ = extract_coords_and_last_stop(rs)
     return coords or []
 
 
 def extract_coords_and_last_stop(rs):
+    # Prefer snapped route if present
+    snapped = get_snapped_coords(rs)
+    if snapped:
+        return snapped, None
     """Shared logic from your old loop."""
     coords = []
     last_stop_name = None

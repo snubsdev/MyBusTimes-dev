@@ -379,27 +379,53 @@
 
   // Save button
   document.getElementById("submitRoute").addEventListener("click", () => {
-    const rows = stopList.querySelectorAll("tr");
+      const rows = stopList.querySelectorAll("tr");
 
-    const formattedStops = Array.from(rows).map((row, i) => {
-        const s = selectedCoords[i];
-        const timing = row.querySelector("input[type=checkbox]")?.checked || false;
-        return {
-            stop: selectedStops[i],
-            cords: `${s.lat},${s.lon}`,
-            timing_point: timing,
-            distance_m: cumulativeDistance,
-            time_s: cumulativeTime
-        };
-    });
+      // --- REBUILD DISTANCE/TIME (fixes cumulativeDistance missing bug) ---
+      let cumulativeDistance = 0;
+      let cumulativeTime = 0;
 
-    const payload = {
-        stops: formattedStops,
-        snapped_geometry: window.snappedFullGeometry || []
-    };
+      const segmentInfo = [];
+      for (let i = 0; i < selectedCoords.length - 1; i++) {
+          const a = [selectedCoords[i].lon, selectedCoords[i].lat];
+          const b = [selectedCoords[i+1].lon, selectedCoords[i+1].lat];
 
-    document.getElementById("routeDataInput").value = JSON.stringify(payload);
-    document.getElementById("routeForm").submit();
+          // fallback distance
+          const dist = Math.round(haversineDistance(a, b));
+          const assumedSpeed = 8.333333; // 30 km/h
+          const t = Math.round(dist / assumedSpeed);
+
+          segmentInfo[i] = { distance: dist, time: t };
+      }
+      // -------------------------------------------------------------------
+
+      const formattedStops = Array.from(rows).map((row, i) => {
+          const s = selectedCoords[i];
+          const timing = row.querySelector("input[type=checkbox]")?.checked || false;
+
+          // increment for all except first stop
+          if (i > 0) {
+              cumulativeDistance += segmentInfo[i - 1].distance;
+              cumulativeTime += segmentInfo[i - 1].time;
+          }
+
+          return {
+              stop: selectedStops[i],
+              cords: `${s.lat},${s.lon}`,
+              timing_point: timing,
+              distance_m: cumulativeDistance,
+              time_s: cumulativeTime
+          };
+      });
+
+      const payload = {
+          stops: formattedStops,
+          snapped_geometry: window.snappedFullGeometry || []
+      };
+
+      document.getElementById("routeDataInput").value = JSON.stringify(payload);
+      document.getElementById("routeForm").submit();
   });
+
 </script>
 {% endblock %}
