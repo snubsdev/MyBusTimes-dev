@@ -50,6 +50,8 @@
               Edit Stop Names Only
             </button>
           </th>
+          <th>Distance</th>
+          <th>Time</th>
           <th class="timing-point">Timing Point</th>
           <th></th>
         </tr>
@@ -81,6 +83,19 @@
     center: [-1.9, 54.9],
     zoom: 6
   });
+
+  function haversineDistance(a, b) {
+    const toRad = v => v * Math.PI / 180;
+    const R = 6371000;
+    const dLat = toRad(b[1] - a[1]);
+    const dLon = toRad(b[0] - a[0]);
+    const lat1 = toRad(a[1]);
+    const lat2 = toRad(b[1]);
+    const sinDLat = Math.sin(dLat/2);
+    const sinDLon = Math.sin(dLon/2);
+    const hav = sinDLat*sinDLat + Math.cos(lat1)*Math.cos(lat2)*sinDLon*sinDLon;
+    return 2 * R * Math.asin(Math.sqrt(hav));
+  }
 
   map.addControl(new maplibregl.NavigationControl(), 'top-left');
 
@@ -160,6 +175,8 @@
   function addStopToList(name) {
     const tr = document.createElement('tr');
     tr.innerHTML = `<td>${name}</td>
+                    <td class="stop-distance">-</td>
+                    <td class="stop-time">-</td>
                     <td class="timing-point-check-box">
                       <input type="checkbox" id="timing_point">
                     </td>
@@ -176,6 +193,7 @@
       updateRoute();
     });
 
+    updateStopDistances();
     stopList.appendChild(tr);
   }
 
@@ -263,6 +281,49 @@
     }
   }
 
+  function updateStopDistances() {
+    const rows = Array.from(document.querySelectorAll('#stopList tr'));
+    if (!rows.length) return;
+
+    // Build per-segment arrays: snappedSegments[i] corresponds to segment between stop i and i+1
+    // If a segment is missing (null), estimate via direct distance between coords
+    const segmentInfo = [];
+    for (let i = 0; i < selectedCoords.length - 1; i++) {
+      const seg = snappedSegments[i];
+      if (seg && seg.distance != null && seg.time != null) {
+        segmentInfo[i] = { distance: seg.distance, time: seg.time };
+      } else {
+        // fallback: compute direct distance between stops using haversine
+        const a = [selectedCoords[i].lon, selectedCoords[i].lat];
+        const b = [selectedCoords[i+1].lon, selectedCoords[i+1].lat];
+        const dist = Math.round(haversineDistance(a, b));
+        const assumedSpeed = 8.333333; // 30 km/h
+        const t = Math.round(dist / assumedSpeed);
+        segmentInfo[i] = { distance: dist, time: t };
+      }
+    }
+
+    // cumulative
+    let cumulativeDistance = 0;
+    let cumulativeTime = 0;
+
+    for (let i = 0; i < rows.length; i++) {
+      const distCell = rows[i].querySelector('.stop-distance');
+      const timeCell = rows[i].querySelector('.stop-time');
+      if (i === 0) {
+        // origin stop = zero
+        distCell.textContent = '0 m';
+        timeCell.textContent = '0 s';
+      } else {
+        const seg = segmentInfo[i-1];
+        cumulativeDistance += seg.distance;
+        cumulativeTime += seg.time;
+        distCell.textContent = `${cumulativeDistance} m`;
+        timeCell.textContent = `${cumulativeTime} s`;
+      }
+    }
+  }
+
   async function fetchStops() {
     const zoom = map.getZoom();
     if (zoom < 15) {
@@ -326,7 +387,9 @@
         return {
             stop: selectedStops[i],
             cords: `${s.lat},${s.lon}`,
-            timing_point: timing
+            timing_point: timing,
+            distance_m: cumulativeDistance,
+            time_s: cumulativeTime
         };
     });
 
