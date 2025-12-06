@@ -50,6 +50,8 @@
               Edit Stop Names Only
             </button>
           </th>
+          <th>Distance</th>
+          <th>Time</th>
           <th class="timing-point">Timing Point</th>
           <th></th>
         </tr>
@@ -73,7 +75,6 @@
 
 {{ existing_stops|json_script:"existing-stops-data" }}
 {{ existing_snapped|json_script:"snapped-geometry" }}
-
 <script>
   let tilesJSON = 'https://tiles.snubs.dev/styles/light/style.json';
   {% if themeDark == 'True' %}
@@ -93,13 +94,37 @@
   const selectedStops = [];
   const selectedCoords = [];
   const markers = [];
-  let snappedSegments = [];
+  let snappedSegments = []; // will hold objects { coords: [[lng,lat],...], distance: meters, time: seconds }
   window.snappedFullGeometry = null;
 
+  // Haversine fallback for distance (metres)
+  function haversineDistance(a, b) {
+    const toRad = v => v * Math.PI / 180;
+    const R = 6371000;
+    const dLat = toRad(b[1] - a[1]);
+    const dLon = toRad(b[0] - a[0]);
+    const lat1 = toRad(a[1]);
+    const lat2 = toRad(b[1]);
+    const sinDLat = Math.sin(dLat/2);
+    const sinDLon = Math.sin(dLon/2);
+    const hav = sinDLat*sinDLat + Math.cos(lat1)*Math.cos(lat2)*sinDLon*sinDLon;
+    return 2 * R * Math.asin(Math.sqrt(hav));
+  }
+
+  // Sum distances along a polyline (coordinates = [[lng,lat],...])
+  function polylineDistance(coords) {
+    let total = 0;
+    for (let i = 0; i < coords.length - 1; i++) {
+      total += haversineDistance(coords[i], coords[i+1]);
+    }
+    return total;
+  }
+
   async function snapSegment(from, to) {
-    key = '{{ user.snap_api_key }}';
+    // returns { coords: [[lng,lat],...], distance: meters, time: seconds } or null
+    const key = '{{ user.snap_api_key }}';
     if (!key || key.length < 10) {
-        alert("No Snap API key set, skipping snapping.");
+        console.warn("No Snap API key set, skipping snapping.");
         return null;
     }
 
@@ -111,17 +136,35 @@
 
     try {
         const res = await fetch(url);
-        if (!res.ok) throw new Error("Routing error");
-
+        if (!res.ok) throw new Error("Routing error: " + res.status);
         const data = await res.json();
-        const geom = data.features?.[0]?.geometry;
-        if (!geom) return null;
+        const feat = data.features?.[0];
+        const geom = feat?.geometry;
+        const props = feat?.properties || data.features?.[0]?.properties || null;
 
-        if (geom.type === "LineString") return geom.coordinates;
-        if (geom.type === "MultiLineString") {
-            return geom.coordinates.flat(); // flatten
+        let coords = null;
+        if (!geom) {
+            return null;
         }
-        return null;
+
+        if (geom.type === "LineString") coords = geom.coordinates;
+        else if (geom.type === "MultiLineString") coords = geom.coordinates.flat();
+        else return null;
+
+        // Try to read distance/time from properties if available
+        let distance = props?.distance ?? props?.legs?.reduce((s, l) => s + (l.distance || 0), 0);
+        let time = props?.time ?? props?.legs?.reduce((s, l) => s + (l.time || 0), 0);
+
+        // If not available, compute distance from coords and estimate time assuming 30 km/h ~ 8.33 m/s
+        if (!distance || distance === 0) {
+            distance = Math.round(polylineDistance(coords));
+        }
+        if (!time || time === 0) {
+            const assumedSpeed = 8.333333; // m/s ~ 30 km/h
+            time = Math.round(distance / assumedSpeed);
+        }
+
+        return { coords, distance: Math.round(distance), time: Math.round(time) };
     } catch (err) {
         console.error("Snap failed:", err);
         return null;
@@ -151,9 +194,12 @@
     markers.length = 0;
   }
 
+  // Add a row for the stop with distance/time columns (initially blank)
   function addStopToList(name, timing_point = false) {
     const tr = document.createElement('tr');
     tr.innerHTML = `<td>${name}</td>
+                    <td class="stop-distance">-</td>
+                    <td class="stop-time">-</td>
                     <td class="timing-point-check-box">
                       <input type="checkbox" id="timing_point" ${timing_point ? 'checked' : ''}>
                     </td>
@@ -165,12 +211,18 @@
       if (index !== -1) {
         selectedStops.splice(index, 1);
         selectedCoords.splice(index, 1);
+        snappedSegments.splice(index, 1); // keep arrays aligned (safe)
         tr.remove();
         updateRoute();
       }
     });
 
     stopList.appendChild(tr);
+  }
+
+  function clearRouteLine() {
+    if (map.getLayer('routeLine')) map.removeLayer('routeLine');
+    if (map.getSource('routeLine')) map.removeSource('routeLine');
   }
 
   async function updateRoute() {
@@ -181,8 +233,7 @@
 
     const n = selectedCoords.length;
     if (n < 2) {
-        if (map.getLayer('routeLine')) map.removeLayer('routeLine');
-        if (map.getSource('routeLine')) map.removeSource('routeLine');
+        clearRouteLine();
         return;
     }
 
@@ -207,12 +258,57 @@
     }
   }
 
+  // Update the stop rows with cumulative distance & time
+  function updateStopDistances() {
+    const rows = Array.from(document.querySelectorAll('#stopList tr'));
+    if (!rows.length) return;
+
+    // Build per-segment arrays: snappedSegments[i] corresponds to segment between stop i and i+1
+    // If a segment is missing (null), estimate via direct distance between coords
+    const segmentInfo = [];
+    for (let i = 0; i < selectedCoords.length - 1; i++) {
+      const seg = snappedSegments[i];
+      if (seg && seg.distance != null && seg.time != null) {
+        segmentInfo[i] = { distance: seg.distance, time: seg.time };
+      } else {
+        // fallback: compute direct distance between stops using haversine
+        const a = [selectedCoords[i].lon, selectedCoords[i].lat];
+        const b = [selectedCoords[i+1].lon, selectedCoords[i+1].lat];
+        const dist = Math.round(haversineDistance(a, b));
+        const assumedSpeed = 8.333333; // 30 km/h
+        const t = Math.round(dist / assumedSpeed);
+        segmentInfo[i] = { distance: dist, time: t };
+      }
+    }
+
+    // cumulative
+    let cumulativeDistance = 0;
+    let cumulativeTime = 0;
+
+    for (let i = 0; i < rows.length; i++) {
+      const distCell = rows[i].querySelector('.stop-distance');
+      const timeCell = rows[i].querySelector('.stop-time');
+      if (i === 0) {
+        // origin stop = zero
+        distCell.textContent = '0 m';
+        timeCell.textContent = '0 s';
+      } else {
+        const seg = segmentInfo[i-1];
+        cumulativeDistance += seg.distance;
+        cumulativeTime += seg.time;
+        distCell.textContent = `${cumulativeDistance} m`;
+        timeCell.textContent = `${cumulativeTime} s`;
+      }
+    }
+  }
+
   document.getElementById("snapRoute").addEventListener("click", async () => {
     const n = selectedCoords.length;
     if (n < 2) return alert("Need at least 2 stops.");
 
     snappedSegments = [];
 
+    // snap each consecutive pair and collect distance/time
     for (let i = 0; i < n - 1; i++) {
         const from = selectedCoords[i];
         const to   = selectedCoords[i + 1];
@@ -220,13 +316,20 @@
         const snapped = await snapSegment(from, to);
 
         if (snapped) snappedSegments[i] = snapped;
-        else snappedSegments[i] = [[from.lon, from.lat], [to.lon, to.lat]];
+        else {
+            // fallback to straight line coords between from and to:
+            snappedSegments[i] = {
+              coords: [[from.lon, from.lat], [to.lon, to.lat]],
+              distance: Math.round(haversineDistance([from.lon, from.lat], [to.lon, to.lat])),
+              time: Math.round(haversineDistance([from.lon, from.lat], [to.lon, to.lat]) / 8.333333)
+            };
+        }
     }
 
-    // combine all segments
+    // combine all segments' coords into one geometry (remove duplicate start points)
     let combined = [];
     for (let i = 0; i < snappedSegments.length; i++) {
-        let seg = snappedSegments[i];
+        let seg = snappedSegments[i].coords;
         if (!seg) continue;
 
         if (combined.length && seg.length) {
@@ -237,12 +340,29 @@
 
     window.snappedFullGeometry = combined;
 
-    map.getSource("routeLine").setData({
-        type: "Feature",
-        geometry: { type: "LineString", coordinates: combined }
-    });
+    // Ensure routeLine source exists
+    if (!map.getSource("routeLine")) {
+        map.addSource("routeLine", {
+            type: "geojson",
+            data: { type: "Feature", geometry: { type: "LineString", coordinates: combined } }
+        });
+        map.addLayer({
+            id: "routeLine",
+            type: "line",
+            source: "routeLine",
+            paint: { "line-color": "#2f80ed", "line-width": 3 }
+        });
+    } else {
+        map.getSource("routeLine").setData({
+            type: "Feature",
+            geometry: { type: "LineString", coordinates: combined }
+        });
+    }
 
-    alert("Route snapped to road!");
+    // update table with distances
+    updateStopDistances();
+
+    alert("Route snapped to road! Distances and times updated in the stop list.");
   });
 
   const existingStops = JSON.parse(document.getElementById("existing-stops-data").textContent);
@@ -310,6 +430,11 @@
         const bounds = new maplibregl.LngLatBounds();
         snappedGeom.forEach(c => bounds.extend(c));
         map.fitBounds(bounds, { padding: 80 });
+
+        // If we have existing snapped geometry, we can't derive per-segment distances without the original segments,
+        // but we can approximate cumulative distances by projecting stops onto the snapped geometry later.
+        // For simplicity, just update the stop rows using haversine between stops for now.
+        updateStopDistances();
     } else {
         updateRoute();
     }
@@ -334,12 +459,44 @@
 
   document.getElementById("submitRoute").addEventListener("click", () => {
     const formatted = [];
-    document.querySelectorAll('#stopList tr').forEach((row, i) => {
+    const rows = Array.from(document.querySelectorAll('#stopList tr'));
+
+    // Recompute distances to ensure latest values
+    updateStopDistances();
+
+    let cumulativeDistance = 0;
+    let cumulativeTime = 0;
+    for (let i = 0; i < rows.length; i++) {
         const stop = selectedStops[i];
         const coord = selectedCoords[i];
-        const timing_point = row.querySelector('input[type="checkbox"]').checked;
-        formatted.push({ stop, cords: `${coord.lat},${coord.lon}`, timing_point });
-    });
+        const timing_point = rows[i].querySelector('input[type="checkbox"]').checked;
+
+        if (i === 0) {
+          cumulativeDistance = 0;
+          cumulativeTime = 0;
+        } else {
+          const seg = snappedSegments[i-1];
+          if (seg && seg.distance != null && seg.time != null) {
+            cumulativeDistance += seg.distance;
+            cumulativeTime += seg.time;
+          } else {
+            // fallback
+            const a = [selectedCoords[i-1].lon, selectedCoords[i-1].lat];
+            const b = [coord.lon, coord.lat];
+            const dist = Math.round(haversineDistance(a,b));
+            cumulativeDistance += dist;
+            cumulativeTime += Math.round(dist / 8.333333);
+          }
+        }
+
+        formatted.push({
+          stop,
+          cords: `${coord.lat},${coord.lon}`,
+          timing_point,
+          distance_m: cumulativeDistance,
+          time_s: cumulativeTime
+        });
+    }
 
     document.getElementById("routeDataInput").value = JSON.stringify(formatted);
 
