@@ -116,7 +116,7 @@ class routeStop(models.Model):
     inbound = models.BooleanField(default=True)
     circular = models.BooleanField(default=False)
     stops = models.JSONField()
-
+    snapped_route = models.TextField(blank=True, null=True)
     history = HistoricalRecords()
 
     def __str__(self):
