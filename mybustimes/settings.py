@@ -48,9 +48,11 @@ STRIPE_BILLING_PORTAL_URL = os.environ["STRIPE_BILLING_PORTAL_URL"]
 
 CSRF_TRUSTED_ORIGINS = [
     'https://test.mybustimes.cc',
+    'https://mybustimes.cc',
     'https://www.mybustimes.cc',
-    'https://www.myfleets.cc',
     'https://local-dev.mybustimes.cc',
+    'https://bm-01.tail7328e3.ts.net',
+    'https://bm-02.tail7328e3.ts.net'
 ]
 
 AUTH_USER_MODEL = 'main.CustomUser'
