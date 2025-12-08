@@ -79,44 +79,27 @@
     if (map.getLayer('routeLine')) map.removeLayer('routeLine');
     if (map.getSource('routeLine')) map.removeSource('routeLine');
 
-    // Fetch route data
+    // Fetch stops
     const res = await fetch(`/api/routes/${routeId}/stops/?direction=${direction}`);
     if (!res.ok) {
       alert('Failed to load route stops');
       return;
     }
 
-    const data = await res.json();
+    const stops = await res.json();
 
-    const hasSnapped = data.has_snapped_route === true;
-
-    const stops = data.stops || [];
-    const snapped = data.snapped_route || [];
-
-    // Parse stop coords
-    const stopCoords = stops
+    const coords = stops
       .map(stop => stop.cords?.split(',').map(Number))
       .filter(c => c && c.length === 2 && !isNaN(c[0]) && !isNaN(c[1]))
-      .map(([lat, lon]) => [lon, lat]); // convert to [lon,lat]
+      .map(([lat, lon]) => [lon, lat]); // MapLibre uses [lon, lat]
 
-    // Decide which geometry to use
-    let geometryToDraw = [];
-
-    if (hasSnapped && snapped.length > 1) {
-        // snapped is already [lon,lat]
-        geometryToDraw = snapped;
-    } else {
-        // fallback: straight lines between stops
-        geometryToDraw = stopCoords;
-    }
-
-    // Draw the polyline
-    if (geometryToDraw.length >= 2) {
+    // Draw polyline if multiple stops
+    if (coords.length >= 2) {
       map.addSource('routeLine', {
         type: 'geojson',
         data: {
           type: 'Feature',
-          geometry: { type: 'LineString', coordinates: geometryToDraw }
+          geometry: { type: 'LineString', coordinates: coords }
         }
       });
 
@@ -130,9 +113,9 @@
         }
       });
 
-      // Fit bounds
+      // Fit map to route
       const bounds = new maplibregl.LngLatBounds();
-      geometryToDraw.forEach(c => bounds.extend(c));
+      coords.forEach(c => bounds.extend(c));
       map.fitBounds(bounds, { padding: 60 });
     }
 
