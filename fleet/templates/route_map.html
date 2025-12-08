@@ -7,6 +7,7 @@
 {% block extra_css %}
 <link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
 
+
 <style>
   html, body, main {
     height: 100%;
@@ -34,6 +35,38 @@
     border-radius: 4px;
     cursor: pointer;
   }
+
+  #stopsToggle {
+    position: fixed;
+    bottom: 50px;
+    left: 10px;
+    z-index: 1000;
+    background: var(--brand-color);
+    color: var(--text-color);
+    padding: 6px 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .vehicle-marker {
+    text-align: center;
+    color: #000;
+    fill: currentColor;
+    text-anchor: middle;
+    paint-order: stroke;
+    stroke-width: 2px;
+    line-height: 16px;
+    z-index: 20;
+  }
+
+  .maplibregl-popup-tip,
+  .maplibregl-popup-content {
+    background: var(--background-color) !important;
+    color: var(--text-color) !important;
+    border-radius: 0.5em !important;
+    font-size: 12px !important;
+  }
 </style>
 {% endblock %}
 
@@ -50,6 +83,7 @@
   const operatorName = "{{ operator.operator_name }}";
 
   let currentDirection = "inbound";
+  let btMarkers = [];
 
   // Choose tile style
   {% if themeDark == 'True' %}
@@ -64,6 +98,93 @@
     center: [-1.9, 54.9],
     zoom: 6
   });
+
+  btMarkers.forEach(m => m.remove());
+  btMarkers = [];
+
+  function createLiveryIcon({ label = '', rotation = 0, bg = '#0000', css = null, textColour = '#fff', textStroke = "#0000", strokeWidth = "0px" } = {}) {
+      const normalisedRotation = ((rotation % 360) + 360) % 360;
+      const cellRotation = (normalisedRotation < 90 || normalisedRotation > 270) ? 0 : 180;
+      const backgroundStyle = css ? `background: ${css};` : `background: ${bg};`;
+      const html = document.createElement('div');
+      html.innerHTML = `
+        <div style="display:inline-block; transform: rotate(${rotation}deg);">
+          <svg width="24" height="16" data-vehicle-id="51623" class="vehicle-marker" style="stroke: ${textStroke}; text-align: center; ${backgroundStyle} transform: rotate(${cellRotation}deg); border: 1px solid rgba(0,0,0); color: ${textColour}; fill: ${textColour}; stroke-width: ${strokeWidth};">
+            <text x="12" y="12">${label}</text>
+          </svg>
+          <span style="display:flex; margin-top: -27px; margin-left: 16px; color:black;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M8 6.65v10.69c0 .64.76.99 1.24.56l6.11-5.35c.34-.3.34-.83 0-1.13L9.24 6.07C8.76 5.65 8 5.99 8 6.63Z" />
+            </svg>
+          </span>
+        </div>
+      `;
+
+      return html;
+    }
+
+  async function loadOperatorBT() {
+    const b = map.getBounds();
+
+    const q = new URLSearchParams({
+      ymax: b.getNorth(),
+      ymin: b.getSouth(),
+      xmax: b.getEast(),
+      xmin: b.getWest(),
+      route_id: routeId,
+    });
+
+    const url = `/api/trips/estimated_positions/?${q}&limit=5000`;
+
+    const res = await fetch(url);
+    const data = await res.json();
+    const vehicles = Array.isArray(data.results) ? data.results : [];
+
+    btMarkers.forEach(m => m.remove());
+    btMarkers = [];
+
+    for (const v of vehicles) {
+      const lat = v.lat;
+      const lng = v.lng;
+      if (!lat || !lng) continue;
+
+      let heading = (v.heading ?? 0) + 180;
+      const line = v.service?.line_name || "";
+      const dest = v.destination || "";
+      const serviceLink = v.service?.url || "";
+      const vehicleLink = v.vehicle?.url || "";
+
+      // livery logic (copied from your working page)
+      const css = v.vehicle?.css || v.vehicle?.left_css || "#fff";
+      const textColour = v.vehicle?.text_colour || (v.vehicle?.white_text ? "#fff" : "#000");
+      const textStroke = v.vehicle?.stroke_colour ?? false;
+      const strokeWidth = textStroke ? "2px" : "0px";
+      heading = heading + 90;
+
+      const el = createLiveryIcon({
+        label: line,
+        css,
+        textColour,
+        rotation: heading,
+        textStroke,
+        strokeWidth
+      });
+
+      const veh = v.vehicle || {};
+
+      const m = new maplibregl.Marker({ element: el })
+        .setLngLat([lng, lat])
+        .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(`
+          <a href="${serviceLink}">${line} to ${dest}</a><br>
+          ${vehicleLink ? `<a href="${vehicleLink}">${veh.fleet_number || ''} - ${veh.reg || ''}</a>` : ""}<br>
+          <span>Simulated Location</span>
+        `))
+        .addTo(map);
+
+      btMarkers.push(m);
+    }
+  }
+
 
   map.addControl(new maplibregl.NavigationControl(), 'top-left');
 
@@ -92,6 +213,10 @@
 
     const stops = data.stops || [];
     const snapped = data.snapped_route || [];
+
+    if (stop.cords === null) {
+      return;
+    }
 
     // Parse stop coords
     const stopCoords = stops
@@ -175,5 +300,8 @@
   });
 
   map.on('load', () => loadRoute(currentDirection));
+
+  map.on("moveend", loadOperatorBT);
+setInterval(loadOperatorBT, 30000);
 </script>
 {% endblock %}
