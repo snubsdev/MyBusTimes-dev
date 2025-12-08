@@ -2423,6 +2423,7 @@ def duty_edit_trips(request, operator_slug, duty_id):
             "route_name": r.route_name,
             "route_inbound_destination": r.inbound_destination,
             "route_outbound_destination": r.outbound_destination,
+            
         } for r in available_routes_qs
     ]
 
@@ -2437,6 +2438,7 @@ def duty_edit_trips(request, operator_slug, duty_id):
         end_times = request.POST.getlist('end_time[]')
         start_ats = request.POST.getlist('start_at[]')
         end_ats = request.POST.getlist('end_at[]')
+        inbound_trips = request.POST.getlist('inbound_trip[]')
 
         if not (len(route_nums) == len(start_times) == len(end_times) == len(start_ats) == len(end_ats)):
             messages.error(request, "Mismatch in trip input lengths.")
@@ -2469,7 +2471,8 @@ def duty_edit_trips(request, operator_slug, duty_id):
                 start_time=start_time,
                 end_time=end_time,
                 start_at=start_ats[i],
-                end_at=end_ats[i]
+                end_at=end_ats[i],
+                inbound=(inbound_trips[i] == 'true') 
             )
             trips_created += 1
 
