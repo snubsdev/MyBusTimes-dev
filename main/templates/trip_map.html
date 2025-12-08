@@ -56,7 +56,6 @@ const tripId = "{{ trip.trip_id }}";
 const operatorId = "{{ operator.id }}";
 let currentDirection = "inbound";
 let showStops = false;
-let tripVehicleId = null;
 let tripRouteId = null;
 
 {% if themeDark == 'True' %}
@@ -77,12 +76,11 @@ const routeLayers = [];
 let stopMarkers = [];
 let btMarkers = [];
 
-// fetch trip → get route + vehicle IDs
+// fetch trip → get route ID
 async function getTripInfo() {
   const res = await fetch(`/api/trips/${tripId}/`);
   if (!res.ok) return;
   const tripData = await res.json();
-  tripVehicleId = tripData.trip_vehicle;
   tripRouteId = tripData.trip_route;
   currentDirection = tripData.direction || currentDirection;
 }
@@ -162,7 +160,6 @@ function createLiveryIcon({ label = '', rotation = 0, css = null, textColour = '
 
 // show only the trip’s vehicle marker
 async function loadTripVehicleMarker() {
-  if (!tripVehicleId) return;
   const b = map.getBounds();
   const q = new URLSearchParams({
     ymax: b.getNorth(), ymin: b.getSouth(),
@@ -177,7 +174,8 @@ async function loadTripVehicleMarker() {
   btMarkers.forEach(m => m.remove());
   btMarkers = [];
 
-  const v = vehicles.find(v => v.vehicle?.id === tripVehicleId);
+  // match by trip_id
+  const v = vehicles.find(v => v.trip_id === parseInt(tripId));
   if (!v) return;
 
   const lat = v.lat, lng = v.lng;
@@ -261,3 +259,4 @@ document.getElementById("stopsToggle").addEventListener("click", async () => {
 
 </script>
 {% endblock %}
+
