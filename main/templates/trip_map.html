@@ -56,7 +56,6 @@ const tripId = "{{ trip.trip_id }}";
 const operatorId = "{{ operator.id }}";
 let currentDirection = "inbound";
 let showStops = false;
-let tripVehicleId = null;
 let tripRouteId = null;
 
 {% if themeDark == 'True' %}
@@ -76,13 +75,12 @@ map.addControl(new maplibregl.NavigationControl(), 'top-left');
 let stopMarkers = [];
 let btMarkers = [];
 
-// fetch trip → get route + vehicle IDs
+// fetch trip → get route ID
 async function getTripInfo() {
   const res = await fetch(`/api/trips/${tripId}/`);
   if (!res.ok) return;
   const tripData = await res.json();
   console.log("Trip data:", tripData);
-  tripVehicleId = tripData.trip_vehicle;
   tripRouteId = tripData.trip_route;
   currentDirection = tripData.direction || currentDirection;
 }
@@ -140,14 +138,12 @@ async function drawRoute(routeId) {
   }
 }
 
-// show only the trip’s vehicle marker
+// show only the vehicle for this trip
 async function loadTripVehicleMarker() {
   const b = map.getBounds();
   const q = new URLSearchParams({
-    ymax: b.getNorth(),
-    ymin: b.getSouth(),
-    xmax: b.getEast(),
-    xmin: b.getWest(),
+    ymax: b.getNorth(), ymin: b.getSouth(),
+    xmax: b.getEast(), xmin: b.getWest(),
     operator_id: operatorId
   });
   const url = `/api/trips/estimated_positions/?${q}&limit=5000`;
@@ -167,24 +163,28 @@ async function loadTripVehicleMarker() {
 
   const el = document.createElement('div');
   el.style.cssText = `
-    width:20px;height:20px;
+    display:flex;align-items:center;justify-content:center;
+    width:32px;height:32px;
     background:${v.vehicle.colour || '#2f80ed'};
     border-radius:50%;
     border:2px solid #fff;
+    color:${v.vehicle.text_colour || (v.vehicle.white_text ? '#fff' : '#000')};
+    font-size:10px;font-weight:bold;
   `;
+  el.innerText = v.service?.line_name || v.vehicle.name || "?";
 
   const m = new maplibregl.Marker({ element: el })
     .setLngLat([lng, lat])
     .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(`
       <strong>${v.vehicle.name}</strong><br>
-      ${v.service?.line_name || ""} to ${v.destination || ""}<br>
-      <a href="${v.vehicle.url}">Vehicle page</a>
+      ${v.service?.line_name || ""} ${v.destination ? "to " + v.destination : ""}<br>
+      ${v.vehicle.url ? `<a href="${v.vehicle.url}">Vehicle page</a><br>` : ""}
+      <span>Simulated Location</span>
     `))
     .addTo(map);
 
   btMarkers.push(m);
 }
-
 
 // initialise
 map.on('load', async () => {
