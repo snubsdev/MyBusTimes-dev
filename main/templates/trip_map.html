@@ -2,39 +2,16 @@
 {% load static %}
 {% load url_filters %}
 
-{% block title %}{{ route.route_num }} Route Map{% endblock %}
-
+{% block title %}Trip Map{% endblock %}
 {% block extra_css %}
 <link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
 <style>
-  html, body, main {
-    height: 100%;
-    margin: 0;
-    padding: 0;
-  }
-  #map {
-    position: fixed !important;
-    top: 55px;
-    bottom: 0;
-    width: 100%;
-    left: 0;
-  }
-  .vehicle-marker {
-    text-align: center;
-    color: #000;
-    fill: currentColor;
-    text-anchor: middle;
-    paint-order: stroke;
-    stroke-width: 2px;
-    line-height: 16px;
-    z-index: 20;
-  }
-  .maplibregl-popup-tip,
-  .maplibregl-popup-content {
-    background: var(--background-color) !important;
-    color: var(--text-color) !important;
-    border-radius: 0.5em !important;
-    font-size: 12px !important;
+  html, body, main { height: 100%; margin: 0; padding: 0; }
+  #map { position: fixed !important; top: 55px; bottom: 0; width: 100%; left: 0; }
+  #directionToggle {
+    position: fixed; bottom: 10px; left: 10px; z-index: 1000;
+    background: var(--brand-color); color: var(--text-color);
+    padding: 6px 10px; border: none; border-radius: 4px; cursor: pointer;
   }
 </style>
 {% endblock %}
@@ -44,171 +21,122 @@
 {% endblock %}
 
 {% block content %}
+<button id="directionToggle" style="display:none;">Toggle Direction</button>
 <div id="map"></div>
 
 <script>
-const tripId = "{{ trip.trip_id }}";
-let currentDirection = "inbound";
-let tripRouteId = null;
+  const tripId = "{{ trip.trip_id }}";   // ensure string interpolation
+  let currentDirection = "inbound";
 
-{% if themeDark == 'True' %}
-  const tilesJSON = 'https://tiles.snubs.dev/styles/dark/style.json';
-{% else %}
-  const tilesJSON = 'https://tiles.snubs.dev/styles/light/style.json';
-{% endif %}
+  // Choose tile style
+  {% if themeDark == 'True' %}
+    const tilesJSON = 'https://tiles.snubs.dev/styles/dark/style.json';
+  {% else %}
+    const tilesJSON = 'https://tiles.snubs.dev/styles/light/style.json';
+  {% endif %}
 
-const map = new maplibregl.Map({
-  container: 'map',
-  style: tilesJSON,
-  center: [-1.9, 54.9],
-  zoom: 8
-});
-map.addControl(new maplibregl.NavigationControl(), 'top-left');
+  const map = new maplibregl.Map({
+    container: 'map',
+    style: tilesJSON,
+    center: [-1.9, 54.9],
+    zoom: 6
+  });
+  map.addControl(new maplibregl.NavigationControl(), 'top-left');
 
-let stopMarkers = [];
-let btMarkers = [];
+  let markers = [];
+  const routeLayerId = 'routeLine';
 
-// fetch trip → get route ID
-async function getTripInfo() {
-  const res = await fetch(`/api/trips/${tripId}/`);
-  if (!res.ok) return;
-  const tripData = await res.json();
-  tripRouteId = tripData.trip_route;
-  currentDirection = tripData.direction || currentDirection;
-}
+  async function loadTrip(tripId) {
+    // Fetch trip data
+    const res = await fetch(`/api/trips/${tripId}/`);
+    if (!res.ok) {
+      alert("Failed to load trip data");
+      return;
+    }
+    const tripData = await res.json();
+    console.log("Trip data:", tripData);
 
-// draw route polyline + stops
-async function drawRoute(routeId) {
-  const res = await fetch(`/api/routes/${routeId}/stops/?direction=${currentDirection}`);
-  if (!res.ok) return;
-  const data = await res.json();
-  const coords = (data.snapped_route && data.snapped_route.length > 1)
-    ? data.snapped_route
-    : (data.stops || []).map(s => {
-        const [lat, lon] = s.cords.split(',').map(Number);
-        return [lon, lat];
+    const routeId = tripData.trip_route;   // use trip_route field
+    currentDirection = tripData.direction || currentDirection;
+
+    // Fetch route geometry
+    const routeRes = await fetch(`/api/routes/${routeId}/stops/?direction=${currentDirection}`);
+    if (!routeRes.ok) {
+      alert("Failed to load route stops");
+      return;
+    }
+    const data = await routeRes.json();
+
+    // Clear old markers/layers
+    for (const m of markers) m.remove();
+    markers = [];
+    if (map.getLayer(routeLayerId)) map.removeLayer(routeLayerId);
+    if (map.getSource(routeLayerId)) map.removeSource(routeLayerId);
+
+    const hasSnapped = data.has_snapped_route === true;
+    const stops = data.stops || [];
+    const snapped = data.snapped_route || [];
+
+    const stopCoords = stops
+      .map(stop => stop.cords?.split(',').map(Number))
+      .filter(c => c && c.length === 2 && !isNaN(c[0]) && !isNaN(c[1]))
+      .map(([lat, lon]) => [lon, lat]);
+
+    let geometryToDraw = hasSnapped && snapped.length > 1 ? snapped : stopCoords;
+
+    if (geometryToDraw.length >= 2) {
+      map.addSource(routeLayerId, {
+        type: 'geojson',
+        data: { type: 'Feature', geometry: { type: 'LineString', coordinates: geometryToDraw } }
       });
+      map.addLayer({
+        id: routeLayerId,
+        type: 'line',
+        source: routeLayerId,
+        paint: { 'line-color': '#2f80ed', 'line-width': 3 }
+      });
+      const bounds = new maplibregl.LngLatBounds();
+      geometryToDraw.forEach(c => bounds.extend(c));
+      map.fitBounds(bounds, { padding: 60 });
+    }
 
-  if (map.getLayer('routeLine')) map.removeLayer('routeLine');
-  if (map.getSource('routeLine')) map.removeSource('routeLine');
-
-  if (coords.length >= 2) {
-    map.addSource('routeLine', {
-      type: 'geojson',
-      data: { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } }
-    });
-    map.addLayer({
-      id: 'routeLine',
-      type: 'line',
-      source: 'routeLine',
-      paint: { 'line-color': '#2f80ed', 'line-width': 3 }
-    });
-    const bounds = new maplibregl.LngLatBounds();
-    coords.forEach(c => bounds.extend(c));
-    map.fitBounds(bounds, { padding: 60 });
-  }
-
-  // always show stops
-  stopMarkers.forEach(m => m.remove());
-  stopMarkers = [];
-  if (data.stops) {
-    for (const stop of data.stops) {
+    // Add stop markers
+    for (const stop of stops) {
       const [lat, lon] = stop.cords.split(',').map(Number);
+      if (isNaN(lat) || isNaN(lon)) continue;
       const el = document.createElement('div');
-      el.style.cssText = "width:10px;height:10px;border:3px solid #2f80ea;border-radius:50%;background:#fff;";
-      const m = new maplibregl.Marker({ element: el })
+      el.style.cssText = "width:10px;height:10px;border:3px solid #2f80ea;border-radius:50%;background:#fff;cursor:pointer;";
+      new maplibregl.Marker({ element: el })
         .setLngLat([lon, lat])
-        .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(
-          `<a href="/stop/?name=${encodeURIComponent(stop.stop)}">${stop.stop}</a>`))
+        .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(`<a href="/stop/?name=${encodeURIComponent(stop.stop)}">${stop.stop}</a>`))
         .addTo(map);
-      stopMarkers.push(m);
+    }
+
+    // Optional: if your API provides tracking_points, overlay them here
+    if (tripData.tracking_points && tripData.tracking_points.length) {
+      const coords = tripData.tracking_points.map(p => [p.X, p.Y]);
+      map.addSource('trackingLine', {
+        type: 'geojson',
+        data: { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } }
+      });
+      map.addLayer({
+        id: 'trackingLine',
+        type: 'line',
+        source: 'trackingLine',
+        paint: { 'line-color': 'black', 'line-width': 3, 'line-dasharray': [4, 7] }
+      });
+      const last = coords[coords.length - 1];
+      if (last) {
+        const heading = tripData.tracking_points[tripData.tracking_points.length - 1].heading || 0;
+        const busEl = document.createElement('img');
+        busEl.src = '{% static "icons/bus-arrow.svg" %}';
+        busEl.style.width = '32px'; busEl.style.height = '32px';
+        busEl.style.transform = `rotate(${heading}deg)`;
+        new maplibregl.Marker({ element: busEl }).setLngLat(last).addTo(map);
+      }
     }
   }
-}
 
-// livery icon builder
-function createLiveryIcon({ label = '', rotation = 0, bg = '#0000', css = null, textColour = '#fff', textStroke = "#0000", strokeWidth = "0px" } = {}) {
-    const normalisedRotation = ((rotation % 360) + 360) % 360;
-    const cellRotation = (normalisedRotation < 90 || normalisedRotation > 270) ? 0 : 180;
-    const backgroundStyle = css ? `background: ${css};` : `background: ${bg};`;
-    const html = document.createElement('div');
-    html.innerHTML = `
-      <div style="display:inline-block; transform: rotate(${rotation}deg);">
-        <svg width="24" height="16" data-vehicle-id="51623" class="vehicle-marker" style="stroke: ${textStroke}; text-align: center; ${backgroundStyle} transform: rotate(${cellRotation}deg); border: 1px solid rgba(0,0,0); color: ${textColour}; fill: ${textColour}; stroke-width: ${strokeWidth};">
-          <text x="12" y="12">${label}</text>
-        </svg>
-        <span style="display:flex; margin-top: -27px; margin-left: 16px; color:black;">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M8 6.65v10.69c0 .64.76.99 1.24.56l6.11-5.35c.34-.3.34-.83 0-1.13L9.24 6.07C8.76 5.65 8 5.99 8 6.63Z" />
-          </svg>
-        </span>
-      </div>
-    `;
-
-    return html;
-  }
-
-
-// show only the trip’s vehicle marker
-async function loadTripVehicleMarker() {
-  // fetch all positions for operator
-  const url = `/api/trips/estimated_positions/?operator_id={{ operator.id }}&limit=5000`;
-  const res = await fetch(url);
-  const data = await res.json();
-  const vehicles = Array.isArray(data.results) ? data.results : [];
-
-  btMarkers.forEach(m => m.remove());
-  btMarkers = [];
-
-  // look through results for this tripId
-  const v = vehicles.find(v => v.trip_id == tripId);
-  console.log("Trip vehicle:", v);
-  if (!v) return;
-
-  if (!v.lat || !v.lng) return;
-
-  let heading = (v.heading ?? 0) + 180;
-  const line = v.service?.line_name || '';
-  const dest = v.destination || '';
-  const serviceLink = v.service?.url || '';
-  const vehicleLink = v.vehicle?.url || '';
-  const vehicleName = v.vehicle?.name || '';
-
-  const css = v.vehicle?.css || v.vehicle?.left_css || v.vehicle?.right_css || "#2f80ed";
-  const textColour = v.vehicle?.text_colour || (v.vehicle?.white_text ? "#fff" : "#000");
-  const textStroke = v.vehicle?.stroke_colour || "#000";
-  const strokeWidth = v.vehicle?.stroke_colour ? "2px" : "0px";
-
-  const el = createLiveryIcon({
-    label: line || vehicleName,
-    css,
-    textColour,
-    rotation: heading + 90,
-    textStroke,
-    strokeWidth
-  });
-
-    const m = new maplibregl.Marker({ element: el })
-      .setLngLat([lng, lat])
-      .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(`
-        <a href="${serviceLink}">${line} to ${dest}</a><br>
-        ${vehicleLink ? `<a href="${vehicleLink}">Vehicle</a><br>` : ""}
-        <span>Simulated Location</span>
-      `))
-      .addTo(map);
-
-    btMarkers.push(m);
-  }
-
-
-// initialise
-map.on('load', async () => {
-  await getTripInfo();
-  if (tripRouteId) await drawRoute(tripRouteId);
-  await loadTripVehicleMarker();
-});
-
-// refresh vehicle marker every 30s
-setInterval(loadTripVehicleMarker, 30000);
+  map.on('load', () => loadTrip(tripId));
 </script>
 {% endblock %}
