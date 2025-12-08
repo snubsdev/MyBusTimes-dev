@@ -65,6 +65,68 @@
     zoom: 6
   });
 
+
+  async function loadOperatorBT() {
+    const b = map.getBounds();
+
+    const q = new URLSearchParams({
+      ymax: b.getNorth(),
+      ymin: b.getSouth(),
+      xmax: b.getEast(),
+      xmin: b.getWest(),
+      route_id: routeId,
+    });
+
+    const url = `/api/trips/estimated_positions/?${q}&limit=5000`;
+
+    const res = await fetch(url);
+    const data = await res.json();
+    const vehicles = Array.isArray(data.results) ? data.results : [];
+
+    btMarkers.forEach(m => m.remove());
+    btMarkers = [];
+
+    for (const v of vehicles) {
+      const lat = v.lat;
+      const lng = v.lng;
+      if (!lat || !lng) continue;
+
+      let heading = (v.heading ?? 0) + 180;
+      const line = v.service?.line_name || "";
+      const dest = v.destination || "";
+      const serviceLink = v.service?.url || "";
+      const vehicleLink = v.vehicle?.url || "";
+
+      // livery logic (copied from your working page)
+      const css = v.vehicle?.css || v.vehicle?.left_css || "#fff";
+      const textColour = v.vehicle?.text_colour || (v.vehicle?.white_text ? "#fff" : "#000");
+      const textStroke = v.vehicle?.stroke_colour ?? false;
+      const strokeWidth = textStroke ? "2px" : "0px";
+      heading = heading + 90;
+
+      const el = createLiveryIcon({
+        label: line,
+        css,
+        textColour,
+        rotation: heading,
+        textStroke,
+        strokeWidth
+      });
+
+      const m = new maplibregl.Marker({ element: el })
+        .setLngLat([lng, lat])
+        .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(`
+          <a href="${serviceLink}">${line} to ${dest}</a><br>
+          ${vehicleLink ? `<a href="${vehicleLink}">Vehicle</a><br>` : ""}
+          <span>Simulated Location</span>
+        `))
+        .addTo(map);
+
+      btMarkers.push(m);
+    }
+  }
+
+
   map.addControl(new maplibregl.NavigationControl(), 'top-left');
 
   let markers = [];
@@ -175,5 +237,8 @@
   });
 
   map.on('load', () => loadRoute(currentDirection));
+
+  map.on("moveend", loadOperatorBT);
+setInterval(loadOperatorBT, 30000);
 </script>
 {% endblock %}
