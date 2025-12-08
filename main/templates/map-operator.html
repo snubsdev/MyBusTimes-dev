@@ -266,13 +266,15 @@ async function loadOperatorBT() {
       strokeWidth
     });
 
-    const m = new maplibregl.Marker({ element: el })
-      .setLngLat([lng, lat])
-      .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(`
-        <a href="${serviceLink}">${line} to ${dest}</a><br>
-        ${vehicleLink ? `<a href="${vehicleLink}">Vehicle</a><br>` : ""}
-        <span>Simulated Location</span>
-      `))
+    const veh = v.vehicle || {};
+
+      const m = new maplibregl.Marker({ element: el })
+        .setLngLat([lng, lat])
+        .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(`
+          <a href="${serviceLink}">${line} to ${dest}</a><br>
+          ${vehicleLink ? `<a href="${vehicleLink}">${veh.fleet_number || ''} - ${veh.reg || ''}</a>` : ""}<br>
+          <span>Simulated Location</span>
+        `))
       .addTo(map);
 
     btMarkers.push(m);
