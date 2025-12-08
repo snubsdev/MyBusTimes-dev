@@ -2165,6 +2165,7 @@ def duty_add_trip(request, operator_slug, duty_id):
             return redirect(request.path)
 
         trips_created = 0
+
         for i in range(len(route_nums)):
             try:
                 start_time = datetime.strptime(start_times[i], '%H:%M').time()
@@ -2190,7 +2191,7 @@ def duty_add_trip(request, operator_slug, duty_id):
                 end_time=end_time,
                 start_at=start_ats[i],
                 end_at=end_ats[i],
-                inbound=(inbound_trips[i] == 'true')  # Convert string to boolean
+                inbound=(inbound_trips[i] == 'true')
             )
             trips_created += 1
 
@@ -2440,7 +2441,9 @@ def duty_edit_trips(request, operator_slug, duty_id):
         end_ats = request.POST.getlist('end_at[]')
         inbound_trips = request.POST.getlist('inbound_trip[]')
 
-        if not (len(route_nums) == len(start_times) == len(end_times) == len(start_ats) == len(end_ats)):
+
+        print(len(inbound_trips))
+        if not (len(route_nums) == len(start_times) == len(end_times) == len(start_ats) == len(end_ats) == len(inbound_trips)):
             messages.error(request, "Mismatch in trip input lengths.")
             return redirect(request.path)
 
@@ -2463,6 +2466,10 @@ def duty_edit_trips(request, operator_slug, duty_id):
                 route_obj = route.objects.filter(route_operators=operator, route_num=route_num).first()
             except route.DoesNotExist:
                 route_obj = None
+
+            print("==========================")
+            print("inbound:" + str(inbound_trips[i] == 'true'))
+            print("==========================")
 
             dutyTrip.objects.create(
                 duty=duty_instance,
