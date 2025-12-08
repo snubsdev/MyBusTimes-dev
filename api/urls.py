@@ -26,6 +26,8 @@ urlpatterns = [
     path('user/', ratelimit(key='ip', method='GET', rate='10/s')(get_user_profile), name='get_user_profile'),
     path('user-search/', ratelimit(key='ip', method='GET', rate='10/s')(user_search_api), name='user-search-api'),
 
+    path("valhalla/route/", valhalla_proxy, name="valhalla_proxy"),
+
     path("simplify-gradient/", ratelimit(key='ip', method='GET', rate='10/s')(simplify_gradient), name="simplify_gradient"),
 
     path("get_random_community_image/", ratelimit(key='ip', method='GET', rate='10/s')(get_random_community_image), name="get_random_community_image"),
