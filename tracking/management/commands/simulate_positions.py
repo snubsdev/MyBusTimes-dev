@@ -29,11 +29,29 @@ class Command(BaseCommand):
         if not active_trips.exists():
             self.stdout.write("No active trips found.")
             return
+        
+        # ---------------------------------------------------------
+        # 2. Clear sim data for vehicles not on active trips
+        # ---------------------------------------------------------
+        fleet.objects.filter(
+            current_trip__trip_end_at__lt=now
+        ).update(
+            sim_lat=None,
+            sim_lon=None,
+            sim_heading=None,
+            current_trip=None,
+            updated_at=None
+        )
+
+        self.stdout.write("Cleared old trip positions.")
 
         # ---------------------------------------------------------
-        # 2. Update each active trip
+        # 3. Update each active trip
         # ---------------------------------------------------------
         for trip in active_trips:
+
+            print(f"Processing Trip {trip.pk}")
+
             vehicle = trip.trip_vehicle
             if not vehicle:
                 continue
@@ -49,9 +67,6 @@ class Command(BaseCommand):
             # Interpolate coordinate
             lat, lng, seg_index = interpolate(coords, progress)
 
-            # Heading
-            lat, lng, seg_index = interpolate(coords, progress)
-
             # If we're at the last point, re-use previous point
             if seg_index >= len(coords) - 1:
                 lat2, lng2 = coords[seg_index - 1]
@@ -65,12 +80,16 @@ class Command(BaseCommand):
             vehicle.sim_lon = lng
             vehicle.sim_heading = heading
             vehicle.current_trip = trip
+            vehicle.updated_at = now
+
+            print(f"Vehicle {vehicle.pk} updated: lat={lat}, lon={lng}, heading={heading}, trip={trip.pk}")
 
             vehicle.save(update_fields=[
                 "sim_lat",
                 "sim_lon",
                 "sim_heading",
-                "current_trip"
+                "current_trip",
+                "updated_at",
             ])
 
             self.stdout.write(
@@ -78,17 +97,3 @@ class Command(BaseCommand):
                     f"Updated {vehicle} → lat={lat}, lon={lng}, heading={heading}"
                 )
             )
-
-        # ---------------------------------------------------------
-        # 3. Clear sim data for vehicles not on active trips
-        # ---------------------------------------------------------
-        fleet.objects.filter(
-            current_trip__trip_end_at__lt=now
-        ).update(
-            sim_lat=None,
-            sim_lon=None,
-            sim_heading=None,
-            current_trip=None,
-        )
-
-        self.stdout.write("Cleared old trip positions.")
