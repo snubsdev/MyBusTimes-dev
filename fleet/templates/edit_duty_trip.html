@@ -72,7 +72,8 @@
             <input type="text" name="end_at[]" value="{{ trip.end_at }}" required>
 
             <label for="inbound">inbound?</label>
-            <input type="checkbox" name="inbound[]" {% if trip.inbound %}checked{% endif %}>
+            <input type="hidden" name="inbound_trip[]" value="false">
+            <input type="checkbox" name="inbound_trip_check[]" {% if trip.inbound %}checked{% endif %}>
           </div>
         {% endfor %}
       </div>
@@ -83,6 +84,18 @@
 
   <!-- Select2 JS -->
   <script>
+    function addCheckboxListeners() {
+      document.querySelectorAll('input[type="checkbox"][name="inbound_trip_check[]"]').forEach(function(checkbox) {
+        const hiddenInput = checkbox.previousElementSibling;
+        if (hiddenInput && hiddenInput.name === 'inbound_trip[]') {
+           hiddenInput.value = checkbox.checked ? 'true' : 'false';
+           checkbox.onchange = function() {
+             hiddenInput.value = this.checked ? 'true' : 'false';
+           };
+        }
+      });
+    }
+
     function addRemoveTripListeners() {
       document.querySelectorAll('.remove-trip').forEach(function(btn) {
         btn.onclick = function() {
@@ -123,6 +136,7 @@
       addRemoveTripListeners();
       addRouteSelectListeners();
       initSelect2();
+      addCheckboxListeners();
     });
 
     document.getElementById('add-trip').addEventListener('click', function(e) {
@@ -151,7 +165,8 @@
         <label>End At:</label>
         <input type="text" name="end_at[]" required>
         <label for="inbound">inbound?</label>
-        <input type="checkbox" name="inbound[]">
+        <input type="hidden" name="inbound_trip[]" value="false">
+        <input type="checkbox" name="inbound_trip_check[]">
       `;
 
       container.appendChild(tripGroup);
@@ -166,6 +181,7 @@
 
       addRemoveTripListeners();
       addRouteSelectListeners();
+      addCheckboxListeners();
     });
   </script>
 {% endblock %}
