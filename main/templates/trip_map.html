@@ -3,9 +3,9 @@
 {% load url_filters %}
 
 {% block title %}{{ route.route_num }} Route Map{% endblock %}
-
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/leaflet.css' %}">
+<link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
+
 <style>
   html, body, main {
     height: 100%;
@@ -27,15 +27,12 @@
     left: 10px;
     z-index: 1000;
     background: var(--brand-color);
+    color: var(--text-color);
     padding: 6px 10px;
+    border: none;
     border-radius: 4px;
     cursor: pointer;
   }
-
-  .leaflet-marker-icon.rotate-0 { transform: rotate(0deg); }
-  .leaflet-marker-icon.rotate-90 { transform: rotate(90deg); }
-  .leaflet-marker-icon.rotate-180 { transform: rotate(180deg); }
-  .leaflet-marker-icon.rotate-270 { transform: rotate(270deg); }
 </style>
 {% endblock %}
 
