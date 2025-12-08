@@ -381,6 +381,7 @@ class EstimatedPositionSerializer(serializers.Serializer):
     lng = serializers.FloatField(source="sim_lon")
     destination = serializers.SerializerMethodField()
     heading = serializers.FloatField(source="sim_heading")
+    updated_at = serializers.DateTimeField(source="updated_at")
 
     def get_trip_id(self, obj):
         ct = obj.current_trip
