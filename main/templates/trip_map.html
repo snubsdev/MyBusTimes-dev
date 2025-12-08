@@ -52,10 +52,10 @@
 <div id="map"></div>
 
 <script>
-  const tripId = {{ trip.id }};
-  const operatorName = "{{ operator.operator_name }}";
+  const tripId = "{{ trip.trip_id }}";   // ensure string interpolation
+  let currentDirection = "inbound";
 
-  // Choose tile style (dark/light theme)
+  // Choose tile style
   {% if themeDark == 'True' %}
     const tilesJSON = 'https://tiles.snubs.dev/styles/dark/style.json';
   {% else %}
@@ -72,36 +72,34 @@
 
   let markers = [];
   const routeLayerId = 'routeLine';
-  const trackingLayerId = 'trackingLine';
 
   async function loadTrip(tripId) {
-    // Clear markers
-    for (const m of markers) m.remove();
-    markers = [];
-
-    // Remove previous route line
-    if (map.getLayer(routeLayerId)) map.removeLayer(routeLayerId);
-    if (map.getSource(routeLayerId)) map.removeSource(routeLayerId);
-
     // Fetch trip data
     const res = await fetch(`/api/trips/${tripId}/`);
     if (!res.ok) {
-      alert('Failed to load trip data');
+      alert("Failed to load trip data");
       return;
     }
-
     const tripData = await res.json();
-    const routeId = tripData.route_id;
-    const direction = tripData.direction || 'inbound';
+    console.log("Trip data:", tripData);
 
-    // Fetch route geometry using routeId
-    const routeRes = await fetch(`/api/routes/${routeId}/stops/?direction=${direction}`);
+    const routeId = tripData.trip_route;   // use trip_route field
+    currentDirection = tripData.direction || currentDirection;
+
+    // Fetch route geometry
+    const routeRes = await fetch(`/api/routes/${routeId}/stops/?direction=${currentDirection}`);
     if (!routeRes.ok) {
-      alert('Failed to load route stops');
+      alert("Failed to load route stops");
       return;
     }
-
     const data = await routeRes.json();
+
+    // Clear old markers/layers
+    for (const m of markers) m.remove();
+    markers = [];
+    if (map.getLayer(routeLayerId)) map.removeLayer(routeLayerId);
+    if (map.getSource(routeLayerId)) map.removeSource(routeLayerId);
+
     const hasSnapped = data.has_snapped_route === true;
     const stops = data.stops || [];
     const snapped = data.snapped_route || [];
@@ -116,19 +114,14 @@
     if (geometryToDraw.length >= 2) {
       map.addSource(routeLayerId, {
         type: 'geojson',
-        data: {
-          type: 'Feature',
-          geometry: { type: 'LineString', coordinates: geometryToDraw }
-        }
+        data: { type: 'Feature', geometry: { type: 'LineString', coordinates: geometryToDraw } }
       });
-
       map.addLayer({
         id: routeLayerId,
         type: 'line',
         source: routeLayerId,
         paint: { 'line-color': '#2f80ed', 'line-width': 3 }
       });
-
       const bounds = new maplibregl.LngLatBounds();
       geometryToDraw.forEach(c => bounds.extend(c));
       map.fitBounds(bounds, { padding: 60 });
@@ -138,72 +131,41 @@
     for (const stop of stops) {
       const [lat, lon] = stop.cords.split(',').map(Number);
       if (isNaN(lat) || isNaN(lon)) continue;
-
       const el = document.createElement('div');
-      el.style.cssText = `
-        width:10px;height:10px;
-        border:3px solid #2f80ea;
-        border-radius:50%;
-        background:#fff;
-        cursor:pointer;
-      `;
-
-      const marker = new maplibregl.Marker({ element: el })
+      el.style.cssText = "width:10px;height:10px;border:3px solid #2f80ea;border-radius:50%;background:#fff;cursor:pointer;";
+      new maplibregl.Marker({ element: el })
         .setLngLat([lon, lat])
-        .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(
-          `<a href="/stop/?name=${encodeURIComponent(stop.stop)}">${stop.stop}</a>`
-        ))
+        .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(`<a href="/stop/?name=${encodeURIComponent(stop.stop)}">${stop.stop}</a>`))
         .addTo(map);
-
-      markers.push(marker);
     }
 
-    // Plot tracking overlay if present
-    const trackingPoints = tripData.tracking_points || [];
-    if (trackingPoints.length) {
-      const coords = trackingPoints.map(p => [p.X, p.Y]);
-
-      if (map.getLayer(trackingLayerId)) map.removeLayer(trackingLayerId);
-      if (map.getSource(trackingLayerId)) map.removeSource(trackingLayerId);
-
-      map.addSource(trackingLayerId, {
+    // Optional: if your API provides tracking_points, overlay them here
+    if (tripData.tracking_points && tripData.tracking_points.length) {
+      const coords = tripData.tracking_points.map(p => [p.X, p.Y]);
+      map.addSource('trackingLine', {
         type: 'geojson',
-        data: {
-          type: 'Feature',
-          geometry: { type: 'LineString', coordinates: coords }
-        }
+        data: { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } }
       });
-
       map.addLayer({
-        id: trackingLayerId,
+        id: 'trackingLine',
         type: 'line',
-        source: trackingLayerId,
-        paint: {
-          'line-color': 'black',
-          'line-width': 3,
-          'line-dasharray': [4, 7]
-        }
+        source: 'trackingLine',
+        paint: { 'line-color': 'black', 'line-width': 3, 'line-dasharray': [4, 7] }
       });
-
-      // Add bus icon at last point
       const last = coords[coords.length - 1];
       if (last) {
-        const heading = trackingPoints[trackingPoints.length - 1].heading || 0;
-        const el = document.createElement('img');
-        el.src = '{% static "icons/bus-arrow.svg" %}';
-        el.style.width = '32px';
-        el.style.height = '32px';
-        el.style.transform = `rotate(${heading}deg)`;
-
-        new maplibregl.Marker({ element: el })
-          .setLngLat(last)
-          .addTo(map);
+        const heading = tripData.tracking_points[tripData.tracking_points.length - 1].heading || 0;
+        const busEl = document.createElement('img');
+        busEl.src = '{% static "icons/bus-arrow.svg" %}';
+        busEl.style.width = '32px'; busEl.style.height = '32px';
+        busEl.style.transform = `rotate(${heading}deg)`;
+        new maplibregl.Marker({ element: busEl }).setLngLat(last).addTo(map);
       }
     }
   }
 
-  // Initial load
   map.on('load', () => loadTrip(tripId));
 </script>
+
 
 {% endblock %}
