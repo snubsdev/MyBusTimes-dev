@@ -4252,6 +4252,25 @@ def route_edit_stops(request, operator_slug, route_id, direction):
 
     return render(request, 'route_edit_route.html', context)
 
+from django.views.decorators.csrf import csrf_exempt
+
+@csrf_exempt
+def valhalla_proxy(request):
+    url = settings.ROUTEING_URL
+    headers = {"Content-Type": "application/json"}
+
+    try:
+        r = requests.post(url, data=request.body, headers=headers)
+    except Exception as e:
+        return JsonResponse({"error": f"Proxy request failed: {e}"}, status=500)
+
+    # Try JSON first
+    try:
+        return JsonResponse(r.json(), safe=False, status=r.status_code)
+    except ValueError:
+        # Fallback: return raw text/HTML from Valhalla
+        return HttpResponse(r.text, status=r.status_code)
+
 @login_required
 @require_http_methods(["GET", "POST"])
 def route_add_stops(request, operator_slug, route_id, direction):

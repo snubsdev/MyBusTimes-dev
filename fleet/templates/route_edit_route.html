@@ -120,51 +120,117 @@
     return total;
   }
 
-  async function snapSegment(from, to) {
-    // returns { coords: [[lng,lat],...], distance: meters, time: seconds } or null
-    const key = '{{ user.snap_api_key }}';
-    if (!key || key.length < 10) {
-        console.warn("No Snap API key set, skipping snapping.");
-        return null;
+  async function autoSnapRoute() {
+    const n = selectedCoords.length;
+    if (n < 2) return;
+
+    snappedSegments = [];
+
+    for (let i = 0; i < n - 1; i++) {
+        const from = selectedCoords[i];
+        const to = selectedCoords[i + 1];
+
+        const snapped = await snapSegment(from, to);
+
+        if (snapped) snappedSegments[i] = snapped;
+        else {
+            snappedSegments[i] = {
+                coords: [[from.lon, from.lat], [to.lon, to.lat]],
+                distance: Math.round(haversineDistance([from.lon, from.lat],[to.lon, to.lat])),
+                time: Math.round(haversineDistance([from.lon, from.lat],[to.lon, to.lat]) / 8.333333)
+            };
+        }
     }
 
-    const url =
-        `https://api.geoapify.com/v1/routing?` +
-        `waypoints=${from.lat},${from.lon}|${to.lat},${to.lon}` +
-        `&mode=bus` +       // BUS PROFILE
-        `&apiKey=${key}`;
+    // Build full geometry
+    let combined = [];
+    for (let i = 0; i < snappedSegments.length; i++) {
+        let seg = snappedSegments[i].coords;
+        if (!seg) continue;
+        if (combined.length && seg.length) seg = seg.slice(1);
+        combined.push(...seg);
+    }
+
+    window.snappedFullGeometry = combined;
+
+    // Update map
+    if (map.getSource("routeLine")) {
+        map.getSource("routeLine").setData({
+            type: "Feature",
+            geometry: { type: "LineString", coordinates: combined }
+        });
+    }
+
+    updateStopDistances();
+  }
+
+  // Polyline6 decoder (Valhalla)
+  function decodeValhalla(str) {
+      let index = 0, lat = 0, lon = 0, coords = [];
+
+      while (index < str.length) {
+          let result = 1, shift = 0, b;
+          do {
+              b = str.charCodeAt(index++) - 63 - 1;
+              result += b << shift;
+              shift += 5;
+          } while (b >= 0x1f);
+          lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+
+          result = 1; shift = 0;
+          do {
+              b = str.charCodeAt(index++) - 63 - 1;
+              result += b << shift;
+              shift += 5;
+          } while (b >= 0x1f);
+          lon += (result & 1) ? ~(result >> 1) : (result >> 1);
+
+          coords.push([lon / 1e6, lat / 1e6]);
+      }
+
+      return coords;
+  }
+
+
+  async function snapSegment(from, to) {
+    // returns { coords:[[lon,lat],...], distance:meters, time:seconds } or null
+
+    const url = "/api/valhalla/route/";   // <-- YOUR VALHALLA URL
+
+    const body = {
+        locations: [
+            { lat: from.lat, lon: from.lon },
+            { lat: to.lat,   lon: to.lon   }
+        ],
+        costing: "bus",      // or "bus" if you built that profile
+        directions_options: { units: "meters" }
+    };
 
     try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error("Routing error: " + res.status);
-        const data = await res.json();
-        const feat = data.features?.[0];
-        const geom = feat?.geometry;
-        const props = feat?.properties || data.features?.[0]?.properties || null;
+        const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+        });
 
-        let coords = null;
-        if (!geom) {
+        if (!res.ok) {
+            console.error("Valhalla error:", res.status);
             return null;
         }
 
-        if (geom.type === "LineString") coords = geom.coordinates;
-        else if (geom.type === "MultiLineString") coords = geom.coordinates.flat();
-        else return null;
+        const data = await res.json();
 
-        // Try to read distance/time from properties if available
-        let distance = props?.distance ?? props?.legs?.reduce((s, l) => s + (l.distance || 0), 0);
-        let time = props?.time ?? props?.legs?.reduce((s, l) => s + (l.time || 0), 0);
+        const leg = data?.trip?.legs?.[0];
+        if (!leg) return null;
 
-        // If not available, compute distance from coords and estimate time assuming 30 km/h ~ 8.33 m/s
-        if (!distance || distance === 0) {
-            distance = Math.round(polylineDistance(coords));
-        }
-        if (!time || time === 0) {
-            const assumedSpeed = 8.333333; // m/s ~ 30 km/h
-            time = Math.round(distance / assumedSpeed);
-        }
+        // Decode polyline into [lon,lat]
+        const shape = leg.shape; // polyline string
+        const coords = decodeValhalla(shape); // we add this below
 
-        return { coords, distance: Math.round(distance), time: Math.round(time) };
+        const distance = Math.round(leg.summary.length * 1000);
+        const time = Math.round(leg.summary.time);
+
+        return { coords, distance, time };
     } catch (err) {
         console.error("Snap failed:", err);
         return null;
@@ -184,6 +250,7 @@
       selectedCoords.push({ lat, lon: lng, heading: null });
       addStopToList(name, timing_point);
       updateRoute();
+      autoSnapRoute();
     });
 
     markers.push(marker);
@@ -214,6 +281,7 @@
         snappedSegments.splice(index, 1); // keep arrays aligned (safe)
         tr.remove();
         updateRoute();
+        autoSnapRoute();
       }
     });
 

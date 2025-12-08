@@ -111,7 +111,17 @@ class CustomUser(AbstractUser):
     pfp = models.ImageField(upload_to='images/profile_pics/', default='images/default_profile_pic.png', blank=True, null=True)
     banner = models.ImageField(upload_to='images/profile_banners/', default='images/default_banner.png', blank=True, null=True)
     stripe_subscription_id = models.CharField(max_length=255, blank=True, null=True)
-    snap_api_key = models.CharField(max_length=255, blank=True, null=True)
+    PLAN_CHOICES = [
+        ('free', 'Free'),
+        ('monthly', 'Monthly'),
+        ('yearly', 'Yearly'),
+    ]
+    
+    sub_plan = models.CharField(
+        max_length=10,
+        choices=PLAN_CHOICES,
+        default='free',
+    )
 
     #Bus Buying stuff
     buses_brought_count = models.PositiveIntegerField(default=0)
