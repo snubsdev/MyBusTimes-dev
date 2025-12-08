@@ -7,6 +7,7 @@
 {% block extra_css %}
 <link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
 
+
 <style>
   html, body, main {
     height: 100%;
@@ -34,6 +35,38 @@
     border-radius: 4px;
     cursor: pointer;
   }
+
+  #stopsToggle {
+    position: fixed;
+    bottom: 50px;
+    left: 10px;
+    z-index: 1000;
+    background: var(--brand-color);
+    color: var(--text-color);
+    padding: 6px 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .vehicle-marker {
+    text-align: center;
+    color: #000;
+    fill: currentColor;
+    text-anchor: middle;
+    paint-order: stroke;
+    stroke-width: 2px;
+    line-height: 16px;
+    z-index: 20;
+  }
+
+  .maplibregl-popup-tip,
+  .maplibregl-popup-content {
+    background: var(--background-color) !important;
+    color: var(--text-color) !important;
+    border-radius: 0.5em !important;
+    font-size: 12px !important;
+  }
 </style>
 {% endblock %}
 
@@ -50,6 +83,7 @@
   const operatorName = "{{ operator.operator_name }}";
 
   let currentDirection = "inbound";
+  let btMarkers = [];
 
   // Choose tile style
   {% if themeDark == 'True' %}
@@ -64,6 +98,9 @@
     center: [-1.9, 54.9],
     zoom: 6
   });
+
+  btMarkers.forEach(m => m.remove());
+  btMarkers = [];
 
   function createLiveryIcon({ label = '', rotation = 0, bg = '#0000', css = null, textColour = '#fff', textStroke = "#0000", strokeWidth = "0px" } = {}) {
       const normalisedRotation = ((rotation % 360) + 360) % 360;
@@ -176,6 +213,10 @@
 
     const stops = data.stops || [];
     const snapped = data.snapped_route || [];
+
+    if (stop.cords === null) {
+      return;
+    }
 
     // Parse stop coords
     const stopCoords = stops
