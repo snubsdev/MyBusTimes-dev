@@ -134,7 +134,7 @@
       route_id: routeId,
     });
 
-    const url = `/api/trips/estimated_positions/?${q}&limit=5000`;
+    const url = `/api/trips/simulated_positions/?${q}&limit=5000`;
 
     const res = await fetch(url);
     const data = await res.json();
