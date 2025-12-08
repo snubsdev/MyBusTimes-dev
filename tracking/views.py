@@ -13,6 +13,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from .forms import trackingForm
 from django.shortcuts import redirect
+import math
 from main.models import UserKeys
 from rest_framework import generics, serializers
 from routes.models import routeStop
@@ -279,7 +280,6 @@ class current_vehicle_trips(generics.ListAPIView):
         print(f"[DEBUG] current_vehicle_trips: found {queryset.count()} trips")
         return queryset
     
-import math
 def calculate_heading(lat1, lng1, lat2, lng2):
     """
     Returns heading in degrees (0–360),
@@ -295,9 +295,18 @@ def calculate_heading(lat1, lng1, lat2, lng2):
     heading = math.degrees(math.atan2(x, y))
     heading = (heading + 360) % 360
     return heading
-    
-def get_route_coordinates(route_id, trip_end_location):
-    print(f"[DEBUG] get_route_coordinates_for_trip: route_id={route_id}, trip_end_location='{trip_end_location}'")
+
+def get_route_coordinates(route_id, trip):
+    """
+    Determine which routeStop direction to use.
+
+    Priority:
+    1) If trip.trip_inbound is True → inbound direction (2nd routeStop)
+    2) If trip.trip_inbound is False → outbound direction (1st routeStop)
+    3) If trip.trip_inbound is None → fallback to old last-stop detection
+    """
+
+    print(f"[DEBUG] get_route_coordinates: route_id={route_id}, inbound={trip.trip_inbound}")
 
     stops_qs = routeStop.objects.filter(route_id=route_id).order_by("id")
     print(f"[DEBUG] found {stops_qs.count()} routeStop rows")
@@ -306,74 +315,92 @@ def get_route_coordinates(route_id, trip_end_location):
         print("[DEBUG] no routeStops found → returning []")
         return []
 
+    # -------------------------------
+    # EXPLICIT INBOUND/OUTBOUND CHOICE
+    # -------------------------------
+    if trip.trip_inbound is False:
+        print("[DEBUG] trip_inbound=False → using inbound (index 1)")
+        if stops_qs.count() >= 2:
+            return extract_coords_from_routeStop(stops_qs[1])
+        return extract_coords_from_routeStop(stops_qs[0])
+
+    if trip.trip_inbound is True:
+        print("[DEBUG] trip_inbound=True → using outbound (index 0)")
+        return extract_coords_from_routeStop(stops_qs[0])
+
+    # -------------------------------
+    # FALLBACK: AUTO-DETECT LIKE BEFORE
+    # -------------------------------
+    print("[DEBUG] trip_inbound=None → using auto-detect fallback")
+
     direction_candidates = []
 
     for rs in stops_qs:
-        print(f"[DEBUG] processing routeStop id={rs.id}")
-
-        coords = []
-        last_stop_name = None
-
-        if not rs.stops or not isinstance(rs.stops, list):
-            print(f"[DEBUG] routeStop {rs.id} has invalid stops field")
-            continue
-
-        for i, stop in enumerate(rs.stops):
-            if not isinstance(stop, dict):
-                print(f"[DEBUG] skipping non-dict stop at index {i} in routeStop {rs.id}")
-                continue
-
-            # Try to extract stop name
-            sname = stop.get("stop") or stop.get("name") or stop.get("title")
-            if sname:
-                last_stop_name = sname
-
-            # cords: "lat,lng"
-            cords = stop.get("cords") or stop.get("coords")
-            if cords:
-                try:
-                    lat_str, lng_str = cords.split(",")
-                    coords.append((float(lat_str.strip()), float(lng_str.strip())))
-                    continue
-                except Exception as e:
-                    print(f"[DEBUG] failed to parse cords '{cords}' in routeStop {rs.id}: {e}")
-
-            # lat/lng fields
-            lat = stop.get("lat") or stop.get("latitude")
-            lng = stop.get("lng") or stop.get("longitude") or stop.get("long")
-            if lat is not None and lng is not None:
-                try:
-                    coords.append((float(lat), float(lng)))
-                    continue
-                except Exception as e:
-                    print(f"[DEBUG] failed parsing lat/lng in routeStop {rs.id}: {e}")
-
-        print(f"[DEBUG] routeStop {rs.id} → extracted {len(coords)} coords, last_stop='{last_stop_name}'")
+        coords, last_stop_name = extract_coords_and_last_stop(rs)
 
         if coords:
             direction_candidates.append({
                 "coords": coords,
                 "last_stop": last_stop_name
             })
-        else:
-            print(f"[DEBUG] routeStop {rs.id} had NO valid coords → skipping")
 
-    # NEW SAFETY CHECK — prevents IndexError
     if not direction_candidates:
-        print("[DEBUG] No valid routeStops produced coords → returning []")
+        print("[DEBUG] no valid directions → return []")
         return []
 
-    # Try matching by trip_end_location
-    trip_end_location = (trip_end_location or "").lower().strip()
+    trip_end_location = (trip.trip_end_location or "").lower().strip()
 
     for d in direction_candidates:
         ls = (d["last_stop"] or "").lower().strip()
         if trip_end_location and ls and trip_end_location in ls:
-            print(f"[DEBUG] MATCH FOUND: using direction with last_stop '{d['last_stop']}'")
+            print(f"[DEBUG] MATCH FOUND: using last_stop '{d['last_stop']}'")
             return d["coords"]
 
-    print("[DEBUG] NO MATCH FOUND → using default (first routeStop)")
+    print("[DEBUG] no match → using first direction")
     return direction_candidates[0]["coords"]
+
+
+def extract_coords_from_routeStop(rs):
+    """Small helper that extracts coords only (in one list)."""
+    coords, _ = extract_coords_and_last_stop(rs)
+    return coords or []
+
+
+def extract_coords_and_last_stop(rs):
+    """Shared logic from your old loop."""
+    coords = []
+    last_stop_name = None
+
+    if not rs.stops or not isinstance(rs.stops, list):
+        return coords, None
+
+    for stop in rs.stops:
+        if not isinstance(stop, dict):
+            continue
+
+        sname = stop.get("stop") or stop.get("name") or stop.get("title")
+        if sname:
+            last_stop_name = sname
+
+        cords = stop.get("cords") or stop.get("coords")
+        if cords:
+            try:
+                lat_str, lng_str = cords.split(",")
+                coords.append((float(lat_str.strip()), float(lng_str.strip())))
+                continue
+            except:
+                pass
+
+        lat = stop.get("lat") or stop.get("latitude")
+        lng = stop.get("lng") or stop.get("longitude") or stop.get("long")
+        if lat is not None and lng is not None:
+            try:
+                coords.append((float(lat), float(lng)))
+                continue
+            except:
+                pass
+
+    return coords, last_stop_name
 
 def get_progress(trip):
     now = timezone.now()
@@ -589,7 +616,7 @@ class VehiclePositionAPIView(generics.ListAPIView):
 
             coords = get_route_coordinates(
                 trip.trip_route_id,
-                trip.trip_end_location or ""
+                trip
             )
 
             progress = get_progress(trip)

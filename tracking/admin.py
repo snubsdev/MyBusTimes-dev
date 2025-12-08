@@ -103,7 +103,7 @@ class TripRouteFilter(AutocompleteFilter):
 class TripAdmin(SimpleHistoryAdmin):
     form = TripForm
     list_display = (
-        'trip_id', 'trip_start_at', 'trip_end_at', 'trip_ended', 'trip_route', 'trip_vehicle'
+        'trip_id', 'trip_inbound', 'trip_start_at', 'trip_end_at', 'trip_ended', 'trip_route', 'trip_vehicle'
     )
     search_fields = (
         'trip_id',
