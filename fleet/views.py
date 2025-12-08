@@ -4172,45 +4172,70 @@ def route_edit_stops(request, operator_slug, route_id, direction):
 
     userPerms = get_helper_permissions(request.user, operator)
 
-    if mapTiles == None:
+    if mapTiles is None:
         mapTiles = mapTileSet.objects.get(id=1)
 
     if request.user != operator.owner and 'Edit Stops' not in userPerms and not request.user.is_superuser:
         messages.error(request, "You do not have permission to edit this route's stops.")
         return redirect(f'/operator/{operator_slug}/route/{route_id}/')
 
-    # Load existing stops for this route and direction
+    # Load existing stops + snapped geometry
     try:
-        existing_route_stops = routeStop.objects.filter(route=route_instance, inbound=(direction == "inbound")).first()
-        existing_stops = existing_route_stops.stops
+        existing_route_stops = routeStop.objects.filter(
+            route=route_instance,
+            inbound=(direction == "inbound")
+        ).first()
+
+        existing_stops = existing_route_stops.stops if existing_route_stops else []
+        existing_snapped = existing_route_stops.snapped_route if existing_route_stops else None
+
     except routeStop.DoesNotExist:
         existing_stops = []
+        existing_snapped = None
 
+    # -----------------------------
+    #          HANDLE POST
+    # -----------------------------
     if request.method == "POST":
         try:
             raw_data = request.POST.get("routeData")
+            snapped_raw = request.POST.get("snappedGeometry")
+
             if not raw_data:
                 raise ValueError("Missing routeData")
 
             parsed_stops = json.loads(raw_data)
 
-            # Update or create routeStop record
+            # Optional snapped route data
+            if snapped_raw:
+                try:
+                    parsed_snapped = json.loads(snapped_raw)
+                except:
+                    parsed_snapped = None
+            else:
+                parsed_snapped = None
+
+            # Save everything
             routeStop.objects.update_or_create(
                 route=route_instance,
                 inbound=(direction == "inbound"),
                 defaults={
-                    "circular": False,  # Adjust if needed
-                    "stops": parsed_stops
+                    "circular": False,
+                    "stops": parsed_stops,
+                    "snapped_route": parsed_snapped,
                 }
             )
 
-            messages.success(request, "Stops updated successfully.")
+            messages.success(request, "Stops & snapped route saved.")
             return redirect(f'/operator/{operator_slug}/route/{route_id}/')
 
         except Exception as e:
             messages.error(request, f"Failed to update stops: {e}")
             return redirect(request.path)
 
+    # -----------------------------
+    #           RENDER PAGE
+    # -----------------------------
     breadcrumbs = [
         {'name': 'Home', 'url': '/'},
         {'name': operator.operator_name, 'url': f'/operator/{operator_slug}/'},
@@ -4225,6 +4250,7 @@ def route_edit_stops(request, operator_slug, route_id, direction):
         'direction': direction,
         'mapTile': mapTiles,
         'existing_stops': existing_stops,  # Pass existing stops here
+        'existing_snapped': existing_snapped,  # Pass existing snapped geometry here
     }
     return render(request, 'route_edit_route.html', context)
 
@@ -4270,20 +4296,22 @@ def route_add_stops(request, operator_slug, route_id, direction):
     if request.method == "POST":
         try:
             raw_data = request.POST.get("routeData")
-            if not raw_data:
-                raise ValueError("Missing routeData")
+            parsed = json.loads(raw_data)
 
-            parsed_stops = json.loads(raw_data)
+            stops = parsed["stops"]
+            snapped = parsed.get("snapped_geometry", [])
 
-            # Delete any existing stops for this route and direction first (optional but good for edits)
-            routeStop.objects.filter(route=route_instance, inbound=(direction == "inbound")).delete()
+            routeStop.objects.filter(
+                route=route_instance,
+                inbound=(direction == "inbound")
+            ).delete()
 
-            # Create new routeStop entry
             routeStop.objects.create(
                 route=route_instance,
                 inbound=(direction == "inbound"),
-                circular=False,  # Or True if you detect that logic elsewhere
-                stops=parsed_stops  # Save raw list of dictionaries directly
+                circular=False,
+                stops=stops,
+                snapped_route=json.dumps(snapped)
             )
 
             messages.success(request, "Stops saved successfully.")
