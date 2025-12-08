@@ -142,7 +142,8 @@ function createLiveryIcon({ label = '', rotation = 0, css = null, textColour = '
 
 // show only the trip’s vehicle marker
 async function loadTripVehicleMarker() {
-  const url = `/api/trips/estimated_positions/?trip_id=${tripId}`;
+  // fetch all positions for operator
+  const url = `/api/trips/estimated_positions/?operator_id={{ operator.id }}&limit=5000`;
   const res = await fetch(url);
   const data = await res.json();
   const vehicles = Array.isArray(data.results) ? data.results : [];
@@ -150,13 +151,10 @@ async function loadTripVehicleMarker() {
   btMarkers.forEach(m => m.remove());
   btMarkers = [];
 
-  if (!vehicles.length) {
-    console.log("No vehicle found for trip", tripId);
-    return;
-  }
-
-  const v = vehicles[0];
+  // look through results for this tripId
+  const v = vehicles.find(v => v.trip_id == tripId);
   console.log("Trip vehicle:", v);
+  if (!v) return;
 
   if (!v.lat || !v.lng) return;
 
