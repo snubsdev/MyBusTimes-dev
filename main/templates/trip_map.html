@@ -52,15 +52,15 @@
 <div id="map"></div>
 
 <script>
-const tripId = "{{ trip.trip_id }}";   // current trip
+const tripId = "{{ trip.trip_id }}";
 const operatorId = "{{ operator.id }}";
 let currentDirection = "inbound";
-let showStops = true;
+let showStops = false;
 
 {% if themeDark == 'True' %}
-  tilesJSON = 'https://tiles.snubs.dev/styles/dark/style.json';
+  const tilesJSON = 'https://tiles.snubs.dev/styles/dark/style.json';
 {% else %}
-  tilesJSON = 'https://tiles.snubs.dev/styles/light/style.json';
+  const tilesJSON = 'https://tiles.snubs.dev/styles/light/style.json';
 {% endif %}
 
 const map = new maplibregl.Map({
@@ -144,59 +144,82 @@ function createLiveryIcon({ label = '', rotation = 0, css = null, textColour = '
   return html;
 }
 
-async function loadOperatorBT() {
+async function fetchTripVehicle() {
   const b = map.getBounds();
   const q = new URLSearchParams({
     ymax: b.getNorth(), ymin: b.getSouth(),
     xmax: b.getEast(), xmin: b.getWest(),
     operator_id: operatorId
-  });
-  const url = `/api/trips/estimated_positions/?${q}&limit=5000`;
-  const res = await fetch(url);
-  const data = await res.json();
-  const vehicles = Array.isArray(data.results) ? data.results : [];
+  }).toString();
 
-  btMarkers.forEach(m => m.remove());
-  btMarkers = [];
+  try {
+    const res = await fetch(`/api/trips/estimated_positions/?${q}&limit=5000`);
+    const data = await res.json();
+    let vehicles = Array.isArray(data.results) ? data.results : (data.features || []);
+    btMarkers.forEach(m => m.remove());
+    btMarkers = [];
 
-  // only show the vehicle for this trip
-  const v = vehicles.find(v => v.trip_id === parseInt(tripId));
-  if (!v) return;
+    // only show the vehicle for this trip
+    const v = vehicles.find(v => v.trip_id === parseInt(tripId));
+    if (!v) return;
 
-  const lat = v.lat, lng = v.lng;
-  if (!lat || !lng) return;
+    const lng = v.lng, lat = v.lat;
+    if (!lng || !lat) return;
 
-  let heading = (v.heading ?? 0) + 180;
-  const line = v.service?.line_name || "";
-  const dest = v.destination || "";
-  const serviceLink = v.service?.url || "";
-  const vehicleLink = v.vehicle?.url || "";
-  const css = v.vehicle?.css || v.vehicle?.left_css || v.vehicle?.colour || "#fff";
-  const textColour = v.vehicle?.text_colour || (v.vehicle?.white_text ? "#fff" : "#000");
-  const textStroke = v.vehicle?.stroke_colour ?? "#000";
-  const strokeWidth = v.vehicle?.stroke_colour ? "2px" : "0px";
-  heading = heading + 90;
+    let heading = v.heading ?? 0;
+    heading = heading + 180;
+    let rotation = heading;
+    heading = heading + 90;
 
-  const el = createLiveryIcon({
-    label: line || v.vehicle.name,
-    css,
-    textColour,
-    rotation: heading,
-    textStroke,
-    strokeWidth
-  });
+    const line = v.service?.line_name || '';
+    const serviceLink = v.service?.url || '';
+    const vehicleLink = v.vehicle?.url || '';
+    const dest = v.destination || '';
+    const vehicleName = v.vehicle?.name || '';
+    const whiteText = v.vehicle?.white_text ?? false;
+    let textStroke = v.vehicle?.stroke_colour ?? false;
+    const livery = v.vehicle?.livery || null;
 
-  const m = new maplibregl.Marker({ element: el })
-    .setLngLat([lng, lat])
-    .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(`
-      <strong>${v.vehicle.name}</strong><br>
-      ${line} ${dest ? "to " + dest : ""}<br>
-      ${vehicleLink ? `<a href="${vehicleLink}">Vehicle page</a><br>` : ""}
+    const left_css = v.vehicle?.left_css || null;
+    const right_css = v.vehicle?.right_css || null;
+    let css = (rotation > 180 && rotation < 360) ? right_css : left_css;
+
+    let textColour = whiteText ? '#fff' : '#000';
+    if (v.vehicle?.text_colour) textColour = v.vehicle.text_colour;
+    let strokeWidth = textStroke ? "2px" : "0px";
+
+    if (livery == null) {
+      textColour = '#000';
+      css = "#fff";
+    }
+    if (v.vehicle?.css) {
+      css = v.vehicle.css;
+    }
+
+    const html = `
+      <a href="${serviceLink}">${line} to ${dest}</a><br>
+      ${vehicleName ? `<a href="${vehicleLink}">${vehicleName}</a><br>` : ''}
       <span>Simulated Location</span>
-    `))
-    .addTo(map);
+    `;
 
-  btMarkers.push(m);
+    const el = createLiveryIcon({
+      label: line || vehicleName,
+      css,
+      textColour,
+      rotation: heading,
+      textStroke,
+      strokeWidth
+    });
+
+    const m = new maplibregl.Marker({ element: el })
+      .setLngLat([lng, lat])
+      .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(html))
+      .addTo(map);
+
+    btMarkers.push(m);
+  } catch (e) {
+    console.error('Trip vehicle fetch failed', e);
+  }
 }
 
 document.getElementById("directionToggle").addEventListener("click", async () => {
@@ -204,7 +227,7 @@ document.getElementById("directionToggle").addEventListener("click", async () =>
   document.getElementById("directionToggle").innerText =
     currentDirection === "inbound" ? "Show Outbound" : "Show Inbound";
   await loadOperatorRoutes();
-  await loadOperatorBT();
+  await fetchTripVehicle();
 });
 
 document.getElementById("stopsToggle").addEventListener("click", async () => {
@@ -215,10 +238,11 @@ document.getElementById("stopsToggle").addEventListener("click", async () => {
 
 (async () => {
   await loadOperatorRoutes();
-  await loadOperatorBT();
+  await fetchTripVehicle();
 })();
 
-map.on("moveend", loadOperatorBT);
-setInterval(loadOperatorBT, 30000);
+map.on("moveend", fetchTripVehicle);
+setInterval(fetchTripVehicle, 30000);
+
 </script>
 {% endblock %}
