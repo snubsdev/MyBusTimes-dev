@@ -198,7 +198,7 @@ async function loadTripVehicleMarker() {
   btMarkers.forEach(m => m.remove());
   btMarkers = [];
 
-  const v = vehicles.find(v => v.trip_id === parseInt(tripId));
+const v = vehicles.find(v => v.trip_id === parseInt(tripId));
   if (!v) return;
 
   const lat = v.lat, lng = v.lng;
