@@ -367,16 +367,16 @@
     for (let i = 0; i < rows.length; i++) {
       const distCell = rows[i].querySelector('.stop-distance');
       const timeCell = rows[i].querySelector('.stop-time');
-      if (i === 0) {
-        // origin stop = zero
-        distCell.textContent = '0 m';
-        timeCell.textContent = '0 s';
-      } else {
-        const seg = segmentInfo[i-1];
-        cumulativeDistance += seg.distance;
-        cumulativeTime += seg.time;
-        distCell.textContent = `${cumulativeDistance} m`;
-        timeCell.textContent = `${cumulativeTime} s`;
+      if (hasPro) {
+          if (i === 0) {
+              distCell.textContent = '0 m';
+              timeCell.textContent = '0 s';
+          } else {
+              cumulativeDistance += seg.distance;
+              cumulativeTime += seg.time;
+              distCell.textContent = `${cumulativeDistance} m`;
+              timeCell.textContent = `${cumulativeTime} s`;
+          }
       }
     }
   }
