@@ -2,174 +2,141 @@
 {% load static %}
 {% load url_filters %}
 
-{% block title %}{{ route.route_num }} Route Map{% endblock %}
-
+{% block title %}Trip Map{% endblock %}
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/leaflet.css' %}">
+<link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
 <style>
-  html, body, main {
-    height: 100%;
-    margin: 0;
-    padding: 0;
-  }
-
-  #map {
-    position: fixed !important;
-    top: 55px;
-    bottom: 0;
-    width: 100%;
-    left: 0;
-  }
-
+  html, body, main { height: 100%; margin: 0; padding: 0; }
+  #map { position: fixed !important; top: 55px; bottom: 0; width: 100%; left: 0; }
   #directionToggle {
-    position: fixed;
-    bottom: 10px;
-    left: 10px;
-    z-index: 1000;
-    background: var(--brand-color);
-    padding: 6px 10px;
-    border-radius: 4px;
-    cursor: pointer;
+    position: fixed; bottom: 10px; left: 10px; z-index: 1000;
+    background: var(--brand-color); color: var(--text-color);
+    padding: 6px 10px; border: none; border-radius: 4px; cursor: pointer;
   }
-
-  .leaflet-marker-icon.rotate-0 { transform: rotate(0deg); }
-  .leaflet-marker-icon.rotate-90 { transform: rotate(90deg); }
-  .leaflet-marker-icon.rotate-180 { transform: rotate(180deg); }
-  .leaflet-marker-icon.rotate-270 { transform: rotate(270deg); }
 </style>
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/leaflet.js' %}"></script>
+<script src="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js"></script>
 {% endblock %}
 
 {% block content %}
-<button id="directionToggle" style="display: none;">
-  {% if direction == "inbound" %}
-    Show Outbound
-  {% else %}
-    Show Inbound
-  {% endif %}
-</button>
-
-
+<button id="directionToggle" style="display:none;">Toggle Direction</button>
 <div id="map"></div>
 
 <script>
-  const routeId = {{ route_id }};
-  const operatorName = "{{ operator.operator_name }}";
-  let currentDirection = "{{ direction }}";
+  const tripId = "{{ trip.trip_id }}";   // ensure string interpolation
+  let currentDirection = "inbound";
 
-  const trackingPoints = {{ tracking_points|safe }};
+  // Choose tile style
+  {% if themeDark == 'True' %}
+    const tilesJSON = 'https://tiles.snubs.dev/styles/dark/style.json';
+  {% else %}
+    const tilesJSON = 'https://tiles.snubs.dev/styles/light/style.json';
+  {% endif %}
 
-  console.log("Tracking Points:", trackingPoints);
-
-  const map = L.map('map').setView([54.238, -3.325], 6);  // fallback location
-
-  L.tileLayer('{{ mapTile.tile_url }}', {
-    attribution: '{{ mapTile.attribution }}',
-  }).addTo(map);
-
-  let markersLayer = L.layerGroup().addTo(map);
-  let routeLayer = null;
-  let trackingLayer = null;
-
-  map.createPane('routes');
-  map.getPane('routes').style.zIndex = 400;
-
-  map.createPane('tracking');
-  map.getPane('tracking').style.zIndex = 500;
-
-  async function loadRoute(direction) {
-    markersLayer.clearLayers();
-    if (routeLayer) {
-      map.removeLayer(routeLayer);
-      routeLayer = null;
-    }
-
-    if (routeId) {
-      const response = await fetch(`/api/routes/${routeId}/stops/?direction=${direction}`);
-      if (!response.ok) {
-        alert("Failed to load route stops");
-        return;
-      }
-
-      const stops = await response.json();
-      const latlngs = stops.map(stop => stop.cords.split(',').map(Number));
-
-      if (latlngs.length >= 2) {
-        routeLayer = L.polyline(latlngs, {
-          color: '#0000',
-          weight: 2,
-          pane: 'routes'
-        }).addTo(map);
-      }
-
-      stops.forEach(stop => {
-        const [lat, lon] = stop.cords.split(',').map(Number);
-        const marker = L.circleMarker([lat, lon], {
-          radius: 4,
-          color: '#0000',
-          fillColor: '#0000',
-          fillOpacity: 1,
-          weight: 2
-        }).addTo(markersLayer);
-        marker.bindPopup(`<a href="/stop/?name=${stop.stop}">${stop.stop}</a>`);
-      });
-
-      if (routeLayer) {
-        map.fitBounds(routeLayer.getBounds());
-      } else {
-        map.fitBounds(markersLayer.getBounds());
-      }
-    }
-  }
-
-  function plotTracking() {
-    if (!trackingPoints.length) return;
-
-    const coords = trackingPoints.map(p => [p.X, p.Y]);
-
-    trackingLayer = L.polyline(coords, {
-      color: 'black',
-      weight: 3,
-      dashArray: '4, 7',
-      opacity: 1,
-      pane: 'tracking',
-      className: 'tracking-line'
-    }).addTo(map);
-
-    // Optional: Add current location marker at the last point
-    const last = coords[coords.length - 1];
-    if (last) {
-      const heading = trackingPoints[trackingPoints.length - 1].heading || 0;
-      const marker = L.marker(last, {
-        icon: L.icon({
-          iconUrl: '{% static "icons/bus-arrow.svg" %}',
-          iconSize: [32, 32],
-          iconAnchor: [16, 16],
-          className: 'rotate-' + heading
-        }),
-        pane: 'tracking'
-      }).addTo(map);
-    }
-  }
-
-  // Toggle button logic
-  const toggleBtn = document.getElementById('directionToggle');
-  toggleBtn.addEventListener('click', () => {
-    if (currentDirection === 'inbound') {
-      currentDirection = 'outbound';
-      toggleBtn.textContent = 'Show Inbound';
-    } else {
-      currentDirection = 'inbound';
-      toggleBtn.textContent = 'Show Outbound';
-    }
-    loadRoute(currentDirection);
+  const map = new maplibregl.Map({
+    container: 'map',
+    style: tilesJSON,
+    center: [-1.9, 54.9],
+    zoom: 6
   });
+  map.addControl(new maplibregl.NavigationControl(), 'top-left');
 
-  // Initial load
-  loadRoute(currentDirection);
-  plotTracking();
+  let markers = [];
+  const routeLayerId = 'routeLine';
+
+  async function loadTrip(tripId) {
+    // Fetch trip data
+    const res = await fetch(`/api/trips/${tripId}/`);
+    if (!res.ok) {
+      alert("Failed to load trip data");
+      return;
+    }
+    const tripData = await res.json();
+    console.log("Trip data:", tripData);
+
+    const routeId = tripData.trip_route;   // use trip_route field
+    currentDirection = tripData.direction || currentDirection;
+
+    // Fetch route geometry
+    const routeRes = await fetch(`/api/routes/${routeId}/stops/?direction=${currentDirection}`);
+    if (!routeRes.ok) {
+      alert("Failed to load route stops");
+      return;
+    }
+    const data = await routeRes.json();
+
+    // Clear old markers/layers
+    for (const m of markers) m.remove();
+    markers = [];
+    if (map.getLayer(routeLayerId)) map.removeLayer(routeLayerId);
+    if (map.getSource(routeLayerId)) map.removeSource(routeLayerId);
+
+    const hasSnapped = data.has_snapped_route === true;
+    const stops = data.stops || [];
+    const snapped = data.snapped_route || [];
+
+    const stopCoords = stops
+      .map(stop => stop.cords?.split(',').map(Number))
+      .filter(c => c && c.length === 2 && !isNaN(c[0]) && !isNaN(c[1]))
+      .map(([lat, lon]) => [lon, lat]);
+
+    let geometryToDraw = hasSnapped && snapped.length > 1 ? snapped : stopCoords;
+
+    if (geometryToDraw.length >= 2) {
+      map.addSource(routeLayerId, {
+        type: 'geojson',
+        data: { type: 'Feature', geometry: { type: 'LineString', coordinates: geometryToDraw } }
+      });
+      map.addLayer({
+        id: routeLayerId,
+        type: 'line',
+        source: routeLayerId,
+        paint: { 'line-color': '#2f80ed', 'line-width': 3 }
+      });
+      const bounds = new maplibregl.LngLatBounds();
+      geometryToDraw.forEach(c => bounds.extend(c));
+      map.fitBounds(bounds, { padding: 60 });
+    }
+
+    // Add stop markers
+    for (const stop of stops) {
+      const [lat, lon] = stop.cords.split(',').map(Number);
+      if (isNaN(lat) || isNaN(lon)) continue;
+      const el = document.createElement('div');
+      el.style.cssText = "width:10px;height:10px;border:3px solid #2f80ea;border-radius:50%;background:#fff;cursor:pointer;";
+      new maplibregl.Marker({ element: el })
+        .setLngLat([lon, lat])
+        .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(`<a href="/stop/?name=${encodeURIComponent(stop.stop)}">${stop.stop}</a>`))
+        .addTo(map);
+    }
+
+    // Optional: if your API provides tracking_points, overlay them here
+    if (tripData.tracking_points && tripData.tracking_points.length) {
+      const coords = tripData.tracking_points.map(p => [p.X, p.Y]);
+      map.addSource('trackingLine', {
+        type: 'geojson',
+        data: { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } }
+      });
+      map.addLayer({
+        id: 'trackingLine',
+        type: 'line',
+        source: 'trackingLine',
+        paint: { 'line-color': 'black', 'line-width': 3, 'line-dasharray': [4, 7] }
+      });
+      const last = coords[coords.length - 1];
+      if (last) {
+        const heading = tripData.tracking_points[tripData.tracking_points.length - 1].heading || 0;
+        const busEl = document.createElement('img');
+        busEl.src = '{% static "icons/bus-arrow.svg" %}';
+        busEl.style.width = '32px'; busEl.style.height = '32px';
+        busEl.style.transform = `rotate(${heading}deg)`;
+        new maplibregl.Marker({ element: busEl }).setLngLat(last).addTo(map);
+      }
+    }
+  }
+
+  map.on('load', () => loadTrip(tripId));
 </script>
 {% endblock %}
