@@ -48,6 +48,11 @@
     <button type="button" onclick="autoFillOffsets()">Auto Fill Offsets</button>
   </div>
 
+  <div>
+    <button type="button" onclick="autoFillFromStops()">Auto Fill From Stop Data</button>
+    <small>Uses <code>time_s</code> offsets from your routeStop JSON</small>
+  </div>
+
   <br>
 
   <table style="width: 100%;">
@@ -60,7 +65,7 @@
     </thead>
     <tbody>
       {% for stop in stops.stops %}
-      <tr data-stopname="{{ stop.stop }}" data-order="{{ forloop.counter0 }}">
+      <tr data-stopname="{{ stop.stop }}" data-order="{{ forloop.counter0 }}" data-times="{{ stop.time_s }}">
         <td>
           {{ stop.stop }}
           <input type="hidden" name="stop_names" value="{{ stop.stop }}">
@@ -87,6 +92,64 @@
 </form>
 
 <script>
+  function autoFillFromStops() {
+    // Grab all rows with stop data
+    const rows = document.querySelectorAll("tbody tr");
+    let prevOffset = null;
+    let prevTime = null;
+
+    console.log("=== Auto Fill From Stop Data ===");
+
+    rows.forEach((row, i) => {
+        const time_s = parseInt(row.dataset.times, 10);
+        const offsetInput = row.querySelector(".offset-minutes");
+
+        console.log("\n-----------------------------------------");
+        console.log(`STOP ${i}: ${row.dataset.stopname}`);
+        console.log(`time_s = ${time_s}`);
+
+        // FIRST STOP
+        if (i === 0) {
+            console.log("First stop → offset = 0 (no field to write)");
+            prevOffset = 0;
+            prevTime = time_s;
+            return;
+        }
+
+        // Raw diff from previous stop
+        const raw = time_s - prevTime;
+        console.log(`raw diff from prev = ${raw} sec`);
+
+        let offset;
+
+        if (raw >= 30) {
+            // More than 30s: convert to minutes
+            offset = Math.round(raw / 60);
+            console.log(`>= 30s → offset = round(${raw}/60) = ${offset}`);
+        } else {
+            // Less than 30s → zero
+            offset = 0;
+            console.log(`< 30s → offset = 0`);
+        }
+
+        // RULE: no two zeros in a row
+        if (offset === 0 && prevOffset === 0) {
+            console.log("Two-zero rule triggered → converting 0 → 1");
+            offset = 1;
+        }
+
+        console.log(`FINAL offset = ${offset}`);
+
+        // Write into the table form input
+        offsetInput.value = offset;
+
+        prevOffset = offset;
+        prevTime = time_s;
+    });
+
+    // Regenerate JSON after all updates
+    generateStopTimesJSON();
+}
 function generateStopTimesJSON() {
   const rows = document.querySelectorAll('tbody tr');
   const output = {}; // dict keyed by index
