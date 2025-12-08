@@ -237,6 +237,14 @@ def set_theme(request):
 
     return response
 
+def transparency(request):
+    breadcrumbs = [{'name': 'Home', 'url': '/'}, {'name': 'Transparency', 'url': '/transparency/'}]
+
+    context = {
+        'breadcrumbs': breadcrumbs,
+    }
+    return render(request, 'transparency.html', context)
+
 def index(request):
     # Load mod.json messages as before
     for_sale_vehicles = fleet.objects.filter(for_sale=True).order_by('fleet_number').count()

@@ -47,11 +47,13 @@
     <input type="number" id="offset-fill" min="1" value="1">
     <button type="button" onclick="autoFillOffsets()">Auto Fill Offsets</button>
   </div>
-
+  <br>
+  {% if user.sub_plan == "pro" %}
   <div>
     <button type="button" onclick="autoFillFromStops()">Auto Fill From Stop Data</button>
     <small>Uses <code>time_s</code> offsets from your routeStop JSON</small>
   </div>
+  {% endif %}
 
   <br>
 

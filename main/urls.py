@@ -23,6 +23,7 @@ urlpatterns = [
     path('create/game/', create_game, name='create_game'),
     path("for_sale/", for_sale, name='for_sale'),
     path("stats/", stats_page, name="stats"),
+    path("transparency/", transparency, name="transparency"),
 
  
     path("hub/", community_hub, name="community_hub"),
