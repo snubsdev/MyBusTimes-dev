@@ -64,11 +64,21 @@
 
   console.log("Tracking Points:", trackingPoints);
 
-  const map = L.map('map').setView([54.238, -3.325], 6);  // fallback location
+  // Choose tile style
+  {% if themeDark == 'True' %}
+    tilesJSON = 'https://tiles.snubs.dev/styles/dark/style.json';
+  {% else %}
+    tilesJSON = 'https://tiles.snubs.dev/styles/light/style.json';
+  {% endif %}
 
-  L.tileLayer('{{ mapTile.tile_url }}', {
-    attribution: '{{ mapTile.attribution }}',
-  }).addTo(map);
+  const map = new maplibregl.Map({
+    container: 'map',
+    style: tilesJSON,
+    center: [-1.9, 54.9],
+    zoom: 6
+  });
+  map.addControl(new maplibregl.NavigationControl(), 'top-left');
+
 
   let markersLayer = L.layerGroup().addTo(map);
   let routeLayer = null;
