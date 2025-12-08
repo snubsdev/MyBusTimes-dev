@@ -198,7 +198,8 @@ async function loadTripVehicleMarker() {
   btMarkers.forEach(m => m.remove());
   btMarkers = [];
 
-const v = vehicles.find(v => v.trip_id === parseInt(tripId));
+  const v = vehicles.find(v => v.trip_id === parseInt(tripId));
+  console.log("Trip vehicle:", v);
   if (!v) return;
 
   const lat = v.lat, lng = v.lng;
@@ -211,7 +212,6 @@ const v = vehicles.find(v => v.trip_id === parseInt(tripId));
   const vehicleLink = v.vehicle?.url || '';
   const vehicleName = v.vehicle?.name || '';
 
-  // use css/left_css/right_css if available, else fallback
   const css = v.vehicle?.css || v.vehicle?.left_css || v.vehicle?.right_css || "#2f80ed";
   const textColour = v.vehicle?.text_colour || (v.vehicle?.white_text ? "#fff" : "#000");
   const textStroke = v.vehicle?.stroke_colour || "#000";
