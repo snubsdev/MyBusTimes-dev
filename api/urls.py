@@ -18,7 +18,7 @@ urlpatterns = [
     path('liveries/<int:pk>/', ratelimit(key='ip', method='GET', rate='10/s')(liveriesDetailView.as_view()), name='liveries-detail'),
     path('type/', ratelimit(key='ip', method='GET', rate='10/s')(typeListView.as_view()), name='type-list'),
     path('type/<int:pk>/', ratelimit(key='ip', method='GET', rate='10/s')(typeDetailView.as_view()), name='type-detail'),
-    path('routes/<int:pk>/stops/', ratelimit(key='ip', method='GET', rate='10/s')(routeStops.as_view()), name='route-stops'),
+    path('routes/<int:pk>/stops/', ratelimit(key='ip', method='GET', rate='100/s')(routeStops.as_view()), name='route-stops'),
     path('get_timetables/', ratelimit(key='ip', method='GET', rate='10/s')(get_timetables), name='get_timetables'),
     path('get_trip_times/', ratelimit(key='ip', method='GET', rate='10/s')(get_trip_times), name='get_trip_times'),
     path('active_trips/', ratelimit(key='ip', method='GET', rate='10/s')(map_view.as_view()), name='active_trips'),

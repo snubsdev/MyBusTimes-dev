@@ -41,7 +41,7 @@ class routesListView(generics.ListCreateAPIView):
             queryset = queryset.filter(filter_condition)
         
         return queryset
-    
+
 class routeStops(View):
     def get(self, request, pk):
         direction = request.GET.get('direction', 'inbound').lower()
@@ -56,34 +56,13 @@ class routeStops(View):
         except route.DoesNotExist:
             raise Http404("Route not found")
 
-        # Get the stop entry
+        # Get the first matching routeStop (if more than one exists)
         route_stop = routeStop.objects.filter(route=route_instance, inbound=inbound_flag).first()
 
         if not route_stop:
-            # No stops → nothing snapped either
-            return JsonResponse({
-                'has_snapped_route': False,
-                'stops': [],
-                'snapped_route': []
-            })
+            return JsonResponse({'stops': []})
 
-        # Base output (existing behaviour preserved)
-        output = {
-            'has_snapped_route': bool(route_stop.snapped_route),
-            'stops': route_stop.stops,
-        }
-
-        # Add snapped route if present
-        if route_stop.snapped_route:
-            try:
-                output['snapped_route'] = json.loads(route_stop.snapped_route)
-            except Exception:
-                # corrupt JSON? return raw string at least
-                output['snapped_route'] = route_stop.snapped_route
-        else:
-            output['snapped_route'] = []
-
-        return JsonResponse(output, safe=False)
+        return JsonResponse(route_stop.stops, safe=False)
 
 class routesDetailView(generics.RetrieveAPIView):
     queryset = route.objects.all()

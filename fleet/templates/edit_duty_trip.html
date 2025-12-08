@@ -70,6 +70,9 @@
 
             <label>End At:</label>
             <input type="text" name="end_at[]" value="{{ trip.end_at }}" required>
+
+            <label for="inbound">inbound?</label>
+            <input type="checkbox" name="inbound[]" {% if trip.inbound %}checked{% endif %}>
           </div>
         {% endfor %}
       </div>
@@ -147,6 +150,8 @@
         <input type="text" name="start_at[]" required>
         <label>End At:</label>
         <input type="text" name="end_at[]" required>
+        <label for="inbound">inbound?</label>
+        <input type="checkbox" name="inbound[]">
       `;
 
       container.appendChild(tripGroup);

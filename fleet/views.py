@@ -2423,6 +2423,7 @@ def duty_edit_trips(request, operator_slug, duty_id):
             "route_name": r.route_name,
             "route_inbound_destination": r.inbound_destination,
             "route_outbound_destination": r.outbound_destination,
+            
         } for r in available_routes_qs
     ]
 
@@ -2437,6 +2438,7 @@ def duty_edit_trips(request, operator_slug, duty_id):
         end_times = request.POST.getlist('end_time[]')
         start_ats = request.POST.getlist('start_at[]')
         end_ats = request.POST.getlist('end_at[]')
+        inbound_trips = request.POST.getlist('inbound_trip[]')
 
         if not (len(route_nums) == len(start_times) == len(end_times) == len(start_ats) == len(end_ats)):
             messages.error(request, "Mismatch in trip input lengths.")
@@ -2469,7 +2471,8 @@ def duty_edit_trips(request, operator_slug, duty_id):
                 start_time=start_time,
                 end_time=end_time,
                 start_at=start_ats[i],
-                end_at=end_ats[i]
+                end_at=end_ats[i],
+                inbound=(inbound_trips[i] == 'true') 
             )
             trips_created += 1
 
@@ -4169,70 +4172,45 @@ def route_edit_stops(request, operator_slug, route_id, direction):
 
     userPerms = get_helper_permissions(request.user, operator)
 
-    if mapTiles is None:
+    if mapTiles == None:
         mapTiles = mapTileSet.objects.get(id=1)
 
     if request.user != operator.owner and 'Edit Stops' not in userPerms and not request.user.is_superuser:
         messages.error(request, "You do not have permission to edit this route's stops.")
         return redirect(f'/operator/{operator_slug}/route/{route_id}/')
 
-    # Load existing stops + snapped geometry
+    # Load existing stops for this route and direction
     try:
-        existing_route_stops = routeStop.objects.filter(
-            route=route_instance,
-            inbound=(direction == "inbound")
-        ).first()
-
-        existing_stops = existing_route_stops.stops if existing_route_stops else []
-        existing_snapped = existing_route_stops.snapped_route if existing_route_stops else None
-
+        existing_route_stops = routeStop.objects.filter(route=route_instance, inbound=(direction == "inbound")).first()
+        existing_stops = existing_route_stops.stops
     except routeStop.DoesNotExist:
         existing_stops = []
-        existing_snapped = None
 
-    # -----------------------------
-    #          HANDLE POST
-    # -----------------------------
     if request.method == "POST":
         try:
             raw_data = request.POST.get("routeData")
-            snapped_raw = request.POST.get("snappedGeometry")
-
             if not raw_data:
                 raise ValueError("Missing routeData")
 
             parsed_stops = json.loads(raw_data)
 
-            # Optional snapped route data
-            if snapped_raw:
-                try:
-                    parsed_snapped = json.loads(snapped_raw)
-                except:
-                    parsed_snapped = None
-            else:
-                parsed_snapped = None
-
-            # Save everything
+            # Update or create routeStop record
             routeStop.objects.update_or_create(
                 route=route_instance,
                 inbound=(direction == "inbound"),
                 defaults={
-                    "circular": False,
-                    "stops": parsed_stops,
-                    "snapped_route": parsed_snapped,
+                    "circular": False,  # Adjust if needed
+                    "stops": parsed_stops
                 }
             )
 
-            messages.success(request, "Stops & snapped route saved.")
+            messages.success(request, "Stops updated successfully.")
             return redirect(f'/operator/{operator_slug}/route/{route_id}/')
 
         except Exception as e:
             messages.error(request, f"Failed to update stops: {e}")
             return redirect(request.path)
 
-    # -----------------------------
-    #           RENDER PAGE
-    # -----------------------------
     breadcrumbs = [
         {'name': 'Home', 'url': '/'},
         {'name': operator.operator_name, 'url': f'/operator/{operator_slug}/'},
@@ -4246,10 +4224,8 @@ def route_edit_stops(request, operator_slug, route_id, direction):
         'helper_permissions': userPerms,
         'direction': direction,
         'mapTile': mapTiles,
-        'existing_stops': existing_stops,
-        'existing_snapped': existing_snapped,   # <--- IMPORTANT NEW FIELD
+        'existing_stops': existing_stops,  # Pass existing stops here
     }
-
     return render(request, 'route_edit_route.html', context)
 
 from django.views.decorators.csrf import csrf_exempt
@@ -4294,22 +4270,20 @@ def route_add_stops(request, operator_slug, route_id, direction):
     if request.method == "POST":
         try:
             raw_data = request.POST.get("routeData")
-            parsed = json.loads(raw_data)
+            if not raw_data:
+                raise ValueError("Missing routeData")
 
-            stops = parsed["stops"]
-            snapped = parsed.get("snapped_geometry", [])
+            parsed_stops = json.loads(raw_data)
 
-            routeStop.objects.filter(
-                route=route_instance,
-                inbound=(direction == "inbound")
-            ).delete()
+            # Delete any existing stops for this route and direction first (optional but good for edits)
+            routeStop.objects.filter(route=route_instance, inbound=(direction == "inbound")).delete()
 
+            # Create new routeStop entry
             routeStop.objects.create(
                 route=route_instance,
                 inbound=(direction == "inbound"),
-                circular=False,
-                stops=stops,
-                snapped_route=json.dumps(snapped)
+                circular=False,  # Or True if you detect that logic elsewhere
+                stops=parsed_stops  # Save raw list of dictionaries directly
             )
 
             messages.success(request, "Stops saved successfully.")
@@ -5682,7 +5656,7 @@ def mass_assign_boards(request, operator_slug):
                         if hasattr(trip.route, "route_num")
                         else trip.route
                     ),
-                    trip_inbound=board_obj.inbound,
+                    trip_inbound=trip.inbound,
                     trip_start_location=trip.start_at,
                     trip_end_location=trip.end_at,
                     trip_start_at=start_dt,
