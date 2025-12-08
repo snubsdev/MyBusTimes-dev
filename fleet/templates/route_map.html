@@ -176,7 +176,7 @@
         .setLngLat([lng, lat])
         .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(`
           <a href="${serviceLink}">${line} to ${dest}</a><br>
-          ${vehicleLink ? `<a href="${vehicleLink}">${veh.fleet_number || ''} - ${veh.reg || ''}</a>` : ""}<br>
+          ${vehicleLink ? `<a href="${vehicleLink}">${v.vehicle.name}<br>
           <span>Simulated Location</span><br>
           <small>Last updated: ${v.updated_at ? new Date(v.updated_at).toLocaleString() : 'N/A'}</small>
         `))
