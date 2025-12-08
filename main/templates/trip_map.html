@@ -3,20 +3,15 @@
 {% load url_filters %}
 
 {% block title %}{{ route.route_num }} Route Map{% endblock %}
+
 {% block extra_css %}
 <link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
-
-<style>
-
-<link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
-
 <style>
   html, body, main {
     height: 100%;
     margin: 0;
     padding: 0;
   }
-
   #map {
     position: fixed !important;
     top: 55px;
@@ -24,33 +19,6 @@
     width: 100%;
     left: 0;
   }
-
-  #directionToggle {
-    position: fixed;
-    bottom: 10px;
-    left: 10px;
-    z-index: 1000;
-    background: var(--brand-color);
-    color: var(--text-color);
-    padding: 6px 10px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-  }
-
-  #stopsToggle {
-    position: fixed;
-    bottom: 50px;
-    left: 10px;
-    z-index: 1000;
-    background: var(--brand-color);
-    color: var(--text-color);
-    padding: 6px 10px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-  }
-
   .vehicle-marker {
     text-align: center;
     color: #000;
@@ -61,7 +29,6 @@
     line-height: 16px;
     z-index: 20;
   }
-
   .maplibregl-popup-tip,
   .maplibregl-popup-content {
     background: var(--background-color) !important;
@@ -77,19 +44,10 @@
 {% endblock %}
 
 {% block content %}
-<button id="directionToggle" style="display: none;">
-  {% if direction == "inbound" %}
-    Show Outbound
-  {% else %}
-    Show Inbound
-  {% endif %}
-</button>
-
 <div id="map"></div>
 
 <script>
 const tripId = "{{ trip.trip_id }}";
-const operatorId = "{{ operator.id }}";
 let currentDirection = "inbound";
 let tripRouteId = null;
 
@@ -184,13 +142,7 @@ function createLiveryIcon({ label = '', rotation = 0, css = null, textColour = '
 
 // show only the trip’s vehicle marker
 async function loadTripVehicleMarker() {
-  const b = map.getBounds();
-  const q = new URLSearchParams({
-    ymax: b.getNorth(), ymin: b.getSouth(),
-    xmax: b.getEast(), xmin: b.getWest(),
-    operator_id: operatorId
-  });
-  const url = `/api/trips/estimated_positions/?${q}&limit=5000`;
+  const url = `/api/trips/estimated_positions/?trip_id=${tripId}`;
   const res = await fetch(url);
   const data = await res.json();
   const vehicles = Array.isArray(data.results) ? data.results : [];
@@ -198,12 +150,15 @@ async function loadTripVehicleMarker() {
   btMarkers.forEach(m => m.remove());
   btMarkers = [];
 
-  const v = vehicles.find(v => v.trip_id === parseInt(tripId));
-  console.log("Trip vehicle:", v);
-  if (!v) return;
+  if (!vehicles.length) {
+    console.log("No vehicle found for trip", tripId);
+    return;
+  }
 
-  const lat = v.lat, lng = v.lng;
-  if (!lat || !lng) return;
+  const v = vehicles[0];
+  console.log("Trip vehicle:", v);
+
+  if (!v.lat || !v.lng) return;
 
   let heading = (v.heading ?? 0) + 180;
   const line = v.service?.line_name || '';
@@ -227,7 +182,7 @@ async function loadTripVehicleMarker() {
   });
 
   const m = new maplibregl.Marker({ element: el })
-    .setLngLat([lng, lat])
+    .setLngLat([v.lng, v.lat])
     .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(`
       <strong>${vehicleName}</strong><br>
       ${line} ${dest ? "to " + dest : ""}<br>
@@ -248,7 +203,5 @@ map.on('load', async () => {
 
 // refresh vehicle marker every 30s
 setInterval(loadTripVehicleMarker, 30000);
-
 </script>
 {% endblock %}
-
