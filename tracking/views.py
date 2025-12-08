@@ -340,10 +340,14 @@ class VehicleDetailSerializer(serializers.Serializer):
 
     def get_left_css(self, obj):
         obj = self._get_vehicle_obj(obj)
+        if obj.colour:
+            return obj.colour
         return obj.livery.left_css if obj.livery else ""
 
     def get_right_css(self, obj):
         obj = self._get_vehicle_obj(obj)
+        if obj.colour:
+            return obj.colour
         return obj.livery.right_css if obj.livery else ""
 
     def get_stroke_colour(self, obj):
