@@ -142,11 +142,12 @@ async function drawRoute(routeId) {
 
 // show only the trip’s vehicle marker
 async function loadTripVehicleMarker() {
-  if (!tripVehicleId) return;
   const b = map.getBounds();
   const q = new URLSearchParams({
-    ymax: b.getNorth(), ymin: b.getSouth(),
-    xmax: b.getEast(), xmin: b.getWest(),
+    ymax: b.getNorth(),
+    ymin: b.getSouth(),
+    xmax: b.getEast(),
+    xmin: b.getWest(),
     operator_id: operatorId
   });
   const url = `/api/trips/estimated_positions/?${q}&limit=5000`;
@@ -157,24 +158,33 @@ async function loadTripVehicleMarker() {
   btMarkers.forEach(m => m.remove());
   btMarkers = [];
 
-  const v = vehicles.find(v => v.vehicle?.id === tripVehicleId);
+  // match by trip_id
+  const v = vehicles.find(v => v.trip_id === parseInt(tripId));
   if (!v) return;
 
   const lat = v.lat, lng = v.lng;
   if (!lat || !lng) return;
 
   const el = document.createElement('div');
-  el.style.cssText = "width:20px;height:20px;background:#2f80ed;border-radius:50%;border:2px solid #fff;";
+  el.style.cssText = `
+    width:20px;height:20px;
+    background:${v.vehicle.colour || '#2f80ed'};
+    border-radius:50%;
+    border:2px solid #fff;
+  `;
+
   const m = new maplibregl.Marker({ element: el })
     .setLngLat([lng, lat])
     .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(`
-      <a href="${v.service?.url}">${v.service?.line_name || ""} to ${v.destination || ""}</a><br>
-      ${v.vehicle?.url ? `<a href="${v.vehicle.url}">Vehicle</a><br>` : ""}
-      <span>Simulated Location</span>
+      <strong>${v.vehicle.name}</strong><br>
+      ${v.service?.line_name || ""} to ${v.destination || ""}<br>
+      <a href="${v.vehicle.url}">Vehicle page</a>
     `))
     .addTo(map);
+
   btMarkers.push(m);
 }
+
 
 // initialise
 map.on('load', async () => {
