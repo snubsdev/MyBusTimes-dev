@@ -127,18 +127,27 @@ async function drawRoute(routeId) {
 }
 
 // livery icon builder
-function createLiveryIcon({ label = '', rotation = 0, css = null, textColour = '#000', textStroke = "#000", strokeWidth = "0px" } = {}) {
-  const html = document.createElement('div');
-  html.innerHTML = `
-    <div style="display:inline-block; transform: rotate(${rotation}deg);">
-      <svg width="24" height="16" class="vehicle-marker"
-           style="stroke:${textStroke}; ${css ? `background:${css};` : 'background:#2f80ed;'} border:1px solid rgba(0,0,0);
-                  color:${textColour}; fill:${textColour}; stroke-width:${strokeWidth};">
-        <text x="12" y="12">${label}</text>
-      </svg>
-    </div>`;
-  return html;
-}
+function createLiveryIcon({ label = '', rotation = 0, bg = '#0000', css = null, textColour = '#fff', textStroke = "#0000", strokeWidth = "0px" } = {}) {
+    const normalisedRotation = ((rotation % 360) + 360) % 360;
+    const cellRotation = (normalisedRotation < 90 || normalisedRotation > 270) ? 0 : 180;
+    const backgroundStyle = css ? `background: ${css};` : `background: ${bg};`;
+    const html = document.createElement('div');
+    html.innerHTML = `
+      <div style="display:inline-block; transform: rotate(${rotation}deg);">
+        <svg width="24" height="16" data-vehicle-id="51623" class="vehicle-marker" style="stroke: ${textStroke}; text-align: center; ${backgroundStyle} transform: rotate(${cellRotation}deg); border: 1px solid rgba(0,0,0); color: ${textColour}; fill: ${textColour}; stroke-width: ${strokeWidth};">
+          <text x="12" y="12">${label}</text>
+        </svg>
+        <span style="display:flex; margin-top: -27px; margin-left: 16px; color:black;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M8 6.65v10.69c0 .64.76.99 1.24.56l6.11-5.35c.34-.3.34-.83 0-1.13L9.24 6.07C8.76 5.65 8 5.99 8 6.63Z" />
+          </svg>
+        </span>
+      </div>
+    `;
+
+    return html;
+  }
+
 
 // show only the trip’s vehicle marker
 async function loadTripVehicleMarker() {
@@ -179,18 +188,18 @@ async function loadTripVehicleMarker() {
     strokeWidth
   });
 
-  const m = new maplibregl.Marker({ element: el })
-    .setLngLat([v.lng, v.lat])
-    .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(`
-      <strong>${vehicleName}</strong><br>
-      ${line} ${dest ? "to " + dest : ""}<br>
-      ${vehicleLink ? `<a href="${vehicleLink}">Vehicle page</a><br>` : ""}
-      <span>Simulated Location</span>
-    `))
-    .addTo(map);
+    const m = new maplibregl.Marker({ element: el })
+      .setLngLat([lng, lat])
+      .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(`
+        <a href="${serviceLink}">${line} to ${dest}</a><br>
+        ${vehicleLink ? `<a href="${vehicleLink}">Vehicle</a><br>` : ""}
+        <span>Simulated Location</span>
+      `))
+      .addTo(map);
 
-  btMarkers.push(m);
-}
+    btMarkers.push(m);
+  }
+
 
 // initialise
 map.on('load', async () => {
