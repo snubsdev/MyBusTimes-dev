@@ -113,8 +113,8 @@ class CustomUser(AbstractUser):
     stripe_subscription_id = models.CharField(max_length=255, blank=True, null=True)
     PLAN_CHOICES = [
         ('free', 'Free'),
-        ('monthly', 'Monthly'),
-        ('yearly', 'Yearly'),
+        ('basic', 'Basic'),
+        ('pro', 'Pro'),
     ]
     
     sub_plan = models.CharField(

@@ -50,8 +50,10 @@
               Edit Stop Names Only
             </button>
           </th>
+          {% if user.sub_plan == "pro" %}
           <th>Distance</th>
           <th>Time</th>
+          {% endif %}
           <th class="timing-point">Timing Point</th>
           <th></th>
         </tr>
@@ -61,7 +63,6 @@
   </div>
 
   <div class="stop-list-footer">
-    <button id="snapRoute">Snap Route To Road</button>
     <button id="addCustomStop">Add Custom Stop</button>
     <button id="submitRoute">Save {{ direction }} stops</button>
   </div>
@@ -74,6 +75,7 @@
 </form>
 
 <script>
+  let hasPro = {% if user.sub_plan == "pro" %}true{% else %}false{% endif %};
   let tilesJSON = 'https://tiles.snubs.dev/styles/light/style.json';
   {% if themeDark == 'True' %}
     tilesJSON = 'https://tiles.snubs.dev/styles/dark/style.json';
@@ -138,6 +140,8 @@
 
   async function snapSegment(from, to) {
     // returns { coords:[[lon,lat],...], distance:meters, time:seconds } or null
+    if (!hasPro) return null;
+    
 
     const url = "/api/valhalla/route/";
 
@@ -251,9 +255,12 @@
 
   function addStopToList(name, timing_point = false) {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${name}</td>
-                    <td class="stop-distance">-</td>
-                    <td class="stop-time">-</td>
+    tr.innerHTML = `<td>${name}</td>`
+    if (hasPro) {
+      tr.innerHTML += `<td class="stop-distance"></td>
+                      <td class="stop-time"></td>`;
+    }
+    tr.innerHTML += `
                     <td class="timing-point-check-box">
                       <input type="checkbox" id="timing_point" ${timing_point ? 'checked' : ''}>
                     </td>
@@ -350,64 +357,6 @@
       }
     }
   }
-
-  document.getElementById("snapRoute").addEventListener("click", async () => {
-    const n = selectedCoords.length;
-    if (n < 2) return alert("Need at least 2 stops.");
-
-    snappedSegments = [];
-
-    for (let i = 0; i < n - 1; i++) {
-        const from = selectedCoords[i];
-        const to   = selectedCoords[i + 1];
-
-        const snapped = await snapSegment(from, to);
-
-        if (snapped) snappedSegments[i] = snapped;
-        else {
-            snappedSegments[i] = {
-              coords: [[from.lon, from.lat], [to.lon, to.lat]],
-              distance: Math.round(haversineDistance([from.lon, from.lat], [to.lon, to.lat])),
-              time: Math.round(haversineDistance([from.lon, from.lat], [to.lon, to.lat]) / 8.333333)
-            };
-        }
-    }
-
-    let combined = [];
-    for (let i = 0; i < snappedSegments.length; i++) {
-        let seg = snappedSegments[i].coords;
-        if (!seg) continue;
-
-        if (combined.length && seg.length) {
-            seg = seg.slice(1);
-        }
-        combined.push(...seg);
-    }
-
-    window.snappedFullGeometry = combined;
-
-    if (!map.getSource("routeLine")) {
-        map.addSource("routeLine", {
-            type: "geojson",
-            data: { type: "Feature", geometry: { type: "LineString", coordinates: combined } }
-        });
-        map.addLayer({
-            id: "routeLine",
-            type: "line",
-            source: "routeLine",
-            paint: { "line-color": "#2f80ed", "line-width": 3 }
-        });
-    } else {
-        map.getSource("routeLine").setData({
-            type: "Feature",
-            geometry: { type: "LineString", coordinates: combined }
-        });
-    }
-
-    updateStopDistances();
-
-    alert("Route snapped to road! Distances and times updated in the stop list.");
-  });
 
   async function fetchStops() {
     const zoom = map.getZoom();

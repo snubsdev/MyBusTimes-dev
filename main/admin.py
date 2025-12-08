@@ -58,7 +58,7 @@ class CustomUserAdmin(SimpleHistoryAdmin, UserAdmin):
         (None, {'fields': ('username', 'password')}),
         ('Personal info', {
             'fields': (
-                'email', 'discord_username', 'pfp', 'ad_free_until', 'first_name', 'last_name'
+                'email', 'discord_username', 'pfp', 'ad_free_until', 'sub_plan', 'first_name', 'last_name'
             )
         }),
         ('Ban Info', {
@@ -87,7 +87,7 @@ class CustomUserAdmin(SimpleHistoryAdmin, UserAdmin):
                 'reg_background', 'badges'
             )
         }),
-        ('Admin Notes', {'fields': ('admin_notes', 'snap_api_key')}),
+        ('Admin Notes', {'fields': ('admin_notes',)}),
     )
 
     add_fieldsets = (
