@@ -172,8 +172,8 @@
     async function getTrackingCount() {
         console.log("Getting tracking count...");
        
-        let routeId = "{{ route.id }}";
-        const url = `/api/trips/simulated_positions/?ymax=85.05112900000006&ymin=-85.05112900000005&xmax=262.85594133583794&xmin=-211.1379366828278&route_id=${routeId}&limit=1`;
+        let operatorId = "{{ operator.id }}";
+        const url = `/api/trips/simulated_positions/?ymax=85.05112900000006&ymin=-85.05112900000005&xmax=262.85594133583794&xmin=-211.1379366828278&operator_id=${operatorId}&limit=1`;
         
         const res = await fetch(url);
 
