@@ -480,6 +480,7 @@ def route_vehicles(request, operator_slug, route_id):
         'vehicles': vehicles,
         'operator': operator,
         'route': route_instance,
+        'show_board': any(t.trip_board for t in vehicles),
         'breadcrumbs': breadcrumbs,
         'date': date,
         'now': now
