@@ -1529,6 +1529,7 @@ def vehicles_trip_edit(request, operator_slug, vehicle_id, trip_id):
         route_id = request.POST.get('trip_route')
         trip.trip_route = route.objects.get(id=route_id) if route_id else None
         trip.trip_route_num = request.POST.get('trip_route_num') or None
+        trip.trip_inbound = 'inbound' in request.POST
         
         trip.save()
 
