@@ -167,4 +167,32 @@
     </div>
   </dl>
 </div>
+
+<script>
+    async function getTrackingCount() {
+        console.log("Getting tracking count...");
+       
+        let routeId = "{{ route.id }}";
+        const url = `http://localhost:8000/api/trips/simulated_positions/?ymax=85.05112900000006&ymin=-85.05112900000005&xmax=297.19191775256854&xmin=-172.38929421782453&route_id=${routeId}&limit=5000`;
+        
+        const res = await fetch(url);
+
+        console.log("Fetched URL:", url);
+
+        const data = await res.json();
+
+        const count = data.count || 0;
+
+        const mapBT = document.getElementById('Map');
+        if (count > 0) {
+            mapBT.textContent = `Map (tracking ${count} vehicle${count !== 1 ? 's' : ''})`;
+        } else {
+            mapBT.textContent = 'Map';
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        getTrackingCount();
+    });
+</script>
 {% endblock %}
