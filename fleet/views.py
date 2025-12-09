@@ -5510,7 +5510,7 @@ def mass_log_trips(request, operator_slug):
         trip_set = trip_set.order_by('id')
 
         first_trip = trip_set.first()
-        first_pk = first_trip.id
+        first_pk = first_trip.trip_id
         first_start_time = first_trip.start_time
 
         for trip in trip_set:
@@ -5518,7 +5518,7 @@ def mass_log_trips(request, operator_slug):
             trip_date = selected_date
             is_past_midnight = trip.start_time < first_start_time
 
-            if is_past_midnight and trip.id < first_pk:
+            if is_past_midnight and trip.trip_id < first_pk:
                 trip_date = selected_date + timedelta(days=1)
 
             start_dt = make_aware(datetime.combine(trip_date, trip.start_time))
