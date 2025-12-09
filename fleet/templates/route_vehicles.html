@@ -39,10 +39,10 @@
                 <td><a href="/map/trip/{{ vehicle.trip_id }}/">{{ vehicle.trip_start_at | date:"H:i" }}</a></td>
                 <td>{{ vehicle.trip_end_location }}</td>
                 {% if show_board %}
-                    {% if trip.trip_board.board_type == "duty" %}
-                        <td><a href="/operator/{{ operator.operator_slug }}/duty/{{ trip.trip_board.id }}/">{{ trip.trip_board.duty_name }}</a></td>
-                    {% elif trip.trip_board.board_type == "running-boards" %}
-                        <td><a href="/operator/{{ operator.operator_slug }}/running-boards/{{ trip.trip_board.id }}/">{{ trip.trip_board.duty_name }}</a></td>
+                    {% if vehicle.trip_board.board_type == "duty" %}
+                        <td><a href="/operator/{{ operator.operator_slug }}/duty/{{ vehicle.trip_board.id }}/">{{ vehicle.trip_board.duty_name }}</a></td>
+                    {% elif vehicle.trip_board.board_type == "running-boards" %}
+                        <td><a href="/operator/{{ operator.operator_slug }}/running-boards/{{ vehicle.trip_board.id }}/">{{ vehicle.trip_board.duty_name }}</a></td>
                     {% else %}
                         <td></td>
                     {% endif %}
