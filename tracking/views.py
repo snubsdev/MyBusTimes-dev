@@ -13,6 +13,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from .forms import trackingForm
 from django.shortcuts import redirect
+import math
 from main.models import UserKeys
 from rest_framework import generics, serializers
 from routes.models import routeStop
@@ -279,143 +280,7 @@ class current_vehicle_trips(generics.ListAPIView):
         print(f"[DEBUG] current_vehicle_trips: found {queryset.count()} trips")
         return queryset
     
-import math
-def calculate_heading(lat1, lng1, lat2, lng2):
-    """
-    Returns heading in degrees (0–360),
-    where 0 = North, 90 = East, 180 = South, 270 = West.
-    """
-    lat1 = math.radians(lat1)
-    lat2 = math.radians(lat2)
-    d_lng = math.radians(lng2 - lng1)
-
-    x = math.sin(d_lng) * math.cos(lat2)
-    y = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(d_lng)
-
-    heading = math.degrees(math.atan2(x, y))
-    heading = (heading + 360) % 360
-    return heading
-    
-def get_route_coordinates(route_id, trip_end_location):
-    print(f"[DEBUG] get_route_coordinates_for_trip: route_id={route_id}, trip_end_location='{trip_end_location}'")
-
-    stops_qs = routeStop.objects.filter(route_id=route_id).order_by("id")
-    print(f"[DEBUG] found {stops_qs.count()} routeStop rows")
-
-    if not stops_qs:
-        print("[DEBUG] no routeStops found → returning []")
-        return []
-
-    direction_candidates = []
-
-    for rs in stops_qs:
-        print(f"[DEBUG] processing routeStop id={rs.id}")
-
-        coords = []
-        last_stop_name = None
-
-        if not rs.stops or not isinstance(rs.stops, list):
-            print(f"[DEBUG] routeStop {rs.id} has invalid stops field")
-            continue
-
-        for i, stop in enumerate(rs.stops):
-            if not isinstance(stop, dict):
-                print(f"[DEBUG] skipping non-dict stop at index {i} in routeStop {rs.id}")
-                continue
-
-            # Try to extract stop name
-            sname = stop.get("stop") or stop.get("name") or stop.get("title")
-            if sname:
-                last_stop_name = sname
-
-            # cords: "lat,lng"
-            cords = stop.get("cords") or stop.get("coords")
-            if cords:
-                try:
-                    lat_str, lng_str = cords.split(",")
-                    coords.append((float(lat_str.strip()), float(lng_str.strip())))
-                    continue
-                except Exception as e:
-                    print(f"[DEBUG] failed to parse cords '{cords}' in routeStop {rs.id}: {e}")
-
-            # lat/lng fields
-            lat = stop.get("lat") or stop.get("latitude")
-            lng = stop.get("lng") or stop.get("longitude") or stop.get("long")
-            if lat is not None and lng is not None:
-                try:
-                    coords.append((float(lat), float(lng)))
-                    continue
-                except Exception as e:
-                    print(f"[DEBUG] failed parsing lat/lng in routeStop {rs.id}: {e}")
-
-        print(f"[DEBUG] routeStop {rs.id} → extracted {len(coords)} coords, last_stop='{last_stop_name}'")
-
-        if coords:
-            direction_candidates.append({
-                "coords": coords,
-                "last_stop": last_stop_name
-            })
-        else:
-            print(f"[DEBUG] routeStop {rs.id} had NO valid coords → skipping")
-
-    # NEW SAFETY CHECK — prevents IndexError
-    if not direction_candidates:
-        print("[DEBUG] No valid routeStops produced coords → returning []")
-        return []
-
-    # Try matching by trip_end_location
-    trip_end_location = (trip_end_location or "").lower().strip()
-
-    for d in direction_candidates:
-        ls = (d["last_stop"] or "").lower().strip()
-        if trip_end_location and ls and trip_end_location in ls:
-            print(f"[DEBUG] MATCH FOUND: using direction with last_stop '{d['last_stop']}'")
-            return d["coords"]
-
-    print("[DEBUG] NO MATCH FOUND → using default (first routeStop)")
-    return direction_candidates[0]["coords"]
-
-def get_progress(trip):
-    now = timezone.now()
-    start = trip.trip_start_at
-    end = trip.trip_end_at
-    print(f"[DEBUG] get_progress: trip_id={trip.pk}, now={now}, start={start}, end={end}")
-    duration = (end - start).total_seconds()
-    elapsed = (now - start).total_seconds()
-    print(f"[DEBUG] get_progress: duration={duration}s, elapsed={elapsed}s")
-    if elapsed <= 0:
-        print(f"[DEBUG] get_progress: returning 0.0 (not started)")
-        return 0.0
-    if elapsed >= duration:
-        print(f"[DEBUG] get_progress: returning 1.0 (completed)")
-        return 1.0
-    progress = elapsed / duration
-    print(f"[DEBUG] get_progress: returning {progress}")
-    return progress
-
-def interpolate(coords, progress):
-    if not coords:
-        return (None, None, None)
-    if len(coords) == 1:
-        return coords[0][0], coords[0][1], 0
-
-    total_segments = len(coords) - 1
-    segment_float = progress * total_segments
-    seg_index = int(segment_float)
-
-    if seg_index >= total_segments:
-        return coords[-1][0], coords[-1][1], total_segments - 1
-
-    seg_progress = segment_float - seg_index
-
-    (lat1, lng1) = coords[seg_index]
-    (lat2, lng2) = coords[seg_index + 1]
-
-    lat = lat1 + (lat2 - lat1) * seg_progress
-    lng = lng1 + (lng2 - lng1) * seg_progress
-
-    return lat, lng, seg_index
-
+from django.db.models import Q
 
 class VehicleDetailSerializer(serializers.Serializer):
     url = serializers.SerializerMethodField()
@@ -475,112 +340,129 @@ class VehicleDetailSerializer(serializers.Serializer):
 
     def get_left_css(self, obj):
         obj = self._get_vehicle_obj(obj)
+        if obj.colour:
+            return obj.colour
         return obj.livery.left_css if obj.livery else ""
 
     def get_right_css(self, obj):
         obj = self._get_vehicle_obj(obj)
+        if obj.colour:
+            return obj.colour
         return obj.livery.right_css if obj.livery else ""
 
     def get_stroke_colour(self, obj):
         obj = self._get_vehicle_obj(obj)
         return obj.livery.stroke_colour if obj.livery else ""
-    
+
 class ServiceDetailSerializer(serializers.Serializer):
     url = serializers.SerializerMethodField()
     line_name = serializers.SerializerMethodField()
 
-    def _get_route(self, service_id):
-        return route.objects.filter(id=service_id).first()
+    def _get_route(self, route_obj):
+        # route_obj is already a route instance
+        return route_obj
 
-    def get_url(self, service_id):
-        r = self._get_route(service_id)
-        if not r:
+    def get_url(self, route_obj):
+        if not route_obj:
             return None
 
-        op = r.route_operators.first()
+        op = route_obj.route_operators.first()
         if not op:
             return None
 
-        return f"/operator/{op.operator_slug}/route/{r.id}/"
-    
-    def get_line_name(self, service_id):
-        r = self._get_route(service_id)
-        return r.route_num if r else "Unknown Service"
+        return f"/operator/{op.operator_slug}/route/{route_obj.id}/"
+
+    def get_line_name(self, route_obj):
+        return route_obj.route_num if route_obj else "Unknown Service"
 
 class EstimatedPositionSerializer(serializers.Serializer):
-    trip_id = serializers.IntegerField()
-    vehicle = VehicleDetailSerializer()
-    service_id = serializers.IntegerField()
-    service = ServiceDetailSerializer()
-    progress = serializers.FloatField()
-    lat = serializers.FloatField()
-    lng = serializers.FloatField()
-    destination = serializers.CharField()
-    heading = serializers.FloatField()
+    trip_id = serializers.SerializerMethodField()
+    vehicle = VehicleDetailSerializer(source='*')
+    service_id = serializers.SerializerMethodField()
+    service = ServiceDetailSerializer(source="current_trip.trip_route")
+    progress = serializers.SerializerMethodField()
+    lat = serializers.FloatField(source="sim_lat")
+    lng = serializers.FloatField(source="sim_lon")
+    destination = serializers.SerializerMethodField()
+    heading = serializers.FloatField(source="sim_heading")
+    updated_at = serializers.DateTimeField()
 
-class VehiclePositionAPIView(generics.ListAPIView):
+    def get_trip_id(self, obj):
+        ct = obj.current_trip
+        if not ct:
+            return None
+    
+        return ct.trip_id if hasattr(ct, "trip_id") else ct
+
+    def get_service(self, obj):
+        if not obj.current_trip:
+            return None
+        if not obj.current_trip.trip_route:
+            return None
+        return obj.current_trip.trip_route.route_num
+
+    def get_service_id(self, obj):
+        ct = obj.current_trip
+        if not ct:
+            return None
+
+        # If it's just an ID, fetch the trip with its route relation
+        if not hasattr(ct, "trip_route"):
+            ct = Trip.objects.filter(id=ct).select_related("trip_route").first()
+            if not ct:
+                return None
+
+        return ct.trip_route.id
+
+
+    def get_progress(self, obj):
+        if not obj.current_trip:
+            return None
+        from tracking.utils import get_progress
+        return get_progress(obj.current_trip)
+
+    def get_destination(self, obj):
+        if not obj.current_trip:
+            return ""
+
+        return obj.current_trip.trip_end_location or ""
+
+class trackingAPIView(generics.ListAPIView):
     serializer_class = EstimatedPositionSerializer
     permission_classes = [AllowAny]
+
     def get_queryset(self):
-        now = timezone.now()
-        print(f"[DEBUG] VehiclePositionAPIView: now = {now}")
-        # Fetch active trips
-        trips = Trip.objects.filter(
-            trip_start_at__lte=now,
-            trip_end_at__gte=now,
-            trip_ended=False
+        # Convert bounding box params safely
+        try:
+            min_lat = float(self.request.query_params.get("ymin"))
+            max_lat = float(self.request.query_params.get("ymax"))
+            min_lng = float(self.request.query_params.get("xmin"))
+            max_lng = float(self.request.query_params.get("xmax"))
+        except (TypeError, ValueError):
+            return fleet.objects.none()
+
+        operator_id = self.request.query_params.get("operator_id")
+        route_id = self.request.query_params.get("route_id")
+
+        filters = Q(
+            sim_lat__isnull=False,
+            sim_lon__isnull=False,
+            sim_lat__gte=min_lat,
+            sim_lat__lte=max_lat,
+            sim_lon__gte=min_lng,
+            sim_lon__lte=max_lng,
+            current_trip__isnull=False  # vehicle must be on a trip
         )
-        print(f"[DEBUG] VehiclePositionAPIView: found {trips.count()} active trips")
-        # Bounding box (optional)
-        min_lat = self.request.query_params.get("ymin")
-        max_lat = self.request.query_params.get("ymax")
-        min_lng = self.request.query_params.get("xmin")
-        max_lng = self.request.query_params.get("xmax")
-        print(f"[DEBUG] VehiclePositionAPIView: bounding box = min_lat={min_lat}, max_lat={max_lat}, min_lng={min_lng}, max_lng={max_lng}")
-        results = []
-        for trip in trips:
-            print(f"[DEBUG] VehiclePositionAPIView: processing trip_id={trip.pk}")
-            coords = get_route_coordinates(
-                trip.trip_route_id,
-                trip.trip_end_location or ""
-            )
-            progress = get_progress(trip)
-            lat, lng, seg_index = interpolate(coords, progress)
 
-            if lat is None or lng is None:
-                continue
+        if operator_id:
+            filters &= Q(operator_id=operator_id)
 
-            # compute heading (if possible)
-            heading = None
-            if seg_index < len(coords) - 1:
-                next_lat, next_lng = coords[seg_index + 1]
-                heading = calculate_heading(lat, lng, next_lat, next_lng)
+        if route_id:
+            filters &= Q(current_trip__trip_route_id=route_id)
 
-            # Bounding box filter
-            if min_lat and lat < float(min_lat):
-                print(f"[DEBUG] VehiclePositionAPIView: skipping trip_id={trip.pk} (lat < min_lat)")
-                continue
-            if max_lat and lat > float(max_lat):
-                print(f"[DEBUG] VehiclePositionAPIView: skipping trip_id={trip.pk} (lat > max_lat)")
-                continue
-            if min_lng and lng < float(min_lng):
-                print(f"[DEBUG] VehiclePositionAPIView: skipping trip_id={trip.pk} (lng < min_lng)")
-                continue
-            if max_lng and lng > float(max_lng):
-                print(f"[DEBUG] VehiclePositionAPIView: skipping trip_id={trip.pk} (lng > max_lng)")
-                continue
-            result = {
-                "trip_id": trip.pk,
-                "vehicle": trip.trip_vehicle_id,
-                "service_id": trip.trip_route_id,
-                "service": trip.trip_route_id,
-                "progress": round(progress, 4),
-                "lat": lat,
-                "lng": lng,
-                "heading": heading,
-                "destination": trip.trip_end_location or ""
-            }
-            print(f"[DEBUG] VehiclePositionAPIView: adding result = {result}")
-            results.append(result)
-        print(f"[DEBUG] VehiclePositionAPIView: returning {len(results)} results")
-        return results
+        return fleet.objects.select_related(
+            "operator",
+            "livery",
+            "current_trip",
+            "current_trip__trip_route",
+        ).filter(filters)

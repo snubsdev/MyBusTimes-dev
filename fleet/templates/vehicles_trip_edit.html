@@ -52,6 +52,10 @@
     <label for="trip_route_num">Route Num</label>
     <input type="text" id="trip_route_num" name="trip_route_num" value="{{ trip.trip_route_num|default:"" }}">
 
+    <label for="inbound">Inbound?</label>
+    <input type="checkbox" id="inbound" name="inbound" {% if trip.trip_inbound %}checked{% endif %}>
+    <br><br>
+
     <input type="submit" value="Save Changes">
 </form>
 

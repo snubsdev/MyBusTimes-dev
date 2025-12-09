@@ -52,6 +52,10 @@
         margin-left: 2em;
         font-size: .875em;
     }
+
+    .stop-operator {
+    writing-mode: sideways-lr;
+    }
 </style>
 
 {% if operator.operator_details.transit_authorities and transit_authority_details %}
@@ -125,6 +129,11 @@
 <p>🧑‍🎓 This is a closed-door school service</p>
 {% endif %}
 
+{% if hidden == True %}
+<p>This service is <strong>not</strong> for general public use.</p>
+{% endif %}
+
+
 <ul class="horizontal">
     {% if 'Edit Routes' in helperPermsData or 'owner' in helperPermsData %}
     <li><a href="/operator/{{ operator.operator_slug|urlencode }}/route/{{ route.id }}/edit">Route Options</a></li>
@@ -136,6 +145,9 @@
     {% if 'Add Route Updates' in helperPermsData or 'owner' in helperPermsData %}
     <li><a href="/operator/{{ operator.operator_slug|urlencode }}/route/{{ route.id }}/updates/options">Route Update
             Options</a></li>
+    {% endif %}
+    {% if 'owner' in helperPermsData %}
+    <li><a href="/operator/{{ operator.operator_slug|urlencode }}/route/{{ route.id }}/status">Check Trackable Status</a></li>
     {% endif %}
     {% if user.is_superuser %}<a style="font-size: 14px;" href="/api-admin/routes/route/{{ route.id }}/change/">✎</a>{% endif %}
 </ul>

@@ -24,6 +24,8 @@ DISCORD_TYPE_REQUEST_WEBHOOK = os.environ["DISCORD_TYPE_REQUEST_WEBHOOK"]
 DISCORD_WEB_ERROR_WEBHOOK = os.environ["DISCORD_WEB_ERROR_WEBHOOK"]
 DISCORD_404_ERROR_WEBHOOK = os.environ["DISCORD_404_ERROR_WEBHOOK"]
 
+ROUTEING_URL = os.getenv("VALHALLA_URL")
+
 # Cloudflare Turnstile Site Key
 CF_SITE_KEY = os.getenv("CF_SITE_KEY")
 CF_SECRET_KEY = os.getenv("CF_SECRET_KEY")
@@ -48,9 +50,11 @@ STRIPE_BILLING_PORTAL_URL = os.environ["STRIPE_BILLING_PORTAL_URL"]
 
 CSRF_TRUSTED_ORIGINS = [
     'https://test.mybustimes.cc',
+    'https://mybustimes.cc',
     'https://www.mybustimes.cc',
-    'https://www.myfleets.cc',
     'https://local-dev.mybustimes.cc',
+    'https://bm-01.tail7328e3.ts.net',
+    'https://bm-02.tail7328e3.ts.net'
 ]
 
 AUTH_USER_MODEL = 'main.CustomUser'
@@ -365,7 +369,7 @@ LOGGING = {
 }
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024  # 100MB
-DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 30000
 
 CMS_CONFIRM_VERSION4 = True
 SITE_ID = 1

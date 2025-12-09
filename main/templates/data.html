@@ -12,38 +12,79 @@
 <h2>Data Sources</h2>
 
 <div class="terms-text">
-    <strong>Real-Life Data</strong>
-        <p class="terms-sub-text">The liveries and routes are imported from the <a href="https://ukbuses.org/api/">ukbuses.org API</a>.</p><br>
-
     <strong>User-Generated Content</strong>
-        <p class="terms-sub-text">User-generated content, including vehicles, operators, routes, trips, tickets, liveries, vehicle types, history,
-        and more, can be accessed via the <a href="/api/">MyBusTimes API</a>.</p><br>
+    <p class="terms-sub-text">
+        Most core data within MyBusTimes is user-generated. This includes:
+        vehicles, operators, routes, trips, tickets, liveries, vehicle types, history,
+        and more. All user-generated datasets can be accessed through the
+        <a href="/api/">MyBusTimes API</a>.
+    </p>
+    <br>
+
+    <strong>Simulated Vehicle Positions</strong>
+    <p class="terms-sub-text">
+        Live vehicles shown on the map are <strong>simulated, user-generated vehicles</strong>.
+        These are not real-world vehicles and do not reflect real positions.
+        They are generated using MBT’s internal simulation engine.  
+        Example feed:
+        <a href="https://www.mybustimes.cc/api/trips/simulated_positions/?ymax=53.556199623947975&ymin=52.557444765708624&xmax=-0.3924758985099004&xmin=-2.020810981151186&limit=5000">
+            Estimated Positions API
+        </a>.
+    </p>
+    <br>
 
     <strong>Mapping Data</strong>
-        <p class="terms-sub-text">For custom maps, we use <a href="https://maplibre.org/">MapLibre GL JS</a> along with <a href="https://www.openstreetmap.org/">OpenStreetMap</a> tile data.</p>
-        <ul class="terms-sub-text">
-            <li><a href="https://www.openstreetmap.org/">OpenStreetMap</a> – Base data for real-life and simulated route mapping.</li>
-            <li><a href="https://maplibre.org/">MapLibre GL JS</a> – Modern, open-source mapping library for rendering high-performance, interactive maps.</li>
-        </ul><br>
+    <p class="terms-sub-text">
+        MBT uses open-source mapping technologies for all map displays.
+    </p>
+    <ul class="terms-sub-text">
+        <li><a href="https://www.openstreetmap.org/">OpenStreetMap</a> – Base map and geographic reference.</li>
+        <li><a href="https://maplibre.org/">MapLibre GL JS</a> – Rendering engine for interactive maps.</li>
+    </ul>
+    <p class="terms-sub-text">
+        Map tiles for Snap-to-Road routing are generously provided by Bonnie - thank you!
+    </p>
+    <br>
 
-        <p class="terms-sub-text">Live vehicle data is sourced from <a href="https://ukbuses.org/">ukbuses.org</a>, including the associated livery information for those vehicles.</p><br>
+    <strong>Bus Stop Data</strong>
+    <p class="terms-sub-text">
+        Bus stop data is sourced from the <a href="https://stops.mybustimes.cc/data">MyBusTimes Stops Data API</a>,
+        which includes detailed metadata and is updated regularly.
+    </p>
+    <br>
 
-        <p class="terms-sub-text">For custom game maps, we use <a href="https://maplibre.org/">MapLibre GL JS</a> along with tiles provided by the game creators. These tiles can be found on the <a href="/api/game/tiles">MyBusTimes Game Tiles API</a>.</p><br>
+    <strong>MBT Data Portal</strong>
+    <p class="terms-sub-text">
+        MBT publishes open datasets for community use:
+    </p>
+    <ul class="terms-sub-text">
+        <li><a href="https://www.mybustimes.cc/data/">MyBusTimes Data Portal</a> – Open datasets for route, vehicle, and system data.</li>
+        <li><a href="https://stops.mybustimes.cc/data">Stops Data Portal</a> – Full open dataset of stop locations.</li>
+    </ul>
+    <br>
 
-        <p class="terms-sub-text">For bus stops, we use the <a href="https://stops.mybustimes.cc/data">MyBusTimes Stops Data API</a>, which provides detailed and regularly updated stop location information.</p>
-    <!-- p class="terms-sub-text">We use a custom valhalla server for routing: <a href="https://valhalla.mybustimes.cc">MyBusTimes Valhalla</a>.</p> --><br>
+    <!-- on hold -->
 
+    <!--
     <strong>Game Data</strong>
-        
-        <p class="terms-sub-text">Game data such as routes and other game-specific data can be found on the <a href="/api/game/">MyBusTimes Game Data API</a>.</p>
-        <p class="terms-sub-text">Game map tiles can be found on the <a href="/api/game/tiles">MyBusTimes Game Tiles API</a>.</p>
-    
-        <br>
+    <p class="terms-sub-text">
+        All game-related datasets (game routes, map tiles, metadata, etc.) are available via:
+    </p>
+    <ul class="terms-sub-text">
+        <li><a href="/api/game/">MyBusTimes Game Data API</a></li>
+        <li><a href="/api/game/tiles">MyBusTimes Game Tiles API</a></li>
+    </ul>
+    <br>
+    -->
 
     <strong>Timetable Importing</strong>
-    <p class="terms-sub-text">Timetable importing data is scraped from the provided Bustimes.org URL or other forked versions of BusTimes.</p>
+    <p class="terms-sub-text">
+        Timetable importing uses scraped data from user-provided Bustimes.org
+        URLs or any compatible forks of the Bustimes service.
+    </p>
 
 </div>
+
 <div class="ad-box" id="body-ad-1"></div>
 
 {% endblock %}

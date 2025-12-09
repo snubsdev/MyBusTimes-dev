@@ -41,6 +41,8 @@ urlpatterns = [
     path('<str:operator_slug>/running-boards/edit/<int:duty_id>/trips/', duty_edit_trips, name='edit-duty-trips'),
     path('<str:operator_slug>/running-boards/<int:duty_id>/', duty_detail, name='duty_detail'),
 
+    path('<str:operator_slug>/boards/flip_all_duty_trip_directions/<int:board_id>/', flip_all_duty_trip_directions, name='flip_all_duty_trip_directions'),
+
     # Duty printout
     path('<str:operator_slug>/printout/generate-pdf/<int:duty_id>/', generate_pdf, name='generate_pdf'),
 
@@ -50,6 +52,7 @@ urlpatterns = [
     path('<str:operator_slug>/route/<int:route_id>/edit/', route_edit, name='edit-route'),
     path('<str:operator_slug>/route/<int:route_id>/delete/', route_delete, name='delete-route'),
     path("<str:operator_slug>/route/<int:route_id>/vehicles/", route_vehicles, name="route_vehicles"),
+    path('<str:operator_slug>/route/<int:route_id>/status/', trackable_status, name='trackable_status'),
     path('<str:operator_slug>/routes/dedupe', deduplicate_operator_routes, name='deduplicate_routes'),
 
     # Route Updates
@@ -89,6 +92,7 @@ urlpatterns = [
     path('<str:operator_slug>/vehicles/<int:vehicle_id>/trips/<int:trip_id>/miss/', vehicles_trip_miss, name='vehicles_trip_miss'),
     path('<str:operator_slug>/vehicles/<int:vehicle_id>/trips/<int:trip_id>/edit/', vehicles_trip_edit, name='vehicles_trip_edit'),
     path('<str:operator_slug>/vehicles/<int:vehicle_id>/trips/<int:trip_id>/delete/', vehicles_trip_delete, name='vehicles_trip_delete'),
+    path('<str:operator_slug>/vehicles/<int:vehicle_id>/trips/flip_all_trip_directions/<str:selected_date>/', flip_all_trip_directions, name='flip_all_trip_directions'),
     path('<str:operator_slug>/vehicles/<int:vehicle_id>/trips/remove_other_trips/', remove_other_trips, name='remove_other_trips'),
     path('<str:operator_slug>/vehicles/<int:vehicle_id>/trips/remove_all_trips/', remove_all_trips, name='remove_all_trips'),
 

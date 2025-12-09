@@ -34,18 +34,22 @@
     </form>
 {% endif %}
 
-<div style="display: flex;">
-
+<div class="mass-actions" style="display: flex;">
     <form style="width: 50%;" action="{% url 'remove_other_trips' operator_slug=operator.operator_slug vehicle_id=vehicle.id %}" method="post">
         {% csrf_token %}
         <button class="btn">Remove Other Operators' Trips</button>
     </form>
-
     <form style="display: block;width: 50%;" action="{% url 'remove_all_trips' operator_slug=operator.operator_slug vehicle_id=vehicle.id %}" method="post">
         {% csrf_token %}
         <button class="delete-btn btn">Remove All Trips</button>
     </form>
-
+</div>
+<div>
+    <hr>
+    <form style="width: 50%;" action="{% url 'flip_all_trip_directions' operator_slug=operator.operator_slug vehicle_id=vehicle.id selected_date=selected_date %}" method="post">
+        {% csrf_token %}
+        <button class="btn">Flip all trip directions</button>
+    </form>
 </div>
 
 <br>
@@ -58,6 +62,7 @@
                 <th scope="col">Trip</th>
                 <th scope="col">From</th>
                 <th scope="col">To</th>
+                <th scope="col">Inbound?</th>
                 <th scope="col" colspan="3">Actions</th>
             </tr>
         </thead>
@@ -80,6 +85,7 @@
                 </td>
                 <td>{{ trip.trip_start_location }}</td>
                 <td>{{ trip.trip_end_location }}</td>
+                <td>{% if trip.trip_inbound %}Yes{% else %}No{% endif %}</td>
 
                 {% if 'owner' in helper_permissions or 'Miss Trips' in helper_permissions %}
                     {% if trip.trip_missed %}

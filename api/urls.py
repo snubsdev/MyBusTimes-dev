@@ -18,13 +18,15 @@ urlpatterns = [
     path('liveries/<int:pk>/', ratelimit(key='ip', method='GET', rate='10/s')(liveriesDetailView.as_view()), name='liveries-detail'),
     path('type/', ratelimit(key='ip', method='GET', rate='10/s')(typeListView.as_view()), name='type-list'),
     path('type/<int:pk>/', ratelimit(key='ip', method='GET', rate='10/s')(typeDetailView.as_view()), name='type-detail'),
-    path('routes/<int:pk>/stops/', ratelimit(key='ip', method='GET', rate='10/s')(routeStops.as_view()), name='route-stops'),
+    path('routes/<int:pk>/stops/', ratelimit(key='ip', method='GET', rate='100/s')(routeStops.as_view()), name='route-stops'),
     path('get_timetables/', ratelimit(key='ip', method='GET', rate='10/s')(get_timetables), name='get_timetables'),
     path('get_trip_times/', ratelimit(key='ip', method='GET', rate='10/s')(get_trip_times), name='get_trip_times'),
     path('active_trips/', ratelimit(key='ip', method='GET', rate='10/s')(map_view.as_view()), name='active_trips'),
     path('service-updates/', ratelimit(key='ip', method='GET', rate='10/s')(siteUpdateListView.as_view()), name='service_updates'),
     path('user/', ratelimit(key='ip', method='GET', rate='10/s')(get_user_profile), name='get_user_profile'),
     path('user-search/', ratelimit(key='ip', method='GET', rate='10/s')(user_search_api), name='user-search-api'),
+
+    path("valhalla/route/", valhalla_proxy, name="valhalla_proxy"),
 
     path("simplify-gradient/", ratelimit(key='ip', method='GET', rate='10/s')(simplify_gradient), name="simplify_gradient"),
 
@@ -36,7 +38,7 @@ urlpatterns = [
     path('operator/fleet/<int:pk>/', ratelimit(key='ip', method='GET', rate='10/s')(fleetDetailView.as_view()), name='fleet-detail'),
     path('operator/', ratelimit(key='ip', method='GET', rate='10/s')(operatorListView.as_view()), name='operator-list'),
     path('operator/<int:pk>/', ratelimit(key='ip', method='GET', rate='10/s')(operatorDetailView.as_view()), name='operator-detail'),
-    path('operator/route/', ratelimit(key='ip', method='GET', rate='100/s')(routesListView.as_view()), name='operator-routes'),
+    path('operator/route/', routesListView.as_view(), name='operator-routes'),
     path('operator/route/<int:pk>/', ratelimit(key='ip', method='GET', rate='10/s')(routesDetailView.as_view()), name='operator-route-detail'),
     path('operator/ticket/', ratelimit(key='ip', method='GET', rate='10/s')(ticketListView.as_view()), name='operator-tickets'),
     path('operator/tickle/<int:pk>/', ratelimit(key='ip', method='GET', rate='10/s')(ticketDetailView.as_view()), name='operator-ticket-detail'),
@@ -50,7 +52,8 @@ urlpatterns = [
     path("trips/", ratelimit(key='ip', method='GET', rate='10/s')(TripListView.as_view()), name="trip-list"),
     path("trips/create/", ratelimit(key='ip', method='GET', rate='5/m')(StartNewTripView), name="create-trip"),
     path("trips/current_vehicle_trips/", ratelimit(key='ip', method='GET', rate='10/s')(current_vehicle_trips.as_view()), name="current-vehicle-trips"),
-    path("trips/estimated_positions/", ratelimit(key='ip', method='GET', rate='10/s')(VehiclePositionAPIView.as_view()), name="estimated-positions"),
+    #path("trips/simulated_positions/", ratelimit(key='ip', method='GET', rate='10/s')(VehiclePositionAPIView.as_view()), name="estimated-positions"),
+    path("trips/simulated_positions/", ratelimit(key='ip', method='GET', rate='10/s')(trackingAPIView.as_view()), name="simulated-positions"),
     path("trips/<int:trip_id>/", ratelimit(key='ip', method='GET', rate='10/s')(TripDetailView.as_view()), name="trip-detail"),
 
     path("tracking/", ratelimit(key='ip', method='GET', rate='10/s')(TrackingListView.as_view()), name="tracking-list"),

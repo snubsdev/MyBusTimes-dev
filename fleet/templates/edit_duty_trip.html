@@ -37,6 +37,10 @@
 
 {% block content %}
   <h2>Edit Trips for Duty: {{ duty_instance.duty_name }}</h2>
+  <form style="width: 50%;" action="{% url 'flip_all_duty_trip_directions' operator_slug=operator.operator_slug board_id=duty_instance.id %}" method="post">
+    {% csrf_token %}
+    <button class="btn">Flip all trip directions</button>
+  </form><br>
   <form method="post" class="fleet-edit-wrapper">
     {% csrf_token %}
     <div>
@@ -70,6 +74,10 @@
 
             <label>End At:</label>
             <input type="text" name="end_at[]" value="{{ trip.end_at }}" required>
+
+            <label for="inbound">inbound?</label>
+            <input type="hidden" name="inbound_trip[]" value="false">
+            <input type="checkbox" name="inbound_trip_check[]" {% if trip.inbound %}checked{% endif %}>
           </div>
         {% endfor %}
       </div>
@@ -80,6 +88,18 @@
 
   <!-- Select2 JS -->
   <script>
+    function addCheckboxListeners() {
+      document.querySelectorAll('input[type="checkbox"][name="inbound_trip_check[]"]').forEach(function(checkbox) {
+        const hiddenInput = checkbox.previousElementSibling;
+        if (hiddenInput && hiddenInput.name === 'inbound_trip[]') {
+           hiddenInput.value = checkbox.checked ? 'true' : 'false';
+           checkbox.onchange = function() {
+             hiddenInput.value = this.checked ? 'true' : 'false';
+           };
+        }
+      });
+    }
+
     function addRemoveTripListeners() {
       document.querySelectorAll('.remove-trip').forEach(function(btn) {
         btn.onclick = function() {
@@ -120,6 +140,7 @@
       addRemoveTripListeners();
       addRouteSelectListeners();
       initSelect2();
+      addCheckboxListeners();
     });
 
     document.getElementById('add-trip').addEventListener('click', function(e) {
@@ -147,6 +168,9 @@
         <input type="text" name="start_at[]" required>
         <label>End At:</label>
         <input type="text" name="end_at[]" required>
+        <label for="inbound">inbound?</label>
+        <input type="hidden" name="inbound_trip[]" value="false">
+        <input type="checkbox" name="inbound_trip_check[]">
       `;
 
       container.appendChild(tripGroup);
@@ -161,6 +185,7 @@
 
       addRemoveTripListeners();
       addRouteSelectListeners();
+      addCheckboxListeners();
     });
   </script>
 {% endblock %}

@@ -116,7 +116,6 @@
       option.textContent =
         `${route.route_num} - ${route.route_inbound_destination} to ${route.route_outbound_destination}`;
 
-      // pre-select when values.route_id OR values.route_num match
       if (values.route_id == route.id || values.route_num == route.route_num) {
         option.selected = true;
       }
@@ -127,10 +126,9 @@
     tripGroup.appendChild(routeLabel);
     tripGroup.appendChild(routeSelect);
 
-    // Route Number Field (auto-filled)
+    // Route Number Field
     addInput('Route Number:', 'text', 'route_num[]', true, values.route_num);
 
-    // Auto-fill when dropdown changes
     routeSelect.addEventListener('change', function () {
       const selected = routes.find(r => r.id == this.value);
       tripGroup.querySelector('input[name="route_num[]"]').value =
@@ -141,6 +139,36 @@
     addInput('End Time:', 'time', 'end_time[]', true, values.end_time);
     addInput('Start At:', 'text', 'start_at[]', true, values.start_at);
     addInput('End At:', 'text', 'end_at[]', true, values.end_at);
+
+    // -------- UPDATED: INBOUND CHECKBOX WITH HIDDEN INPUT --------
+    const inboundLabel = document.createElement('label');
+    inboundLabel.textContent = "Inbound?";
+    const inboundCheck = document.createElement('input');
+    inboundCheck.type = "checkbox";
+    inboundCheck.name = "inbound_trip_check[]";
+    inboundCheck.value = "true";
+
+    // Add a hidden input that will always be submitted
+    const inboundHidden = document.createElement('input');
+    inboundHidden.type = "hidden";
+    inboundHidden.name = "inbound_trip[]";
+    inboundHidden.value = "false";
+
+    // When checkbox changes, update the hidden input
+    inboundCheck.addEventListener('change', function() {
+      inboundHidden.value = this.checked ? "true" : "false";
+    });
+
+    // backend sends either direction="inbound" OR inbound=true
+    if (values.inbound === true || values.direction === "inbound") {
+      inboundCheck.checked = true;
+      inboundHidden.value = "true";
+    }
+
+    tripGroup.appendChild(inboundLabel);
+    tripGroup.appendChild(inboundCheck);
+    tripGroup.appendChild(inboundHidden);
+    // ----------------------------------------
 
     // Remove button
     const removeBtn = document.createElement('button');
@@ -154,6 +182,7 @@
 
     return tripGroup;
   }
+
 
   // Add Trip button
   document.getElementById('add-trip').addEventListener('click', function (e) {
@@ -245,6 +274,7 @@
           end_time: t.end_time,
           start_at: t.start_stop,
           end_at: t.end_stop,
+          inbound: t.inbound ?? (t.direction === "inbound")
         };
 
         container.appendChild(createTripGroup(values));

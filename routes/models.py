@@ -18,6 +18,7 @@ def default_route_details():
 
 class route(models.Model):
     id = models.AutoField(primary_key=True)
+    hidden = models.BooleanField(default=False)
     route_num = models.CharField(max_length=255, blank=True, null=True)
     route_name = models.CharField(max_length=255, blank=True, null=True)
     route_details = models.JSONField(default=default_route_details, blank=True)
@@ -116,7 +117,7 @@ class routeStop(models.Model):
     inbound = models.BooleanField(default=True)
     circular = models.BooleanField(default=False)
     stops = models.JSONField()
-
+    snapped_route = models.TextField(blank=True, null=True)
     history = HistoricalRecords()
 
     def __str__(self):
@@ -142,6 +143,7 @@ class dutyTrip(models.Model):
     duty = models.ForeignKey(duty, on_delete=models.CASCADE, related_name='duty_trips')
     route_link = models.ForeignKey(route, related_name='duty_trip_route', blank=True, null=True, on_delete=models.CASCADE)
     route = models.CharField(max_length=100, blank=True, null=True)
+    inbound = models.BooleanField(default=True)
     start_time = models.TimeField()
     end_time = models.TimeField()
     start_at = models.CharField(max_length=100, blank=True, null=True)

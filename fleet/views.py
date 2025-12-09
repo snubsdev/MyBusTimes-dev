@@ -365,6 +365,7 @@ def get_unique_linked_routes(initial_routes):
 def operator(request, operator_slug):
     response = feature_enabled(request, "view_routes")
     operator_slug = operator_slug.strip()
+    show_hidden = request.GET.get('hidden', 'false').lower() == 'true'
 
     if response:
         return response
@@ -374,7 +375,10 @@ def operator(request, operator_slug):
     except Http404:
         return render(request, 'error/404.html', status=404)
     
-    routes = list(route.objects.filter(route_operators=operator).order_by('route_num'))
+    if show_hidden:
+        routes = list(route.objects.filter(route_operators=operator).order_by('route_num'))
+    else:
+        routes = list(route.objects.filter(route_operators=operator, hidden=False).order_by('route_num'))
 
     # Safely get operator_details as a dict or empty dict if None
     details = operator.operator_details or {}
@@ -437,6 +441,7 @@ def operator(request, operator_slug):
         'helper_permissions': helper_permissions,
         'transit_authority_details': transit_authority_details,
         'tabs': tabs,
+        'show_hidden': show_hidden,
         'today': timezone.now().date()
     }
     return render(request, 'operator.html', context)
@@ -739,6 +744,7 @@ def route_detail(request, operator_slug, route_id):
             'outbound': route_stop_full_outbound
         },
         'selectedDay': selectedDay,
+        'hidden': route_instance.hidden,
         'current_updates': current_updates,
         'transit_authority_details': getattr(operator.operator_details, 'transit_authority_details', None),
         'inbound_first_stop_name': inbound_first_stop_name,
@@ -749,6 +755,94 @@ def route_detail(request, operator_slug, route_id):
     }
 
     return render(request, 'route_detail.html', context)
+
+def trackable_status(request, operator_slug, route_id):
+    response = feature_enabled(request, "view_routes")
+    if response:
+        return response
+
+    operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
+    route_instance = get_object_or_404(route, id=route_id)
+
+    inbound_timetable_entries = timetableEntry.objects.filter(route=route_instance, inbound=True)
+    outbound_timetable_entries = timetableEntry.objects.filter(route=route_instance, inbound=False)
+
+    inbound_route_stops = routeStop.objects.filter(route=route_instance, inbound=True).first()
+    outbound_route_stops = routeStop.objects.filter(route=route_instance, inbound=False).first()
+
+    # circular route = no outbound direction
+    is_circular = False
+    if route_instance.outbound_destination == "":
+        is_circular = True
+
+    has_in_timetable = inbound_timetable_entries.exists()
+    has_out_timetable = outbound_timetable_entries.exists()
+    has_in_stops = inbound_route_stops is not None
+    has_out_stops = outbound_route_stops is not None
+
+    # Inbound status
+    if has_in_timetable and has_in_stops:
+        inbound_status = "Ok"
+    elif has_in_timetable and not has_in_stops:
+        inbound_status = "Missing Stops"
+    else:
+        inbound_status = "No Timetable"
+
+    # Outbound status
+    if is_circular:
+        outbound_status = "Circular (no outbound)"
+    else:
+        if has_out_timetable and has_out_stops:
+            outbound_status = "Ok"
+        elif has_out_timetable and not has_out_stops:
+            outbound_status = "Missing Stops"
+        else:
+            outbound_status = "No Timetable"
+
+    # Overall
+    if inbound_status == "Ok" and outbound_status == "Ok":
+        overall_status = "Ok"
+    elif inbound_status == "Ok" and outbound_status != "Ok":
+        overall_status = "Missing Outbound Data"
+    elif inbound_status != "Ok" and outbound_status == "Ok":
+        overall_status = "Missing Inbound Data"
+    else:
+        overall_status = "Incomplete"
+
+    status_report = {
+        'inbound': inbound_status,
+        'outbound': outbound_status,
+        'overall': overall_status,
+        'is_circular': is_circular,
+        'all': {
+            'inbound': {
+                'has_timetable': has_in_timetable,
+                'has_stops': has_in_stops
+            },
+            'outbound': {
+                'has_timetable': has_out_timetable,
+                'has_stops': has_out_stops
+            },
+            'overall': {
+                'inbound': has_in_timetable and has_in_stops,
+                'outbound': has_out_timetable and has_out_stops
+            }
+        }
+    }
+
+    breadcrumbs = [
+        {'name': 'Home', 'url': '/'},
+        {'name': operator.operator_name, 'url': f'/operator/{operator.operator_slug}/'},
+        {'name': route_instance.route_num or 'Route Details', 'url': f'/operator/{operator.operator_slug}/route/{route_id}/'}
+    ]
+
+    context = {
+        'breadcrumbs': breadcrumbs,
+        'operator': operator,
+        'status_report_json': json.dumps(status_report)  # send to JS
+    }
+
+    return render(request, 'route_status.html', context)
 
 def vehicles(request, operator_slug, depot=None, withdrawn=False):
     operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
@@ -1435,6 +1529,7 @@ def vehicles_trip_edit(request, operator_slug, vehicle_id, trip_id):
         route_id = request.POST.get('trip_route')
         trip.trip_route = route.objects.get(id=route_id) if route_id else None
         trip.trip_route_num = request.POST.get('trip_route_num') or None
+        trip.trip_inbound = 'inbound' in request.POST
         
         trip.save()
 
@@ -1478,6 +1573,30 @@ def vehicles_trip_delete(request, operator_slug, vehicle_id, trip_id):
     trip.delete()
     messages.success(request, "Trip deleted successfully.")
     return redirect(f'/operator/{operator_slug}/vehicles/{vehicle_id}/trips/manage/?date={date}')
+
+def flip_all_trip_directions(request, operator_slug, vehicle_id, selected_date):
+    operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
+    vehicle = get_object_or_404(fleet, id=vehicle_id, operator=operator)
+
+    userPerms = get_helper_permissions(request.user, operator)
+
+    if request.user != operator.owner and 'Edit Trips' not in userPerms and not request.user.is_superuser:
+        return redirect(f'/operator/{operator_slug}/vehicles/{vehicle_id}/')
+
+    start_of_day = datetime.combine(datetime.fromisoformat(selected_date).date(), time.min)
+    end_of_day = datetime.combine(datetime.fromisoformat(selected_date).date(), time.max)
+
+    trips = Trip.objects.filter(
+        trip_vehicle=vehicle,
+        trip_start_at__range=(start_of_day, end_of_day)
+    )
+
+    for trip in trips:
+        trip.trip_inbound = not trip.trip_inbound
+        trip.save()
+
+    messages.success(request, "All trip directions flipped successfully.")
+    return redirect(f'/operator/{operator_slug}/vehicles/{vehicle_id}/trips/manage/?date={selected_date}')
 
 def send_discord_webhook_embed(
     title: str,
@@ -2014,6 +2133,20 @@ def duty_add(request, operator_slug):
 @login_required
 @require_http_methods(["GET", "POST"])
 def duty_add_trip(request, operator_slug, duty_id):
+    """
+    Handle adding trips to a duty or running board for an operator.
+    
+    On GET, renders a form to add multiple trips to the specified duty/running board, providing available routes and context.
+    On POST, validates permission and posted trip arrays, parses times, creates dutyTrip records (associating an existing route object when found), counts successful creations, and redirects back to the duties/running-boards list with success or error messages.
+    
+    Parameters:
+        request (HttpRequest): The incoming request object.
+        operator_slug (str): Slug identifying the operator.
+        duty_id (int): Primary key of the duty or running board to which trips will be added.
+    
+    Returns:
+        HttpResponse: A redirect after POST (success or error) or a rendered template ('add_duty_trip.html') on GET.
+    """
     response = feature_enabled(request, "add_boards")
     if response:
         return response
@@ -2055,13 +2188,15 @@ def duty_add_trip(request, operator_slug, duty_id):
         end_times = request.POST.getlist('end_time[]')
         start_ats = request.POST.getlist('start_at[]')
         end_ats = request.POST.getlist('end_at[]')
+        inbound_trips = request.POST.getlist('inbound_trip[]')  # Now this will always have values
 
         # Validate lengths are equal
-        if not (len(route_nums) == len(start_times) == len(end_times) == len(start_ats) == len(end_ats)):
+        if not (len(route_nums) == len(start_times) == len(end_times) == len(start_ats) == len(end_ats) == len(inbound_trips)):
             messages.error(request, "Mismatch in trip input lengths.")
             return redirect(request.path)
 
         trips_created = 0
+
         for i in range(len(route_nums)):
             try:
                 start_time = datetime.strptime(start_times[i], '%H:%M').time()
@@ -2086,7 +2221,8 @@ def duty_add_trip(request, operator_slug, duty_id):
                 start_time=start_time,  
                 end_time=end_time,
                 start_at=start_ats[i],
-                end_at=end_ats[i]
+                end_at=end_ats[i],
+                inbound=(inbound_trips[i] == 'true')
             )
             trips_created += 1
 
@@ -2116,7 +2252,27 @@ def duty_add_trip(request, operator_slug, duty_id):
         }
         return render(request, 'add_duty_trip.html', context)
     
+
+    
 def get_timetable(request, route_id, direction):
+    """
+    Return a sequence of vehicle trips (timetable) for the given route starting at the specified time.
+    
+    Expects the request to include a GET parameter `start_time` in "HH:MM" format. The function looks up the route by `route_id`, parses inbound and outbound timetable entries (if present), and builds an alternating sequence of trips starting with inbound when `direction == "inbound"`. Each trip object in the returned JSON array contains:
+    - `times`: list of `{ "stop": <stopname>, "time": <HH:MM> }`
+    - `start_time`, `end_time`: string times for the trip endpoints
+    - `start_minutes`, `end_minutes`: endpoint times converted to minutes past midnight
+    - `start_stop`, `end_stop`: endpoint stop names
+    - `direction`: `"inbound"` or `"outbound"`
+    
+    Parameters:
+        request: Django HttpRequest containing GET parameter `start_time` (required).
+        route_id (int): Primary key of the route to query.
+        direction (str): If `"inbound"`, the generated sequence begins with inbound trips; otherwise it begins with outbound.
+    
+    Returns:
+        JSON response containing an array of trip objects as described above on success. Returns a JSON error object with HTTP 400 when `start_time` is missing or invalid, the route is not found, or on other processing errors.
+    """
     import json
     import sys
 
@@ -2134,8 +2290,16 @@ def get_timetable(request, route_id, direction):
         if not start_time_str:
             return JsonResponse({"error": "start_time is required (HH:MM)"}, status=400)
 
-        # convert HH:MM → minutes
         def to_minutes(t):
+            """
+            Convert an "HH:MM" time string to the total number of minutes since midnight.
+            
+            Parameters:
+                t (str): Time in "HH:MM" format (hours and minutes).
+            
+            Returns:
+                int: Total minutes since midnight (hours * 60 + minutes).
+            """
             h, m = map(int, t.split(":"))
             return h * 60 + m
 
@@ -2152,15 +2316,15 @@ def get_timetable(request, route_id, direction):
         inbound_entry = timetableEntry.objects.filter(route=r, inbound=True).first()
         outbound_entry = timetableEntry.objects.filter(route=r, inbound=False).first()
 
-        log("INBOUND ENTRY EXISTS =", bool(inbound_entry))
-        log("OUTBOUND ENTRY EXISTS =", bool(outbound_entry))
-
-        if not inbound_entry or not outbound_entry:
-            return JsonResponse({"error": "Both inbound and outbound timetables required"}, status=400)
+        one_way_inbound_only = False
+        if outbound_entry is None:
+            log("OUTBOUND MISSING → ONE-WAY MODE ENABLED (INBOUND ONLY)")
+            one_way_inbound_only = True
 
         # -------- PARSE TIMETABLE ENTRY --------
         def parse_entry(entry, label):
             log(f"Parsing entry for {label}")
+
             data = entry.stop_times
             if isinstance(data, str):
                 try:
@@ -2169,24 +2333,39 @@ def get_timetable(request, route_id, direction):
                     log(f"JSON LOAD ERROR IN {label}:", str(e))
                     return []
 
-            log(f"{label} STOP KEYS =", list(data.keys()))
-
             stops_list = list(data.values())
             if not stops_list:
-                log(f"{label} EMPTY STOPS LIST")
                 return []
 
-            trip_count = len(stops_list[0].get("times", []))
-            log(f"{label} TRIP COUNT =", trip_count)
+            # Determine TRUE number of trips from max times length
+            trip_count = max(len(stop.get("times", [])) for stop in stops_list)
+            log(f"{label}: detected trip_count = {trip_count}")
 
             trips = []
-            for i in range(trip_count):
+
+            # Build each trip individually
+            for trip_index in range(trip_count):
                 trip_stops = []
+
                 for stop in stops_list:
-                    trip_stops.append({
-                        "stop": stop["stopname"],
-                        "time": stop["times"][i]
-                    })
+                    stopname = stop["stopname"]
+                    times = stop.get("times", [])
+
+                    # If this stop has a time for this trip index → use it
+                    if trip_index < len(times):
+                        t = times[trip_index]
+                        if t and t.strip():
+                            trip_stops.append({"stop": stopname, "time": t})
+                        else:
+                            # Blank or missing time in the middle
+                            continue
+                    else:
+                        # Stop has no time for this trip (early terminated / skipped)
+                        continue
+
+                # Must have at least 2 stops to be a valid trip
+                if len(trip_stops) < 2:
+                    continue
 
                 start_t = trip_stops[0]["time"]
                 end_t = trip_stops[-1]["time"]
@@ -2199,19 +2378,15 @@ def get_timetable(request, route_id, direction):
                     "end_minutes": to_minutes(end_t),
                     "start_stop": trip_stops[0]["stop"],
                     "end_stop": trip_stops[-1]["stop"],
+                    "direction": label.lower()
                 })
 
+            # Sort by actual time
             trips.sort(key=lambda x: x["start_minutes"])
-            log(f"{label} FIRST 3 TRIPS (sorted)=",
-                [(t['start_time'], t['end_time']) for t in trips[:3]])
-
             return trips
 
         inbound_trips = parse_entry(inbound_entry, "INBOUND")
-        outbound_trips = parse_entry(outbound_entry, "OUTBOUND")
-
-        log("INBOUND TRIPS COUNT =", len(inbound_trips))
-        log("OUTBOUND TRIPS COUNT =", len(outbound_trips))
+        outbound_trips = parse_entry(outbound_entry, "OUTBOUND") if outbound_entry else []
 
         # -------- BUILD VEHICLE RUN SEQUENCE --------
 
@@ -2220,19 +2395,12 @@ def get_timetable(request, route_id, direction):
         doing_inbound = inbound_first
 
         iteration = 0
-
         while True:
             iteration += 1
             if iteration > 5000:
-                log("!!! STOPPING: LOOP ITERATION LIMIT HIT !!!")
                 break
 
-            log(f"--- LOOP {iteration} ---")
-            log("CURRENT TIME =", current_time)
-            log("DOING INBOUND =", doing_inbound)
-
             pool = inbound_trips if doing_inbound else outbound_trips
-            log("POOL SIZE =", len(pool))
 
             next_trip = None
             for t in pool:
@@ -2241,26 +2409,17 @@ def get_timetable(request, route_id, direction):
                     break
 
             if not next_trip:
-                log("NO NEXT TRIP FOUND - BREAK")
                 break
 
-            # Safety: prevent freeze if end==start
             if next_trip["end_minutes"] <= current_time:
-                log("BREAK: END MINUTES <= CURRENT TIME (BAD TRIP)")
                 break
-
-            log("SELECTED TRIP =", next_trip["start_time"], "→", next_trip["end_time"])
 
             result.append(next_trip)
-
-            # Move current time forward
             current_time = next_trip["end_minutes"]
-            log("UPDATED CURRENT TIME =", current_time)
 
-            # Flip direction
-            doing_inbound = not doing_inbound
+            if not one_way_inbound_only:
+                doing_inbound = not doing_inbound
 
-        log("FINAL RESULT COUNT =", len(result))
         return JsonResponse(result, safe=False)
 
     except Exception as e:
@@ -2296,6 +2455,7 @@ def duty_edit_trips(request, operator_slug, duty_id):
             "route_name": r.route_name,
             "route_inbound_destination": r.inbound_destination,
             "route_outbound_destination": r.outbound_destination,
+            
         } for r in available_routes_qs
     ]
 
@@ -2310,8 +2470,11 @@ def duty_edit_trips(request, operator_slug, duty_id):
         end_times = request.POST.getlist('end_time[]')
         start_ats = request.POST.getlist('start_at[]')
         end_ats = request.POST.getlist('end_at[]')
+        inbound_trips = request.POST.getlist('inbound_trip[]')
 
-        if not (len(route_nums) == len(start_times) == len(end_times) == len(start_ats) == len(end_ats)):
+
+        print(len(inbound_trips))
+        if not (len(route_nums) == len(start_times) == len(end_times) == len(start_ats) == len(end_ats) == len(inbound_trips)):
             messages.error(request, "Mismatch in trip input lengths.")
             return redirect(request.path)
 
@@ -2335,6 +2498,10 @@ def duty_edit_trips(request, operator_slug, duty_id):
             except route.DoesNotExist:
                 route_obj = None
 
+            print("==========================")
+            print("inbound:" + str(inbound_trips[i] == 'true'))
+            print("==========================")
+
             dutyTrip.objects.create(
                 duty=duty_instance,
                 route=route_num,
@@ -2342,7 +2509,8 @@ def duty_edit_trips(request, operator_slug, duty_id):
                 start_time=start_time,
                 end_time=end_time,
                 start_at=start_ats[i],
-                end_at=end_ats[i]
+                end_at=end_ats[i],
+                inbound=(inbound_trips[i] == 'true') 
             )
             trips_created += 1
 
@@ -2369,6 +2537,40 @@ def duty_edit_trips(request, operator_slug, duty_id):
         }
         return render(request, 'edit_duty_trip.html', context)
     
+@login_required
+@require_http_methods(["POST"])
+def flip_all_duty_trip_directions(request, operator_slug, board_id):
+    response = feature_enabled(request, "edit_boards")
+    if response:
+        return response
+    
+    operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
+    userPerms = get_helper_permissions(request.user, operator)
+    duty_instance = get_object_or_404(duty, id=board_id, duty_operator=operator)
+
+    is_running_board = duty_instance.board_type == 'running-boards'
+
+    if is_running_board:
+        title = "Running Board"
+        titles = "Running Boards"
+        board_type = 'running-boards'
+    else:
+        title = "Duty"
+        titles = "Duties"
+        board_type = "duty"
+
+    if request.user != operator.owner and 'Edit Duties' not in userPerms and not request.user.is_superuser:
+        messages.error(request, f"You do not have permission to edit this {title} for this operator.")
+        return redirect(f'/operator/{operator_slug}/{board_type}/')
+
+    trips = dutyTrip.objects.filter(duty=duty_instance)
+    for trip in trips:
+        trip.inbound = not trip.inbound
+        trip.save()
+
+    messages.success(request, f"Flipped directions for all trips on {title} '{duty_instance.duty_name}'.")
+    return redirect(f'/operator/{operator_slug}/{board_type}/edit/{duty_instance.id}/trips/')
+
 @login_required
 @require_http_methods(["GET", "POST"])
 def duty_delete(request, operator_slug, duty_id):
@@ -3417,6 +3619,7 @@ def route_add(request, operator_slug):
         outbound = request.POST.get('outbound_destination')
         other_dests = request.POST.get('other_destinations')
         school_service = request.POST.get('school_service') == 'on'
+        hidden = request.POST.get('hidden_service') == 'on'
         start_date = request.POST.get('start_date')
 
         # Related many-to-many fields
@@ -3468,7 +3671,8 @@ def route_add(request, operator_slug):
             other_destination=other_dest_list,
             start_date=start_date,
             route_details=route_details,
-            route_depot=route_depot
+            route_depot=route_depot,
+            hidden=hidden
         )
         new_route.route_operators.add(operator)
 
@@ -3550,6 +3754,7 @@ def route_edit(request, operator_slug, route_id):
         outbound = request.POST.get('outbound_destination')
         other_dests = request.POST.get('other_destinations')
         school_service = request.POST.get('school_service') == 'on'
+        hidden = request.POST.get('hidden_service') == 'on'
         start_date = request.POST.get('start_date')
 
         # Related many-to-many fields
@@ -3607,6 +3812,7 @@ def route_edit(request, operator_slug, route_id):
         route_instance.route_details = route_details
         route_instance.start_date = start_date
         route_instance.route_depot = route_depot
+        route_instance.hidden = hidden
         route_instance.save()
 
         # Update relationships
@@ -4042,45 +4248,70 @@ def route_edit_stops(request, operator_slug, route_id, direction):
 
     userPerms = get_helper_permissions(request.user, operator)
 
-    if mapTiles == None:
+    if mapTiles is None:
         mapTiles = mapTileSet.objects.get(id=1)
 
     if request.user != operator.owner and 'Edit Stops' not in userPerms and not request.user.is_superuser:
         messages.error(request, "You do not have permission to edit this route's stops.")
         return redirect(f'/operator/{operator_slug}/route/{route_id}/')
 
-    # Load existing stops for this route and direction
+    # Load existing stops + snapped geometry
     try:
-        existing_route_stops = routeStop.objects.filter(route=route_instance, inbound=(direction == "inbound")).first()
-        existing_stops = existing_route_stops.stops
+        existing_route_stops = routeStop.objects.filter(
+            route=route_instance,
+            inbound=(direction == "inbound")
+        ).first()
+
+        existing_stops = existing_route_stops.stops if existing_route_stops else []
+        existing_snapped = existing_route_stops.snapped_route if existing_route_stops else None
+
     except routeStop.DoesNotExist:
         existing_stops = []
+        existing_snapped = None
 
+    # -----------------------------
+    #          HANDLE POST
+    # -----------------------------
     if request.method == "POST":
         try:
             raw_data = request.POST.get("routeData")
+            snapped_raw = request.POST.get("snappedGeometry")
+
             if not raw_data:
                 raise ValueError("Missing routeData")
 
             parsed_stops = json.loads(raw_data)
 
-            # Update or create routeStop record
+            # Optional snapped route data
+            if snapped_raw:
+                try:
+                    parsed_snapped = json.loads(snapped_raw)
+                except:
+                    parsed_snapped = None
+            else:
+                parsed_snapped = None
+
+            # Save everything
             routeStop.objects.update_or_create(
                 route=route_instance,
                 inbound=(direction == "inbound"),
                 defaults={
-                    "circular": False,  # Adjust if needed
-                    "stops": parsed_stops
+                    "circular": False,
+                    "stops": parsed_stops,
+                    "snapped_route": parsed_snapped,
                 }
             )
 
-            messages.success(request, "Stops updated successfully.")
+            messages.success(request, "Stops & snapped route saved.")
             return redirect(f'/operator/{operator_slug}/route/{route_id}/')
 
         except Exception as e:
             messages.error(request, f"Failed to update stops: {e}")
             return redirect(request.path)
 
+    # -----------------------------
+    #           RENDER PAGE
+    # -----------------------------
     breadcrumbs = [
         {'name': 'Home', 'url': '/'},
         {'name': operator.operator_name, 'url': f'/operator/{operator_slug}/'},
@@ -4095,8 +4326,28 @@ def route_edit_stops(request, operator_slug, route_id, direction):
         'direction': direction,
         'mapTile': mapTiles,
         'existing_stops': existing_stops,  # Pass existing stops here
+        'existing_snapped': existing_snapped,  # Pass existing snapped geometry here
     }
     return render(request, 'route_edit_route.html', context)
+
+from django.views.decorators.csrf import csrf_exempt
+
+@csrf_exempt
+def valhalla_proxy(request):
+    url = settings.ROUTEING_URL
+    headers = {"Content-Type": "application/json"}
+
+    try:
+        r = requests.post(url, data=request.body, headers=headers)
+    except Exception as e:
+        return JsonResponse({"error": f"Proxy request failed: {e}"}, status=500)
+
+    # Try JSON first
+    try:
+        return JsonResponse(r.json(), safe=False, status=r.status_code)
+    except ValueError:
+        # Fallback: return raw text/HTML from Valhalla
+        return HttpResponse(r.text, status=r.status_code)
 
 @login_required
 @require_http_methods(["GET", "POST"])
@@ -4121,20 +4372,22 @@ def route_add_stops(request, operator_slug, route_id, direction):
     if request.method == "POST":
         try:
             raw_data = request.POST.get("routeData")
-            if not raw_data:
-                raise ValueError("Missing routeData")
+            parsed = json.loads(raw_data)
 
-            parsed_stops = json.loads(raw_data)
+            stops = parsed["stops"]
+            snapped = parsed.get("snapped_geometry", [])
 
-            # Delete any existing stops for this route and direction first (optional but good for edits)
-            routeStop.objects.filter(route=route_instance, inbound=(direction == "inbound")).delete()
+            routeStop.objects.filter(
+                route=route_instance,
+                inbound=(direction == "inbound")
+            ).delete()
 
-            # Create new routeStop entry
             routeStop.objects.create(
                 route=route_instance,
                 inbound=(direction == "inbound"),
-                circular=False,  # Or True if you detect that logic elsewhere
-                stops=parsed_stops  # Save raw list of dictionaries directly
+                circular=False,
+                stops=stops,
+                snapped_route=json.dumps(snapped)
             )
 
             messages.success(request, "Stops saved successfully.")
@@ -5198,6 +5451,21 @@ def operator_ticket_delete(request, operator_slug, ticket_id):
 @login_required
 @require_http_methods(["GET", "POST"])
 def mass_log_trips(request, operator_slug):
+    """
+    Handle mass logging of Trip records for an operator from manual input, a Duty, or a Running Board.
+    
+    Processes POST submissions to create one or more Trip records:
+    - Manual mode: generates a sequence of trips for a selected route and vehicle using provided start time, duration, count, and break interval; sets trip start/end locations and determines inbound flag based on route endpoints.
+    - Duty/Running Board mode: creates trips for each DutyTrip in the selected duty or running board for a chosen date; associates created trips with the originating duty/board and propagates inbound status.
+    Performs permission checks, model validation (collecting and reporting ValidationError messages), and redirects back to the page on success or error. On GET, renders the mass-log-trips page with duties, running boards, vehicles, routes, and breadcrumbs in the context.
+    
+    Parameters:
+        request (HttpRequest): The incoming Django request object (GET or POST).
+        operator_slug (str): Slug identifying the operator for which trips are being logged.
+    
+    Returns:
+        HttpResponse: A redirect on form submission or validation error, or a rendered template response for the mass-log-trips page.
+    """
     response = feature_enabled(request, "mass_log_trips")
     if response:
         return response
@@ -5268,6 +5536,9 @@ def mass_log_trips(request, operator_slug):
                     trip_end_at=trip_end,
                 )
 
+                # Determine inbound for generated trips
+                trip.trip_inbound = True if start_location == route_obj.inbound_destination else False
+
                 try:
                     trip.full_clean()  # runs model validation, including your 10-year check
                     trip.save()
@@ -5305,28 +5576,44 @@ def mass_log_trips(request, operator_slug):
             messages.error(request, "Invalid date selected for duty/running board.")
             return redirect(request.path)
 
+        trip_set = trip_set.order_by('id')
+
+        first_trip = trip_set.first()
+        has_trips = trip_set.exists()
+
+        if not has_trips:
+            messages.error(request, "Selected duty or running board has no trips defined.")
+            return redirect(request.path)
+
+        first_pk = first_trip.id
+
+        first_start_time = first_trip.start_time
+
         for trip in trip_set:
-            start_dt = make_aware(datetime.combine(selected_date, trip.start_time))
-            end_dt = make_aware(datetime.combine(selected_date, trip.end_time))
+            # Determine rollover date logic
+            trip_date = selected_date
+            is_past_midnight = trip.start_time < first_start_time
+
+            if is_past_midnight and trip.id < first_pk:
+                trip_date = selected_date + timedelta(days=1)
+
+            start_dt = make_aware(datetime.combine(trip_date, trip.start_time))
+            end_dt = make_aware(datetime.combine(trip_date, trip.end_time))
 
             routeLink = trip.route_link if trip.route_link else None
 
-            board_obj = None
-            if duty_id:
-                board_obj = selected_duty
-            elif running_board_id:
-                board_obj = selected_rb
-
+            board_obj = selected_duty if duty_id else selected_rb
 
             created_trip = Trip(
                 trip_vehicle=vehicle,
                 trip_route=routeLink,
-                trip_route_num=trip.route.route_num if hasattr(trip.route, "route_num") else trip.route,
+                trip_route_num=trip.route_link.route_num if trip.route_link else trip.route,
                 trip_start_location=trip.start_at,
                 trip_end_location=trip.end_at,
                 trip_start_at=start_dt,
                 trip_end_at=end_dt,
-                trip_board=board_obj, 
+                trip_board=board_obj,
+                trip_inbound=trip.inbound,
             )
 
             try:
@@ -5369,7 +5656,18 @@ def mass_log_trips(request, operator_slug):
 @login_required
 @require_http_methods(["GET", "POST"])
 def mass_assign_boards(request, operator_slug):
-    """Assign duties or running boards to multiple vehicles and bulk log trips."""
+    """
+    Assign duties or running boards to multiple vehicles and create corresponding Trip records for a selected date.
+    
+    Processes form POSTs that map vehicle IDs to a duty or running board, validates the provided date, creates Trip objects for each trip on the selected board (propagating the board's inbound flag), and reports success or per-vehicle validation errors via Django messages. On GET, renders the mass assignment table populated with the operator's duties, running boards, and vehicles.
+    
+    Parameters:
+        request: The Django HttpRequest containing GET or POST data and the current user.
+        operator_slug (str): The slug identifying the operator whose boards and vehicles are being managed.
+    
+    Returns:
+        HttpResponse: A redirect on form submission (success or error) or the rendered mass_table_log.html page on GET.
+    """
     
     # Feature flag support (if you use it)
     response = feature_enabled(request, "mass_log_trips")
@@ -5469,6 +5767,7 @@ def mass_assign_boards(request, operator_slug):
                         if hasattr(trip.route, "route_num")
                         else trip.route
                     ),
+                    trip_inbound=trip.inbound,
                     trip_start_location=trip.start_at,
                     trip_end_location=trip.end_at,
                     trip_start_at=start_dt,
