@@ -18,6 +18,7 @@ def default_route_details():
 
 class route(models.Model):
     id = models.AutoField(primary_key=True)
+    hidden = models.BooleanField(default=False)
     route_num = models.CharField(max_length=255, blank=True, null=True)
     route_name = models.CharField(max_length=255, blank=True, null=True)
     route_details = models.JSONField(default=default_route_details, blank=True)

@@ -129,6 +129,11 @@
 <p>🧑‍🎓 This is a closed-door school service</p>
 {% endif %}
 
+{% if hidden == True %}
+<p>This service is <strong>not</strong> for general public use.</p>
+{% endif %}
+
+
 <ul class="horizontal">
     {% if 'Edit Routes' in helperPermsData or 'owner' in helperPermsData %}
     <li><a href="/operator/{{ operator.operator_slug|urlencode }}/route/{{ route.id }}/edit">Route Options</a></li>

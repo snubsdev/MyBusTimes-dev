@@ -114,6 +114,10 @@
     <input type="checkbox" id="school_service" name="school_service"
       {% if routeData.route_details.details.school_service == 'true' %}checked{% endif %}><br><br>
 
+      <label for="hidden_service">Hidden</label>
+    <input type="checkbox" id="hidden_service" name="hidden_service" {% if routeData.hidden %}checked{% endif %}>
+    <small>Hidden services won't appear on the main routes page</small><br>
+
     <button type="submit" class="btn">Save Changes</button>
     <button type="button" class="btn delete-btn" onclick='window.location.href="{% url "delete-route" operatorData.operator_slug routeData.id %}"'>Delete Route</button>
   </form>

@@ -365,6 +365,7 @@ def get_unique_linked_routes(initial_routes):
 def operator(request, operator_slug):
     response = feature_enabled(request, "view_routes")
     operator_slug = operator_slug.strip()
+    show_hidden = request.GET.get('hidden', 'false').lower() == 'true'
 
     if response:
         return response
@@ -374,7 +375,10 @@ def operator(request, operator_slug):
     except Http404:
         return render(request, 'error/404.html', status=404)
     
-    routes = list(route.objects.filter(route_operators=operator).order_by('route_num'))
+    if show_hidden:
+        routes = list(route.objects.filter(route_operators=operator).order_by('route_num'))
+    else:
+        routes = list(route.objects.filter(route_operators=operator, hidden=False).order_by('route_num'))
 
     # Safely get operator_details as a dict or empty dict if None
     details = operator.operator_details or {}
@@ -437,6 +441,7 @@ def operator(request, operator_slug):
         'helper_permissions': helper_permissions,
         'transit_authority_details': transit_authority_details,
         'tabs': tabs,
+        'show_hidden': show_hidden,
         'today': timezone.now().date()
     }
     return render(request, 'operator.html', context)
@@ -739,6 +744,7 @@ def route_detail(request, operator_slug, route_id):
             'outbound': route_stop_full_outbound
         },
         'selectedDay': selectedDay,
+        'hidden': route_instance.hidden,
         'current_updates': current_updates,
         'transit_authority_details': getattr(operator.operator_details, 'transit_authority_details', None),
         'inbound_first_stop_name': inbound_first_stop_name,
@@ -3554,6 +3560,7 @@ def route_add(request, operator_slug):
         outbound = request.POST.get('outbound_destination')
         other_dests = request.POST.get('other_destinations')
         school_service = request.POST.get('school_service') == 'on'
+        hidden = request.POST.get('hidden_service') == 'on'
         start_date = request.POST.get('start_date')
 
         # Related many-to-many fields
@@ -3605,7 +3612,8 @@ def route_add(request, operator_slug):
             other_destination=other_dest_list,
             start_date=start_date,
             route_details=route_details,
-            route_depot=route_depot
+            route_depot=route_depot,
+            hidden=hidden
         )
         new_route.route_operators.add(operator)
 
@@ -3687,6 +3695,7 @@ def route_edit(request, operator_slug, route_id):
         outbound = request.POST.get('outbound_destination')
         other_dests = request.POST.get('other_destinations')
         school_service = request.POST.get('school_service') == 'on'
+        hidden = request.POST.get('hidden_service') == 'on'
         start_date = request.POST.get('start_date')
 
         # Related many-to-many fields
@@ -3744,6 +3753,7 @@ def route_edit(request, operator_slug, route_id):
         route_instance.route_details = route_details
         route_instance.start_date = start_date
         route_instance.route_depot = route_depot
+        route_instance.hidden = hidden
         route_instance.save()
 
         # Update relationships
