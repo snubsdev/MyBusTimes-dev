@@ -1574,6 +1574,30 @@ def vehicles_trip_delete(request, operator_slug, vehicle_id, trip_id):
     messages.success(request, "Trip deleted successfully.")
     return redirect(f'/operator/{operator_slug}/vehicles/{vehicle_id}/trips/manage/?date={date}')
 
+def flip_all_trip_directions(request, operator_slug, vehicle_id, selected_date):
+    operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
+    vehicle = get_object_or_404(fleet, id=vehicle_id, operator=operator)
+
+    userPerms = get_helper_permissions(request.user, operator)
+
+    if request.user != operator.owner and 'Edit Trips' not in userPerms and not request.user.is_superuser:
+        return redirect(f'/operator/{operator_slug}/vehicles/{vehicle_id}/')
+
+    start_of_day = datetime.combine(datetime.fromisoformat(selected_date).date(), time.min)
+    end_of_day = datetime.combine(datetime.fromisoformat(selected_date).date(), time.max)
+
+    trips = Trip.objects.filter(
+        trip_vehicle=vehicle,
+        trip_start_at__range=(start_of_day, end_of_day)
+    )
+
+    for trip in trips:
+        trip.trip_inbound = not trip.trip_inbound
+        trip.save()
+
+    messages.success(request, "All trip directions flipped successfully.")
+    return redirect(f'/operator/{operator_slug}/vehicles/{vehicle_id}/trips/manage/?date={selected_date}')
+
 def send_discord_webhook_embed(
     title: str,
     description: str,
@@ -2513,6 +2537,40 @@ def duty_edit_trips(request, operator_slug, duty_id):
         }
         return render(request, 'edit_duty_trip.html', context)
     
+@login_required
+@require_http_methods(["POST"])
+def flip_all_duty_trip_directions(request, operator_slug, board_id):
+    response = feature_enabled(request, "edit_boards")
+    if response:
+        return response
+    
+    operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
+    userPerms = get_helper_permissions(request.user, operator)
+    duty_instance = get_object_or_404(duty, id=board_id, duty_operator=operator)
+
+    is_running_board = duty_instance.board_type == 'running-boards'
+
+    if is_running_board:
+        title = "Running Board"
+        titles = "Running Boards"
+        board_type = 'running-boards'
+    else:
+        title = "Duty"
+        titles = "Duties"
+        board_type = "duty"
+
+    if request.user != operator.owner and 'Edit Duties' not in userPerms and not request.user.is_superuser:
+        messages.error(request, f"You do not have permission to edit this {title} for this operator.")
+        return redirect(f'/operator/{operator_slug}/{board_type}/')
+
+    trips = dutyTrip.objects.filter(duty=duty_instance)
+    for trip in trips:
+        trip.inbound = not trip.inbound
+        trip.save()
+
+    messages.success(request, f"Flipped directions for all trips on {title} '{duty_instance.duty_name}'.")
+    return redirect(f'/operator/{operator_slug}/{board_type}/edit/{duty_instance.id}/trips/')
+
 @login_required
 @require_http_methods(["GET", "POST"])
 def duty_delete(request, operator_slug, duty_id):
