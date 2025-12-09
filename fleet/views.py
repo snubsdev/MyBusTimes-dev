@@ -365,6 +365,7 @@ def get_unique_linked_routes(initial_routes):
 def operator(request, operator_slug):
     response = feature_enabled(request, "view_routes")
     operator_slug = operator_slug.strip()
+    show_hidden = request.GET.get('hidden', 'false').lower() == 'true'
 
     if response:
         return response
@@ -374,7 +375,10 @@ def operator(request, operator_slug):
     except Http404:
         return render(request, 'error/404.html', status=404)
     
-    routes = list(route.objects.filter(route_operators=operator).order_by('route_num'))
+    if show_hidden:
+        routes = list(route.objects.filter(route_operators=operator).order_by('route_num'))
+    else:
+        routes = list(route.objects.filter(route_operators=operator, hidden=False).order_by('route_num'))
 
     # Safely get operator_details as a dict or empty dict if None
     details = operator.operator_details or {}
@@ -437,6 +441,7 @@ def operator(request, operator_slug):
         'helper_permissions': helper_permissions,
         'transit_authority_details': transit_authority_details,
         'tabs': tabs,
+        'show_hidden': show_hidden,
         'today': timezone.now().date()
     }
     return render(request, 'operator.html', context)
@@ -739,6 +744,7 @@ def route_detail(request, operator_slug, route_id):
             'outbound': route_stop_full_outbound
         },
         'selectedDay': selectedDay,
+        'hidden': route_instance.hidden,
         'current_updates': current_updates,
         'transit_authority_details': getattr(operator.operator_details, 'transit_authority_details', None),
         'inbound_first_stop_name': inbound_first_stop_name,
@@ -1523,6 +1529,7 @@ def vehicles_trip_edit(request, operator_slug, vehicle_id, trip_id):
         route_id = request.POST.get('trip_route')
         trip.trip_route = route.objects.get(id=route_id) if route_id else None
         trip.trip_route_num = request.POST.get('trip_route_num') or None
+        trip.trip_inbound = 'inbound' in request.POST
         
         trip.save()
 
@@ -1566,6 +1573,30 @@ def vehicles_trip_delete(request, operator_slug, vehicle_id, trip_id):
     trip.delete()
     messages.success(request, "Trip deleted successfully.")
     return redirect(f'/operator/{operator_slug}/vehicles/{vehicle_id}/trips/manage/?date={date}')
+
+def flip_all_trip_directions(request, operator_slug, vehicle_id, selected_date):
+    operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
+    vehicle = get_object_or_404(fleet, id=vehicle_id, operator=operator)
+
+    userPerms = get_helper_permissions(request.user, operator)
+
+    if request.user != operator.owner and 'Edit Trips' not in userPerms and not request.user.is_superuser:
+        return redirect(f'/operator/{operator_slug}/vehicles/{vehicle_id}/')
+
+    start_of_day = datetime.combine(datetime.fromisoformat(selected_date).date(), time.min)
+    end_of_day = datetime.combine(datetime.fromisoformat(selected_date).date(), time.max)
+
+    trips = Trip.objects.filter(
+        trip_vehicle=vehicle,
+        trip_start_at__range=(start_of_day, end_of_day)
+    )
+
+    for trip in trips:
+        trip.trip_inbound = not trip.trip_inbound
+        trip.save()
+
+    messages.success(request, "All trip directions flipped successfully.")
+    return redirect(f'/operator/{operator_slug}/vehicles/{vehicle_id}/trips/manage/?date={selected_date}')
 
 def send_discord_webhook_embed(
     title: str,
@@ -2506,6 +2537,40 @@ def duty_edit_trips(request, operator_slug, duty_id):
         }
         return render(request, 'edit_duty_trip.html', context)
     
+@login_required
+@require_http_methods(["POST"])
+def flip_all_duty_trip_directions(request, operator_slug, board_id):
+    response = feature_enabled(request, "edit_boards")
+    if response:
+        return response
+    
+    operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
+    userPerms = get_helper_permissions(request.user, operator)
+    duty_instance = get_object_or_404(duty, id=board_id, duty_operator=operator)
+
+    is_running_board = duty_instance.board_type == 'running-boards'
+
+    if is_running_board:
+        title = "Running Board"
+        titles = "Running Boards"
+        board_type = 'running-boards'
+    else:
+        title = "Duty"
+        titles = "Duties"
+        board_type = "duty"
+
+    if request.user != operator.owner and 'Edit Duties' not in userPerms and not request.user.is_superuser:
+        messages.error(request, f"You do not have permission to edit this {title} for this operator.")
+        return redirect(f'/operator/{operator_slug}/{board_type}/')
+
+    trips = dutyTrip.objects.filter(duty=duty_instance)
+    for trip in trips:
+        trip.inbound = not trip.inbound
+        trip.save()
+
+    messages.success(request, f"Flipped directions for all trips on {title} '{duty_instance.duty_name}'.")
+    return redirect(f'/operator/{operator_slug}/{board_type}/edit/{duty_instance.id}/trips/')
+
 @login_required
 @require_http_methods(["GET", "POST"])
 def duty_delete(request, operator_slug, duty_id):
@@ -3554,6 +3619,7 @@ def route_add(request, operator_slug):
         outbound = request.POST.get('outbound_destination')
         other_dests = request.POST.get('other_destinations')
         school_service = request.POST.get('school_service') == 'on'
+        hidden = request.POST.get('hidden_service') == 'on'
         start_date = request.POST.get('start_date')
 
         # Related many-to-many fields
@@ -3605,7 +3671,8 @@ def route_add(request, operator_slug):
             other_destination=other_dest_list,
             start_date=start_date,
             route_details=route_details,
-            route_depot=route_depot
+            route_depot=route_depot,
+            hidden=hidden
         )
         new_route.route_operators.add(operator)
 
@@ -3687,6 +3754,7 @@ def route_edit(request, operator_slug, route_id):
         outbound = request.POST.get('outbound_destination')
         other_dests = request.POST.get('other_destinations')
         school_service = request.POST.get('school_service') == 'on'
+        hidden = request.POST.get('hidden_service') == 'on'
         start_date = request.POST.get('start_date')
 
         # Related many-to-many fields
@@ -3744,6 +3812,7 @@ def route_edit(request, operator_slug, route_id):
         route_instance.route_details = route_details
         route_instance.start_date = start_date
         route_instance.route_depot = route_depot
+        route_instance.hidden = hidden
         route_instance.save()
 
         # Update relationships

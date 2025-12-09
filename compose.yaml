@@ -11,13 +11,24 @@ services:
     env_file: mybustimes/.env
     restart: always
     depends_on:
-      - coolify-db
+      - db
     volumes:
       - static:/MyBusTimes/staticfiles
       - media:/MyBusTimes/media
     ports:
       - "6060:8000"
-
+      
+  db:
+    image: 'postgres:16'
+    container_name: postgres-db-mbt
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mybustimes
+      POSTGRES_USER: mybustimesDBuser
+      POSTGRES_PASSWORD: CHANGE-ME-DO-NOT-KEEP-THIS
+    volumes:
+      - 'postgres-data:/var/lib/postgresql/data'
+      
 volumes:
   static:
   media:

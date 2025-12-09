@@ -112,30 +112,40 @@
   }
 
   // Polyline6 decoder (Valhalla)
-  function decodeValhalla(str) {
-      let index = 0, lat = 0, lon = 0, coords = [];
+  // Polyline6 decoder (Valhalla)
+function decodeValhalla(encoded) {
+    let index = 0;
+    let lat = 0;
+    let lon = 0;
+    const coordinates = [];
 
-      while (index < str.length) {
-          let result = 1, shift = 0, b;
-          do {
-              b = str.charCodeAt(index++) - 63 - 1;
-              result += b << shift;
-              shift += 5;
-          } while (b >= 0x1f);
-          lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    while (index < encoded.length) {
 
-          result = 1; shift = 0;
-          do {
-              b = str.charCodeAt(index++) - 63 - 1;
-              result += b << shift;
-              shift += 5;
-          } while (b >= 0x1f);
-          lon += (result & 1) ? ~(result >> 1) : (result >> 1);
+        // Decode latitude
+        let result = 1;
+        let shift = 0;
+        let b;
+        do {
+            b = encoded.charCodeAt(index++) - 63 - 1;
+            result += b << shift;
+            shift += 5;
+        } while (b >= 0x1f);
+        lat += (result & 1) ? ~(result >> 1) : (result >> 1);
 
-          coords.push([lon / 1e6, lat / 1e6]);
-      }
+        // Decode longitude
+        result = 1;
+        shift = 0;
+        do {
+            b = encoded.charCodeAt(index++) - 63 - 1;
+            result += b << shift;
+            shift += 5;
+        } while (b >= 0x1f);
+        lon += (result & 1) ? ~(result >> 1) : (result >> 1);
 
-      return coords;
+        coordinates.push([lon / 1e6, lat / 1e6]);
+    }
+
+    return coordinates;
   }
 
   async function snapSegment(from, to) {
@@ -324,37 +334,44 @@
     const rows = Array.from(document.querySelectorAll('#stopList tr'));
     if (!rows.length) return;
 
+    // Build segment distances/times
     const segmentInfo = [];
     for (let i = 0; i < selectedCoords.length - 1; i++) {
-      const seg = snappedSegments[i];
-      if (seg && seg.distance != null && seg.time != null) {
-        segmentInfo[i] = { distance: seg.distance, time: seg.time };
-      } else {
-        const a = [selectedCoords[i].lon, selectedCoords[i].lat];
-        const b = [selectedCoords[i+1].lon, selectedCoords[i+1].lat];
-        const dist = Math.round(haversineDistance(a, b));
-        const assumedSpeed = 8.333333;
-        const t = Math.round(dist / assumedSpeed);
-        segmentInfo[i] = { distance: dist, time: t };
-      }
+        const seg = snappedSegments[i];
+        if (seg && seg.distance != null && seg.time != null) {
+            segmentInfo[i] = { distance: seg.distance, time: seg.time };
+        } else {
+            const a = [selectedCoords[i].lon, selectedCoords[i].lat];
+            const b = [selectedCoords[i + 1].lon, selectedCoords[i + 1].lat];
+            const dist = Math.round(haversineDistance(a, b));
+            const assumedSpeed = 8.333333; // 30 km/h
+            segmentInfo[i] = {
+                distance: dist,
+                time: Math.round(dist / assumedSpeed)
+            };
+        }
     }
 
+    // Fill rows
     let cumulativeDistance = 0;
     let cumulativeTime = 0;
 
     for (let i = 0; i < rows.length; i++) {
-      const distCell = rows[i].querySelector('.stop-distance');
-      const timeCell = rows[i].querySelector('.stop-time');
-      if (i === 0) {
-        distCell.textContent = '0 m';
-        timeCell.textContent = '0 s';
-      } else {
-        const seg = segmentInfo[i-1];
-        cumulativeDistance += seg.distance;
-        cumulativeTime += seg.time;
-        distCell.textContent = `${cumulativeDistance} m`;
-        timeCell.textContent = `${cumulativeTime} s`;
-      }
+        const distCell = rows[i].querySelector('.stop-distance');
+        const timeCell = rows[i].querySelector('.stop-time');
+
+        if (!hasPro) continue;
+
+        if (i === 0) {
+            distCell.textContent = '0 m';
+            timeCell.textContent = '0 s';
+        } else {
+            const seg = segmentInfo[i - 1];   // ✅ FIX: use segmentInfo not seg
+            cumulativeDistance += seg.distance;
+            cumulativeTime += seg.time;
+            distCell.textContent = `${cumulativeDistance} m`;
+            timeCell.textContent = `${cumulativeTime} s`;
+        }
     }
   }
 

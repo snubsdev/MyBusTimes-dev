@@ -146,7 +146,8 @@ async function addRoutePolyline(routeId, bounds) {
   const res = await fetch(`/api/routes/${routeId}/stops/?direction=${currentDirection}`);
   if (!res.ok) return;
 
-  const stops = await res.json();
+  const data = await res.json();
+  const stops = Array.isArray(data) ? data : data.results || [];
   const coords = stops
     .map(s => s.cords?.split(',').map(Number))
     .filter(c => c && c.length === 2)
@@ -272,7 +273,7 @@ async function loadOperatorBT() {
         .setLngLat([lng, lat])
         .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(`
           <a href="${serviceLink}">${line} to ${dest}</a><br>
-          ${vehicleLink ? `<a href="${vehicleLink}">${v.vehicle.name}<br>` : ""}
+          ${vehicleLink ? `<a href="${vehicleLink}">${veh.name || ''}</a>` : ""}<br>
           <span>Simulated Location</span><br>
           <small>Last updated: ${v.updated_at ? new Date(v.updated_at).toLocaleString() : 'N/A'}</small>
         `))

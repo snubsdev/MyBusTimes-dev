@@ -56,7 +56,7 @@
 <ul class="services">
   {% for group in routes %}
   {% with primary=group.primary linked=group.linked %}
-  <li class="route">
+  <li class="route" {% if primary.hidden %}style="opacity: 0.5;"{% endif %}>
     <a href="route/{{ primary.id }}">
 
       {% if linked %}
@@ -153,6 +153,18 @@
       <dd>{{ operator.operator_details.transit_authorities }}</dd>
     </div>
     {% endif %}
+  </dl>
+  <dl>
+    <div>
+      <dt>Hidden Routes</dt>
+      <dd>
+        {% if show_hidden %}
+        <a href="?">Hide Hidden Routes</a>
+        {% else %}
+        <a href="?hidden=true">Show Hidden Routes</a>
+        {% endif %}
+      </dd>
+    </div>
   </dl>
 </div>
 {% endblock %}
