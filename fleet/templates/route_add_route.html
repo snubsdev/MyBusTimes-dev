@@ -334,38 +334,44 @@ function decodeValhalla(encoded) {
     const rows = Array.from(document.querySelectorAll('#stopList tr'));
     if (!rows.length) return;
 
+    // Build segment distances/times
     const segmentInfo = [];
     for (let i = 0; i < selectedCoords.length - 1; i++) {
-      const seg = snappedSegments[i];
-      if (seg && seg.distance != null && seg.time != null) {
-        segmentInfo[i] = { distance: seg.distance, time: seg.time };
-      } else {
-        const a = [selectedCoords[i].lon, selectedCoords[i].lat];
-        const b = [selectedCoords[i+1].lon, selectedCoords[i+1].lat];
-        const dist = Math.round(haversineDistance(a, b));
-        const assumedSpeed = 8.333333;
-        const t = Math.round(dist / assumedSpeed);
-        segmentInfo[i] = { distance: dist, time: t };
-      }
+        const seg = snappedSegments[i];
+        if (seg && seg.distance != null && seg.time != null) {
+            segmentInfo[i] = { distance: seg.distance, time: seg.time };
+        } else {
+            const a = [selectedCoords[i].lon, selectedCoords[i].lat];
+            const b = [selectedCoords[i + 1].lon, selectedCoords[i + 1].lat];
+            const dist = Math.round(haversineDistance(a, b));
+            const assumedSpeed = 8.333333; // 30 km/h
+            segmentInfo[i] = {
+                distance: dist,
+                time: Math.round(dist / assumedSpeed)
+            };
+        }
     }
 
+    // Fill rows
     let cumulativeDistance = 0;
     let cumulativeTime = 0;
 
     for (let i = 0; i < rows.length; i++) {
-      const distCell = rows[i].querySelector('.stop-distance');
-      const timeCell = rows[i].querySelector('.stop-time');
-      if (hasPro) {
-          if (i === 0) {
-              distCell.textContent = '0 m';
-              timeCell.textContent = '0 s';
-          } else {
-              cumulativeDistance += seg.distance;
-              cumulativeTime += seg.time;
-              distCell.textContent = `${cumulativeDistance} m`;
-              timeCell.textContent = `${cumulativeTime} s`;
-          }
-      }
+        const distCell = rows[i].querySelector('.stop-distance');
+        const timeCell = rows[i].querySelector('.stop-time');
+
+        if (!hasPro) continue;
+
+        if (i === 0) {
+            distCell.textContent = '0 m';
+            timeCell.textContent = '0 s';
+        } else {
+            const seg = segmentInfo[i - 1];   // ✅ FIX: use segmentInfo not seg
+            cumulativeDistance += seg.distance;
+            cumulativeTime += seg.time;
+            distCell.textContent = `${cumulativeDistance} m`;
+            timeCell.textContent = `${cumulativeTime} s`;
+        }
     }
   }
 
