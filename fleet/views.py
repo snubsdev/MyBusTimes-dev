@@ -5579,11 +5579,12 @@ def mass_log_trips(request, operator_slug):
         trip_set = trip_set.order_by('id')
 
         first_trip = trip_set.first()
-        first_pk = first_trip.id
-
-        if not first_trip:
+        
+        if not first_trip.id:
             messages.error(request, "Selected duty or running board has no trips defined.")
             return redirect(request.path)
+
+        first_pk = first_trip.id
 
         first_start_time = first_trip.start_time
 
