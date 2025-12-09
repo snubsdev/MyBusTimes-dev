@@ -89,7 +89,7 @@
     {% if tab.active %}
     {{ tab.name }}
     {% else %}
-    <a href="{{ tab.url }}">{{ tab.name }}</a>
+    <a href="{{ tab.url }}" id="{{ tab.name }}">{{ tab.name }}</a>
     {% endif %}
   </li>
   {% endfor %}

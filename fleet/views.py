@@ -480,6 +480,7 @@ def route_vehicles(request, operator_slug, route_id):
         'vehicles': vehicles,
         'operator': operator,
         'route': route_instance,
+        'show_board': any(t.trip_board for t in vehicles),
         'breadcrumbs': breadcrumbs,
         'date': date,
         'now': now
@@ -5579,11 +5580,13 @@ def mass_log_trips(request, operator_slug):
         trip_set = trip_set.order_by('id')
 
         first_trip = trip_set.first()
-        first_pk = first_trip.id
+        has_trips = trip_set.exists()
 
-        if not first_trip:
+        if not has_trips:
             messages.error(request, "Selected duty or running board has no trips defined.")
-            return redirect(request.path
+            return redirect(request.path)
+
+        first_pk = first_trip.id
 
         first_start_time = first_trip.start_time
 

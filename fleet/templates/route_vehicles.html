@@ -38,6 +38,15 @@
                 <td>{% if vehicle.trip_display_id %}{{ vehicle.trip_display_id }}{% else %}{{ vehicle.pk }}{% endif %}</td>
                 <td><a href="/map/trip/{{ vehicle.trip_id }}/">{{ vehicle.trip_start_at | date:"H:i" }}</a></td>
                 <td>{{ vehicle.trip_end_location }}</td>
+                {% if show_board %}
+                    {% if vehicle.trip_board.board_type == "duty" %}
+                        <td><a href="/operator/{{ operator.operator_slug }}/duty/{{ vehicle.trip_board.id }}/">{{ vehicle.trip_board.duty_name }}</a></td>
+                    {% elif vehicle.trip_board.board_type == "running-boards" %}
+                        <td><a href="/operator/{{ operator.operator_slug }}/running-boards/{{ vehicle.trip_board.id }}/">{{ vehicle.trip_board.duty_name }}</a></td>
+                    {% else %}
+                        <td></td>
+                    {% endif %}
+                {% endif %}
                 <td><a href="/map/trip/{{ vehicle.trip_id }}/">Map</a></td>
                 {% if user.is_superuser %}<td><a style="font-size: 14px;" href="/api-admin/tracking/trip/{{ vehicle.trip_id }}/change/">✎</a></td>{% endif %}
             </tr>

@@ -355,9 +355,9 @@
 
         html = `
         <a href="${serviceLink}">${line} to ${dest}</a><br>
-        ${vehicleName ? `<a href="${vehicleLink}">${vehicleName}</a><br>` : ''}
-        <span>Simulated Location</span><br>
-        <small>Last updated: ${v.updated_at ? new Date(v.updated_at).toLocaleString() : 'N/A'}</small>
+        ${vehicleName ? `<a href="${vehicleLink}">${vehicleName}</a>` : ''}<br>
+          <span class="time-ago" data-time="${v.updated_at}">${timeAgo(v.updated_at)}</span>
+          <small style="margin-bottom: 0;">Simulated Location</small>
         `;
 
         const el = createLiveryIcon({
