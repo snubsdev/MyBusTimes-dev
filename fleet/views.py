@@ -5579,8 +5579,9 @@ def mass_log_trips(request, operator_slug):
         trip_set = trip_set.order_by('id')
 
         first_trip = trip_set.first()
-        
-        if not first_trip.id:
+        has_trips = trip_set.exists()
+
+        if not has_trips:
             messages.error(request, "Selected duty or running board has no trips defined.")
             return redirect(request.path)
 
