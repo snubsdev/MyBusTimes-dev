@@ -5583,7 +5583,7 @@ def mass_log_trips(request, operator_slug):
 
         if not first_trip:
             messages.error(request, "Selected duty or running board has no trips defined.")
-            return redirect(request.path)
+            return redirect(request.path
 
         first_start_time = first_trip.start_time
 
