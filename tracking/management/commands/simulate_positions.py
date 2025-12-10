@@ -34,7 +34,7 @@ class Command(BaseCommand):
         # 2. Clear sim data for vehicles not on active trips
         # ---------------------------------------------------------
         fleet.objects.filter(
-            current_trip__trip_end_at__lt=now
+            current_trip__trip_end_at__lt=now + timezone.timedelta(minutes=15)
         ).update(
             sim_lat=None,
             sim_lon=None,
