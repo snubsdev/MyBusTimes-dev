@@ -64,6 +64,29 @@ class Command(BaseCommand):
             # Compute progress (0..1)
             progress = get_progress(trip)
 
+            if progress >= 1:
+                lat, lng = coords[-1]  # last coordinate on route
+                # heading = keep previous or set 0, but this is optional
+                heading = vehicle.sim_heading or 0
+
+                vehicle.sim_lat = lat
+                vehicle.sim_lon = lng
+                vehicle.sim_heading = heading
+                vehicle.current_trip = trip
+                vehicle.updated_at = now
+
+                print(f"Vehicle {vehicle.pk} finalised at trip end location.")
+
+                vehicle.save(update_fields=[
+                    "sim_lat",
+                    "sim_lon",
+                    "sim_heading",
+                    "current_trip",
+                    "updated_at",
+                ])
+
+                continue
+
             # Interpolate coordinate
             lat, lng, seg_index = interpolate(coords, progress)
 
