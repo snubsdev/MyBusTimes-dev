@@ -1620,7 +1620,7 @@ def send_discord_webhook_embed(
         embed["image"] = {"url": image_url}
     
     data = {"embeds": [embed]}
-     if content:
+    if content:
         data["content"] = content  # <-- include ping here
     while True:  # retry loop
         response = requests.post(webhook_url, json=data)
