@@ -54,7 +54,8 @@ CSRF_TRUSTED_ORIGINS = [
     'https://www.mybustimes.cc',
     'https://local-dev.mybustimes.cc',
     'https://bm-01.tail7328e3.ts.net',
-    'https://bm-02.tail7328e3.ts.net'
+    'https://bm-02.tail7328e3.ts.net',
+    'http://k3s-eu1.kaicoding.cc:8080'
 ]
 
 AUTH_USER_MODEL = 'main.CustomUser'
