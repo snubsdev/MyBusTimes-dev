@@ -115,6 +115,39 @@ def send_to_discord_embed(channel_id, title, message, colour=0x00BFFF):
     )
     response.raise_for_status()
 
+def send_to_discord_embed_Sales(channel_id, title, message, colour=0x00BFFF, content=None):
+    embed = {
+        "title": title,
+        "description": message,
+        "color": colour,
+        "fields": [
+            {
+                "name": "Time",
+                "value": datetime.now().strftime('%Y-%m-%d %H:%M'),
+                "inline": True
+            }
+        ],
+        "footer": {
+            "text": "MBT Sales System"
+        },
+        "timestamp": datetime.now().isoformat()
+    }
+
+    data = {
+        'channel_id': channel_id,
+        'embed': embed
+    }
+
+    if content:  # <-- include ping here
+        data['content'] = content
+
+    response = requests.post(
+        f"{settings.DISCORD_BOT_API_URL}/send-embed",
+        json=data
+    )
+    response.raise_for_status()
+
+
 
 # API Views
 class fleetListView(generics.ListAPIView):
