@@ -3529,7 +3529,7 @@ def vehicle_mass_edit(request, operator_slug):
                         fields=fields,
                         image_url=f"https://www.mybustimes.cc/operator/vehicle_image/{vehicle.id}/?v={random.randint(1000,9999)}",
                         content="<@&1348490878024679424>"  # <-- role ping included here
-                    )
+                        )
 
                         vehicle.save()
 
