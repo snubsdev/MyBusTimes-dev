@@ -1601,6 +1601,7 @@ def flip_all_trip_directions(request, operator_slug, vehicle_id, selected_date):
 
 def send_discord_webhook_embed(
     title: str,
+    content: str,
     description: str,
     color: int = 0x00ff00,
     fields: list = None,
@@ -1669,6 +1670,7 @@ def vehicle_sell(request, operator_slug, vehicle_id):
             encoded_operator_slug = quote(operator_slug)
 
             title = "Vehicle Listed for Sale"
+            content = "<@&1348490878024679424>"
             description = f"**{operator.operator_slug}** has listed {vehicle.fleet_number} - {vehicle.reg} for sale. <@&1348490878024679424>"
             fields = [
                 {"name": "Fleet Number", "value": vehicle.fleet_number if hasattr(vehicle, 'fleet_number') else 'N/A', "inline": True},
@@ -1677,7 +1679,7 @@ def vehicle_sell(request, operator_slug, vehicle_id):
                 {"name": "View", "value": f"https://www.mybustimes.cc/operator/{encoded_operator_slug}/vehicles/{vehicle.id}/?v={random.randint(1000,9999)}", "inline": False}
             ]
             send_discord_webhook_embed(
-                title, description, color=0xFFA500, fields=fields,
+                title, content, description, color=0xFFA500, fields=fields,
                 image_url=f"https://www.mybustimes.cc/operator/vehicle_image/{vehicle.id}/?v={random.randint(1000,9999)}"
             )
 
@@ -3509,6 +3511,7 @@ def vehicle_mass_edit(request, operator_slug):
                         encoded_operator_slug = quote(operator_slug)
 
                         title = "Vehicle Listed for Sale"
+                        content = "<@&1348490878024679424>"
                         description = f"**{operator.operator_slug}** has listed {vehicle.fleet_number} - {vehicle.reg} for sale."
                         fields = [
                             {"name": "Fleet Number", "value": vehicle.fleet_number if hasattr(vehicle, 'fleet_number') else 'N/A', "inline": True},
@@ -3516,7 +3519,7 @@ def vehicle_mass_edit(request, operator_slug):
                             {"name": "Type", "value": getattr(vehicle.vehicleType, 'type_name', 'N/A'), "inline": False},
                             {"name": "View", "value": f"https://www.mybustimes.cc/operator/{encoded_operator_slug}/vehicles/{vehicle.id}/?v={random.randint(1000,9999)}", "inline": False}
                         ]
-                        send_discord_webhook_embed(title, description, color=0xFFA500, fields=fields, image_url=f"https://www.mybustimes.cc/operator/vehicle_image/{vehicle.id}/?v={random.randint(1000,9999)}")  # Orange
+                        send_discord_webhook_embed(title, content, description, color=0xFFA500, fields=fields, image_url=f"https://www.mybustimes.cc/operator/vehicle_image/{vehicle.id}/?v={random.randint(1000,9999)}")  # Orange
                         
                         vehicle.save()
 
