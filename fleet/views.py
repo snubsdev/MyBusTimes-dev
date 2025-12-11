@@ -1599,40 +1599,73 @@ def flip_all_trip_directions(request, operator_slug, vehicle_id, selected_date):
     messages.success(request, "All trip directions flipped successfully.")
     return redirect(f'/operator/{operator_slug}/vehicles/{vehicle_id}/trips/manage/?date={selected_date}')
 
-def send_discord_webhook_embed(
-    title: str,
-    description: str,
-    color: int = 0x00ff00,
-    fields: list = None,
-    image_url: str = None,
-    content: str = None
-):
-    webhook_url = settings.DISCORD_FOR_SALE_WEBHOOK
+#def send_discord_webhook_embed(
+#    title: str,
+#    description: str,
+#    color: int = 0x00ff00,
+#    fields: list = None,
+#    image_url: str = None,
+#    content: str = None
+#):
+#    webhook_url = settings.DISCORD_FOR_SALE_WEBHOOK
+#
+#    embed = {
+#        "title": title,
+#        "description": description,
+#        "color": color,
+#        "fields": fields or []
+#    }
+#
+#    if image_url:
+#        embed["image"] = {"url": image_url}
+#    
+#    data = {"embeds": [embed]}
+#    if content:
+#        data["content"] = content  # <-- include ping here
+#    while True:  # retry loop
+#        response = requests.post(webhook_url, json=data)
+#
+#        if response.status_code == 429:  # rate limited
+#            retry_after = response.json().get("retry_after", 1)
+#            import time
+#            time.sleep(retry_after)
+#            continue  # try again after waiting
+#
+#        response.raise_for_status()  # raises for 400/500 errors
+#        break  # success → exit loop
 
+def send_to_discord_for_sale_embed(channel_id, title, message, colour=0x00BFFF, image_url=None, fields=None):
     embed = {
         "title": title,
-        "description": description,
-        "color": color,
-        "fields": fields or []
+        "description": message,
+        "color": colour,
+        "fields": fields or [
+            {
+                "name": "Time",
+                "value": datetime.now().strftime('%Y-%m-%d %H:%M'),
+                "inline": True
+            }
+        ],
+        "footer": {
+            "text": "MBT For Sale Notifications"
+        },
+        "timestamp": datetime.now().isoformat()
     }
 
     if image_url:
         embed["image"] = {"url": image_url}
-    
-    data = {"embeds": [embed]}
-    if content:
-        data["content"] = content  # <-- include ping here
-    while True:  # retry loop
-        response = requests.post(webhook_url, json=data)
 
-        if response.status_code == 429:  # rate limited
-            retry_after = response.json().get("retry_after", 1)
-            import time
-            time.sleep(retry_after)
-            continue  # try again after waiting
+    data = {
+        'channel_id': channel_id,
+        'embed': embed
+    }
 
-        response.raise_for_status()  # raises for 400/500 errors
-        break  # success → exit loop
+    response = requests.post(
+        f"{settings.DISCORD_BOT_API_URL}/send-embed",
+        json=data
+    )
+    response.raise_for_status()
+
 
 @login_required
 @require_http_methods(["GET", "POST"])
@@ -1679,10 +1712,11 @@ def vehicle_sell(request, operator_slug, vehicle_id):
                 {"name": "View", "value": f"https://www.mybustimes.cc/operator/{encoded_operator_slug}/vehicles/{vehicle.id}/?v={random.randint(1000,9999)}", "inline": False}
             ]
 
-            send_discord_webhook_embed(
+            send_to_discord_for_sale_embed(
+                channel_id=settings.DISCORD_FOR_SALE_CHANNEL_ID,
                 title=title,
                 description=description,
-                color=0xFFA500,
+                colour=0xFFA500,
                 fields=fields,
                 image_url=f"https://www.mybustimes.cc/operator/vehicle_image/{vehicle.id}/?v={random.randint(1000,9999)}",
                 content="<@&1348490878024679424>"  # <-- role ping included here
@@ -3522,23 +3556,24 @@ def vehicle_mass_edit(request, operator_slug):
                         {"name": "View", "value": f"https://www.mybustimes.cc/operator/{encoded_operator_slug}/vehicles/{vehicle.id}/?v={random.randint(1000,9999)}", "inline": False}
                     ]
 
-                    send_discord_webhook_embed(
+                    send_to_discord_for_sale_embed(
+                        channel_id=settings.DISCORD_FOR_SALE_CHANNEL_ID,
                         title=title,
                         description=description,
                         color=0xFFA500,
                         fields=fields,
                         image_url=f"https://www.mybustimes.cc/operator/vehicle_image/{vehicle.id}/?v={random.randint(1000,9999)}",
                         content="<@&1348490878024679424>"  # <-- role ping included here
-                        )
+                    )
 
-                        vehicle.save()
+                    vehicle.save()
 
-                        operator = MBTOperator.objects.get(id=operator.id)
-                        for_sale_count = fleet.objects.filter(operator=operator, for_sale=True).count()
-                        operator.vehicles_for_sale = for_sale_count
-                        operator.save()
+                    operator = MBTOperator.objects.get(id=operator.id)
+                    for_sale_count = fleet.objects.filter(operator=operator, for_sale=True).count()
+                    operator.vehicles_for_sale = for_sale_count
+                    operator.save()
 
-                        updated_count += 1
+                    updated_count += 1
                 else:
                     print("skipped all")
                     vehicle.save()
