@@ -115,6 +115,39 @@ def send_to_discord_embed(channel_id, title, message, colour=0x00BFFF):
     )
     response.raise_for_status()
 
+def send_to_discord_embed_Sales(channel_id, title, message, colour=0x00BFFF, content=None):
+    embed = {
+        "title": title,
+        "description": message,
+        "color": colour,
+        "fields": [
+            {
+                "name": "Time",
+                "value": datetime.now().strftime('%Y-%m-%d %H:%M'),
+                "inline": True
+            }
+        ],
+        "footer": {
+            "text": "MBT Sales System"
+        },
+        "timestamp": datetime.now().isoformat()
+    }
+
+    data = {
+        'channel_id': channel_id,
+        'embed': embed
+    }
+
+    if content:  # <-- include ping here
+        data['content'] = content
+
+    response = requests.post(
+        f"{settings.DISCORD_BOT_API_URL}/send-embed",
+        json=data
+    )
+    response.raise_for_status()
+
+
 
 # API Views
 class fleetListView(generics.ListAPIView):
@@ -1679,7 +1712,7 @@ def vehicle_sell(request, operator_slug, vehicle_id):
                 {"name": "View", "value": f"https://www.mybustimes.cc/operator/{encoded_operator_slug}/vehicles/{vehicle.id}/?v={random.randint(1000,9999)}", "inline": False}
             ]
 
-            send_discord_webhook_embed(
+            send_to_discord_embed_Sales(
                 title=title,
                 description=description,
                 color=0xFFA500,
@@ -3522,7 +3555,7 @@ def vehicle_mass_edit(request, operator_slug):
                         {"name": "View", "value": f"https://www.mybustimes.cc/operator/{encoded_operator_slug}/vehicles/{vehicle.id}/?v={random.randint(1000,9999)}", "inline": False}
                     ]
 
-                    send_discord_webhook_embed(
+                    send_to_discord_embed_Sales(
                         title=title,
                         description=description,
                         color=0xFFA500,
