@@ -55,6 +55,7 @@ CSRF_TRUSTED_ORIGINS = [
     'https://local-dev.mybustimes.cc',
     'https://bm-01.tail7328e3.ts.net',
     'https://bm-02.tail7328e3.ts.net',
+    'https://k3s-eu1.kaicoding.cc:8080',
     'http://k3s-eu1.kaicoding.cc:8080'
 ]
 
