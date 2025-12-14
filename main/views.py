@@ -1866,3 +1866,6 @@ def stats_page(request):
     }
 
     return render(request, "stats.html", context)
+
+def healthz(request):
+    return HttpResponse("ok")
