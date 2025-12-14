@@ -476,9 +476,6 @@ class trackingAPIView(generics.ListAPIView):
             "livery",
             "current_trip",
             "current_trip__trip_route",
-<<<<<<< Updated upstream
-        ).filter(filters)
-=======
         ).filter(filters)
     
 @require_POST
@@ -513,4 +510,3 @@ def simulate_positions_view(request):
         return JsonResponse({"status": "ok", "updating": True}, status=200)
     finally:
         cache.delete("simulate_positions_lock")
->>>>>>> Stashed changes
