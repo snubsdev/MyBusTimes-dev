@@ -177,8 +177,8 @@
         .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(`
           <a href="${serviceLink}">${line} to ${dest}</a><br>
           ${vehicleLink ? `<a href="${vehicleLink}">${veh.name || ''}</a>` : ""}<br>
-          <span>Simulated Location</span><br>
-          <small>Last updated: ${v.updated_at ? new Date(v.updated_at).toLocaleString() : 'N/A'}</small>
+          <span class="time-ago" data-time="${v.updated_at}">${timeAgo(v.updated_at)}</span>
+          <small style="margin-bottom: 0;">Simulated Location</small>
         `))
         .addTo(map);
 
@@ -300,9 +300,33 @@
     loadRoute(currentDirection);
   });
 
-  map.on('load', () => loadRoute(currentDirection));
+  map.on('load', async () => {
+    await loadOperatorBT(); 
+    await loadRoute(currentDirection);
+  });
 
   map.on("moveend", loadOperatorBT);
 setInterval(loadOperatorBT, 30000);
+
+function timeAgo(dateString) {
+    if (!dateString) return '';
+    const seconds = Math.floor((new Date() - new Date(dateString)) / 1000);
+    if (seconds < 60) return `${seconds} sec${seconds !== 1 ? 's' : ''} ago`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes} min${minutes !== 1 ? 's' : ''} ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} hr${hours !== 1 ? 's' : ''} ago`;
+    const days = Math.floor(hours / 24);
+    return `${days} day${days !== 1 ? 's' : ''} ago`;
+  }
+
+setInterval(() => {
+    document.querySelectorAll('.time-ago').forEach(el => {
+      const dateString = el.dataset.time;
+      if (dateString) {
+        el.textContent = timeAgo(dateString);
+      }
+    });
+  }, 1000); 
 </script>
 {% endblock %}

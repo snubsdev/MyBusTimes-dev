@@ -449,6 +449,7 @@ class trackingAPIView(generics.ListAPIView):
 
         operator_id = self.request.query_params.get("operator_id")
         route_id = self.request.query_params.get("route_id")
+        vehicle_id = self.request.query_params.get("vehicle_id")
 
         filters = Q(
             sim_lat__isnull=False,
@@ -465,6 +466,9 @@ class trackingAPIView(generics.ListAPIView):
 
         if route_id:
             filters &= Q(current_trip__trip_route_id=route_id)
+
+        if vehicle_id:
+            filters &= Q(id=vehicle_id)
 
         return fleet.objects.select_related(
             "operator",
