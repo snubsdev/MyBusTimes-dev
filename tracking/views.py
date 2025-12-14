@@ -25,6 +25,7 @@ from django.core.cache import cache
 from django.conf import settings
 from django.views.decorators.http import require_POST
 import time
+import secrets
 
 @csrf_exempt
 def get_user_from_key(request):
@@ -480,8 +481,10 @@ class trackingAPIView(generics.ListAPIView):
 @require_POST
 def simulate_positions_view(request):
     # shared-secret auth
-    if request.headers.get("X-Cron-Secret") != settings.CRON_SECRET:
-        return HttpResponseForbidden("nope")
+    expected = settings.CRON_SECRET
+    provided = request.headers.get("X-Cron-Secret")
+    if not expected or not provided or not secrets.compare_digest(expected, provided):
+         return HttpResponseForbidden("nope")
 
     now = int(time.time())
     window = now // 60  # current minute bucket
