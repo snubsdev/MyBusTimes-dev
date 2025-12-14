@@ -26,6 +26,8 @@ DISCORD_404_ERROR_WEBHOOK = os.environ["DISCORD_404_ERROR_WEBHOOK"]
 
 ROUTEING_URL = os.getenv("VALHALLA_URL")
 
+CRON_SECRET = os.getenv("CRON_SECRET")
+
 # Cloudflare Turnstile Site Key
 CF_SITE_KEY = os.getenv("CF_SITE_KEY")
 CF_SECRET_KEY = os.getenv("CF_SECRET_KEY")
