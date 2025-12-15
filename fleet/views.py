@@ -821,9 +821,14 @@ def trackable_status(request, operator_slug, route_id):
     has_in_stop_cords = False
     has_out_stop_cords = False
     if existing_route_in_stops and existing_route_in_stops.stops and len(existing_route_in_stops.stops) > 0:
-        has_in_stop_cords = True
+        has_in_stop_cords = any('cords' in stop for stop in existing_route_in_stops.stops)
+    else:
+        has_in_stop_cords = False
+
     if existing_route_out_stops and existing_route_out_stops.stops and len(existing_route_out_stops.stops) > 0:
-        has_out_stop_cords = True
+        has_out_stop_cords = any('cords' in stop for stop in existing_route_out_stops.stops)
+    else:
+        has_out_stop_cords = False
 
     # Inbound status
     if has_in_timetable and has_in_stops:
