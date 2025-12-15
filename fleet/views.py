@@ -833,10 +833,10 @@ def trackable_status(request, operator_slug, route_id):
     # Inbound status
     if has_in_timetable and has_in_stops:
         inbound_status = "Ok"
-    elif has_in_timetable and not has_in_stops and not has_in_stop_cords:
-        inbound_status = "Missing Stops"
     elif has_in_timetable and has_in_stops and not has_in_stop_cords:
         inbound_status = "Stops without Coordinates"
+    elif has_in_timetable and not has_in_stops and not has_in_stop_cords:
+        inbound_status = "Missing Stops"
     else:
         inbound_status = "No Timetable"
 
@@ -846,10 +846,10 @@ def trackable_status(request, operator_slug, route_id):
     else:
         if has_out_timetable and has_out_stops:
             outbound_status = "Ok"
-        elif has_out_timetable and not has_out_stops and not has_out_stop_cords:
-            outbound_status = "Missing Stops"
         elif has_out_timetable and has_out_stops and not has_out_stop_cords:
             outbound_status = "Stops without Coordinates"
+        elif has_out_timetable and not has_out_stops and not has_out_stop_cords:
+            outbound_status = "Missing Stops"
         else:
             outbound_status = "No Timetable"
 
@@ -884,8 +884,8 @@ def trackable_status(request, operator_slug, route_id):
                 'has_stop_coords': has_out_stop_cords
             },
             'overall': {
-                'inbound': has_in_timetable and has_in_stops,
-                'outbound': has_out_timetable and has_out_stops
+                'inbound': has_in_timetable and has_in_stops and has_in_stop_cords,
+                'outbound': has_out_timetable and has_out_stops and has_out_stop_cords
             }
         }
     }
