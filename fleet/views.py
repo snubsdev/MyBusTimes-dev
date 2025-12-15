@@ -5907,7 +5907,7 @@ def mass_assign_boards(request, operator_slug):
     ).order_by('duty_name')
 
     vehicles = fleet.objects.filter(
-        Q(operator=operator) | Q(loan_operator=operator)
+        Q(operator=operator) | Q(loan_operator=operator), in_service=True
     ).order_by('fleet_number_sort')
 
     breadcrumbs = [
