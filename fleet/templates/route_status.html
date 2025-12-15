@@ -113,6 +113,7 @@ function renderStatus(status) {
     function statusClass(state) {
         if (state === "Ok") return "pill-ok";
         if (state === "Missing Stops") return "pill-warn";
+        if (state === "Stops without Coordinates") return "pill-warn";
         if (state === "No Timetable") return "pill-bad";
         return "pill-neutral";
     }
@@ -151,6 +152,8 @@ function renderStatus(status) {
             </div>
         `;
     }
+
+    console.log(status);
 
     // TABLES
     html += `

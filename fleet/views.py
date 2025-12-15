@@ -858,6 +858,10 @@ def trackable_status(request, operator_slug, route_id):
     else:
         overall_status = "Incomplete"
 
+    print("Inbound Status:", inbound_status)
+    print("Outbound Status:", outbound_status)
+    print("Overall Status:", overall_status)
+
     status_report = {
         'inbound': inbound_status,
         'outbound': outbound_status,
@@ -866,11 +870,13 @@ def trackable_status(request, operator_slug, route_id):
         'all': {
             'inbound': {
                 'has_timetable': has_in_timetable,
-                'has_stops': has_in_stops
+                'has_stops': has_in_stops,
+                'has_stop_coords': has_in_stop_cords
             },
             'outbound': {
                 'has_timetable': has_out_timetable,
-                'has_stops': has_out_stops
+                'has_stops': has_out_stops,
+                'has_stop_coords': has_out_stop_cords
             },
             'overall': {
                 'inbound': has_in_timetable and has_in_stops,
