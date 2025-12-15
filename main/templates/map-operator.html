@@ -272,7 +272,14 @@ async function loadOperatorBT() {
 
     let heading = (v.heading ?? 0) + 270;
 
-    const css = v.vehicle?.css || v.vehicle?.left_css || "#fff";
+    let css = v.vehicle?.right_css || null;
+
+    if (heading > 180 && heading < 360) {
+      css = v.vehicle?.right_css || null;
+    } else {
+      css = v.vehicle?.left_css || null;
+    }
+    
     const textColour = v.vehicle?.text_colour || (v.vehicle?.white_text ? "#fff" : "#000");
     const textStroke = v.vehicle?.stroke_colour ?? false;
     const strokeWidth = textStroke ? "2px" : "0px";
