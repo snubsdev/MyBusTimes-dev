@@ -813,12 +813,25 @@ def trackable_status(request, operator_slug, route_id):
     has_out_timetable = outbound_timetable_entries.exists()
     has_in_stops = inbound_route_stops is not None
     has_out_stops = outbound_route_stops is not None
+    has_in_stop_cords = inbound_route_stops and inbound_route_stops.stops and len(inbound_route_stops.stops) > 0
+
+    existing_route_in_stops = routeStop.objects.filter(route=route_instance, inbound=True).first()
+    existing_route_out_stops = routeStop.objects.filter(route=route_instance, inbound=False).first()
+
+    has_in_stop_cords = False
+    has_out_stop_cords = False
+    if existing_route_in_stops and existing_route_in_stops.stops and len(existing_route_in_stops.stops) > 0:
+        has_in_stop_cords = True
+    if existing_route_out_stops and existing_route_out_stops.stops and len(existing_route_out_stops.stops) > 0:
+        has_out_stop_cords = True
 
     # Inbound status
     if has_in_timetable and has_in_stops:
         inbound_status = "Ok"
-    elif has_in_timetable and not has_in_stops:
+    elif has_in_timetable and not has_in_stops and not has_in_stop_cords:
         inbound_status = "Missing Stops"
+    elif has_in_timetable and has_in_stops and not has_in_stop_cords:
+        inbound_status = "Stops without Coordinates"
     else:
         inbound_status = "No Timetable"
 
@@ -828,8 +841,10 @@ def trackable_status(request, operator_slug, route_id):
     else:
         if has_out_timetable and has_out_stops:
             outbound_status = "Ok"
-        elif has_out_timetable and not has_out_stops:
+        elif has_out_timetable and not has_out_stops and not has_out_stop_cords:
             outbound_status = "Missing Stops"
+        elif has_out_timetable and has_out_stops and not has_out_stop_cords:
+            outbound_status = "Stops without Coordinates"
         else:
             outbound_status = "No Timetable"
 

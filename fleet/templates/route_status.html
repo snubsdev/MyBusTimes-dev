@@ -159,6 +159,7 @@ function renderStatus(status) {
             <table class="status-table">
                 <tr><th>Has Timetable</th><td>${yesNo(status.all.inbound.has_timetable)}</td></tr>
                 <tr><th>Has Stops</th><td>${yesNo(status.all.inbound.has_stops)}</td></tr>
+                <tr><th>Has Stops Coordinates</th><td>${yesNo(status.all.inbound.has_stop_coords)}</td></tr>
                 <tr><th>Fully Valid</th><td>${yesNo(status.all.overall.inbound)}</td></tr>
             </table>
         </div>
@@ -168,6 +169,7 @@ function renderStatus(status) {
             <table class="status-table">
                 <tr><th>Has Timetable</th><td>${yesNo(status.all.outbound.has_timetable)}</td></tr>
                 <tr><th>Has Stops</th><td>${yesNo(status.all.outbound.has_stops)}</td></tr>
+                <tr><th>Has Stops Coordinates</th><td>${yesNo(status.all.outbound.has_stop_coords)}</td></tr>
                 <tr><th>Fully Valid</th><td>${yesNo(status.all.overall.outbound)}</td></tr>
             </table>
         </div>
