@@ -1778,7 +1778,7 @@ def vehicle_sell(request, operator_slug, vehicle_id):
             encoded_operator_slug = quote(operator_slug)
 
             title = "Vehicle Listed for Sale"
-            description = f"**{operator.operator_slug}** has listed {vehicle.fleet_number} - {vehicle.reg} for sale."
+            description = f"**{operator.operator_name}** has listed {vehicle.fleet_number} - {vehicle.reg} for sale."
             fields = [
                 {"name": "Fleet Number", "value": vehicle.fleet_number if hasattr(vehicle, 'fleet_number') else 'N/A', "inline": True},
                 {"name": "Registration", "value": vehicle.reg if hasattr(vehicle, 'reg') else 'N/A', "inline": True},
@@ -3622,7 +3622,7 @@ def vehicle_mass_edit(request, operator_slug):
                         vehicle.for_sale = True
                         encoded_operator_slug = quote(operator_slug)
                     title = "Vehicle Listed for Sale"
-                    description = f"**{operator.operator_slug}** has listed {vehicle.fleet_number} - {vehicle.reg} for sale."
+                    description = f"**{operator.operator_name}** has listed {vehicle.fleet_number} - {vehicle.reg} for sale."
                     fields = [
                         {"name": "Fleet Number", "value": vehicle.fleet_number if hasattr(vehicle, 'fleet_number') else 'N/A', "inline": True},
                         {"name": "Registration", "value": vehicle.reg if hasattr(vehicle, 'reg') else 'N/A', "inline": True},
