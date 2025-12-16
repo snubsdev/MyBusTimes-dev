@@ -10,7 +10,7 @@ from django.core import serializers
 from django.db.models import ForeignKey, ManyToManyField, OneToOneField, FileField, ImageField, TextField, CharField
 from django.forms.models import model_to_dict
 from django.contrib.auth import get_user_model
-
+from django.db import connection
 
 def instance_to_dict(instance, include_m2m=True):
 	"""Convert a model instance into a serializable dict, including file paths and m2m ids."""
@@ -139,6 +139,12 @@ class Command(BaseCommand):
 
 			# Walk all models and collect related records
 			for model in apps.get_models():
+				if not model._meta.managed:
+					continue
+
+				if model._meta.db_table not in connection.introspection.table_names():
+					continue
+
 				app_label = model._meta.app_label
 				model_name = model._meta.model_name
 				exported = []

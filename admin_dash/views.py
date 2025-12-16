@@ -36,6 +36,13 @@ from django.urls import reverse, NoReverseMatch
 from simple_history import utils
 from simple_history.models import HistoricalRecords
 from django.db.models import ManyToManyField, ForeignKey
+from django.core.management import call_command
+from django.http import FileResponse, HttpResponseForbidden
+from django.views.decorators.http import require_POST
+from django.core.mail import EmailMessage
+import zipfile
+import tempfile
+import os
 
 def has_permission(user, perm_name):
     if user.is_superuser:
@@ -47,6 +54,84 @@ def has_permission(user, perm_name):
     team_perms = user.mbt_team.permissions.values_list('name', flat=True)
 
     return perm_name in team_perms
+
+@require_POST
+def gdpr_export_download(request, user_id):
+    if not request.user.is_superuser:
+        return HttpResponseForbidden()
+
+    user = get_object_or_404(User, pk=user_id)
+    zip_path = run_gdpr_export(user)
+
+    return FileResponse(
+        open(zip_path, "rb"),
+        as_attachment=True,
+        filename=f"gdpr_{user.username}.zip",
+    )
+
+@require_POST
+def gdpr_export_email(request, user_id):
+    if not request.user.is_superuser:
+        return HttpResponseForbidden()
+
+    user = get_object_or_404(User, pk=user_id)
+    zip_path = run_gdpr_export(user)
+
+    body = f"""Hello {user.username},
+
+Please find attached a copy of the personal data we currently hold about your MyBusTimes account.
+
+This information is being provided in response to your FOIR / GDPR request and reflects the data associated with your account at the time this export was generated.
+
+If you believe any of the information is inaccurate, incomplete, or if you have any questions regarding this export, please contact us at:
+
+support@mybustimes.cc
+
+Kind regards,
+MyBusTimes Team
+
+—
+MyBusTimes
+https://mybustimes.cc
+
+This is an automated message sent from a no-reply address.
+"""
+
+    email = EmailMessage(
+        subject="Your MyBusTimes FOIR / GDPR Data Export",
+        body=body,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[user.email],
+    )
+
+    email.attach_file(zip_path)
+    email.send(fail_silently=False)
+
+    return redirect("update-user", user.id)
+
+def run_gdpr_export(user):
+    tmp_dir = tempfile.mkdtemp(prefix="gdpr_")
+
+    call_command(
+        "gdpr_scrape",
+        email=user.email,
+        output_dir=tmp_dir,
+        deep=True,
+        include_files=True,
+    )
+
+    zip_path = os.path.join(tmp_dir, f"gdpr_user_{user.pk}.zip")
+
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for root, _, files in os.walk(tmp_dir):
+            for f in files:
+                full_path = os.path.join(root, f)
+                if full_path == zip_path:
+                    continue
+                arcname = os.path.relpath(full_path, tmp_dir)
+                zipf.write(full_path, arcname)
+
+    return zip_path
 
 def permission_denied(request):
     return render(request, 'now-access.html')
@@ -472,11 +557,12 @@ def update_user(request, user_id):
     else:
         user.badges.set(request.POST.getlist('badges'))
 
-    user.username = request.POST.get('username')
-    user.email = request.POST.get('email')
-    user.banned = request.POST.get('banned') == 'on'
-    
-    user.save()
+    if request.method == "POST":
+        user.username = request.POST.get('username')
+        user.email = request.POST.get('email')
+        user.banned = request.POST.get('banned') == 'on'
+        
+        user.save()
     return redirect('/admin/users-management/')
 
 @login_required(login_url='/admin/login/')
