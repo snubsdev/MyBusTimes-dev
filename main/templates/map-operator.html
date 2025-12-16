@@ -5,7 +5,7 @@
 {% block title %}{{ operator.operator_name }} — Operator Map{% endblock %}
 
 {% block extra_css %}
-<link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
+<link href="https://unpkg.com/maplibre-gl@5.0.0/dist/maplibre-gl.css" rel="stylesheet" />
 
 <style>
   html, body, main {
@@ -64,7 +64,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/maplibre-gl@5.0.0/dist/maplibre-gl.js"></script>
 {% endblock %}
 
 {% block content %}
@@ -75,6 +75,7 @@
 <div id="map"></div>
 
 <script>
+const savedView = JSON.parse(localStorage.getItem('mbt_map_view') || 'null');
 const operatorId = "{{ operator.id }}";
 let currentDirection = "inbound";
 let showStops = false;
@@ -85,12 +86,20 @@ let showStops = false;
   tilesJSON = 'https://tiles.snubs.dev/styles/light/style.json';
 {% endif %}
 
-const map = new maplibregl.Map({
-  container: 'map',
-  style: tilesJSON,
-  center: [-1.9, 54.9],
-  zoom: 7
-});
+  const map = new maplibregl.Map({
+    container: 'map',
+    style: tilesJSON,
+    center: savedView?.center || [-2.5, 54.5],
+    zoom: savedView?.zoom || 5,
+    dragRotate: false
+  });
+
+  map.on('style.load', () => {
+    map.setProjection({
+      type: 'globe'
+    });
+  });
+
 map.addControl(new maplibregl.NavigationControl(), 'top-left');
 
 let routeLayers = [];

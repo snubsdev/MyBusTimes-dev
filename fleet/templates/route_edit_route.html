@@ -32,7 +32,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/maplibre-gl@5.0.0/dist/maplibre-gl.js"></script>
 {% endblock %}
 
 {% block content %}
@@ -90,8 +90,9 @@
   const map = new maplibregl.Map({
     container: 'map',
     style: tilesJSON,
-    center: [-1.9, 54.9],
-    zoom: 6
+    center: savedView?.center || [-2.5, 54.5],
+    zoom: savedView?.zoom || 5,
+    dragRotate: false
   });
 
   map.addControl(new maplibregl.NavigationControl(), 'top-left');
