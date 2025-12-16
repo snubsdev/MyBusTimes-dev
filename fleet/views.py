@@ -1726,7 +1726,7 @@ def send_to_discord_for_sale_embed(channel_id, title, message, colour=0x00BFFF, 
 
     if content:
         response = requests.post(
-            f"{settings.DISCORD_BOT_API_URL}/send-message",
+            f"{settings.DISCORD_BOT_API_URL}/send-message-clean",
             json={
                 'channel_id': channel_id,
                 'content': content
