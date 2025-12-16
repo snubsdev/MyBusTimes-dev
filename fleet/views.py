@@ -1793,7 +1793,7 @@ def vehicle_sell(request, operator_slug, vehicle_id):
                 colour=0xFFA500,
                 fields=fields,
                 image_url=f"https://www.mybustimes.cc/operator/vehicle_image/{vehicle.id}/?v={random.randint(1000,9999)}",
-                content="<@755846766653341756>"  # <-- role ping included here
+                content="<@&1348490878024679424>"  # <-- role ping included here
             )
     vehicle.save()
     operator.save()
@@ -3637,7 +3637,7 @@ def vehicle_mass_edit(request, operator_slug):
                         color=0xFFA500,
                         fields=fields,
                         image_url=f"https://www.mybustimes.cc/operator/vehicle_image/{vehicle.id}/?v={random.randint(1000,9999)}",
-                        content="<@755846766653341756>"  # <-- role ping included here
+                        content="<@&1348490878024679424>"  # <-- role ping included here
                     )
 
                     vehicle.save()
