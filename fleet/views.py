@@ -1693,7 +1693,7 @@ def flip_all_trip_directions(request, operator_slug, vehicle_id, selected_date):
 #        response.raise_for_status()  # raises for 400/500 errors
 #        break  # success → exit loop
 
-def send_to_discord_for_sale_embed(channel_id, title, message, colour=0x00BFFF, image_url=None, fields=None):
+def send_to_discord_for_sale_embed(channel_id, title, message, colour=0x00BFFF, image_url=None, fields=None, content=None):
     embed = {
         "title": title,
         "description": message,
@@ -1723,6 +1723,15 @@ def send_to_discord_for_sale_embed(channel_id, title, message, colour=0x00BFFF, 
         f"{settings.DISCORD_BOT_API_URL}/send-embed",
         json=data
     )
+
+    if content:
+        response = requests.post(
+            f"{settings.DISCORD_BOT_API_URL}/send-message",
+            json={
+                'channel_id': channel_id,
+                'content': content
+            }
+        )
     response.raise_for_status()
 
 
