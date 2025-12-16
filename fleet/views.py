@@ -1774,7 +1774,7 @@ def vehicle_sell(request, operator_slug, vehicle_id):
             send_to_discord_for_sale_embed(
                 channel_id=settings.DISCORD_FOR_SALE_CHANNEL_ID,
                 title=title,
-                description=description,
+                message=description,
                 colour=0xFFA500,
                 fields=fields,
                 image_url=f"https://www.mybustimes.cc/operator/vehicle_image/{vehicle.id}/?v={random.randint(1000,9999)}",
@@ -3618,7 +3618,7 @@ def vehicle_mass_edit(request, operator_slug):
                     send_to_discord_for_sale_embed(
                         channel_id=settings.DISCORD_FOR_SALE_CHANNEL_ID,
                         title=title,
-                        description=description,
+                        message=description,
                         color=0xFFA500,
                         fields=fields,
                         image_url=f"https://www.mybustimes.cc/operator/vehicle_image/{vehicle.id}/?v={random.randint(1000,9999)}",
