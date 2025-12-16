@@ -1715,7 +1715,7 @@ def send_to_discord_for_sale_embed(channel_id, title, message, colour=0x00BFFF, 
         embed["image"] = {"url": image_url}
 
     data = {
-        'channel_id': channel_id,
+        'channel_id': int(channel_id),
         'embed': embed
     }
 
@@ -1724,17 +1724,20 @@ def send_to_discord_for_sale_embed(channel_id, title, message, colour=0x00BFFF, 
         'message': content
     }
 
+    if content:
+        response_message = requests.post(
+            f"{settings.DISCORD_BOT_API_URL}/send-message-clean",
+            data=message_data,
+            files=None
+        )
+        response_message.raise_for_status()
+
     response = requests.post(
         f"{settings.DISCORD_BOT_API_URL}/send-embed",
         json=data
     )
 
-    if content:
-        response = requests.post(
-            f"{settings.DISCORD_BOT_API_URL}/send-message-clean",
-            data=message_data,
-            files=None
-        )
+    print(response.text)
     response.raise_for_status()
 
 
@@ -1790,7 +1793,7 @@ def vehicle_sell(request, operator_slug, vehicle_id):
                 colour=0xFFA500,
                 fields=fields,
                 image_url=f"https://www.mybustimes.cc/operator/vehicle_image/{vehicle.id}/?v={random.randint(1000,9999)}",
-                content="<@&1348490878024679424>"  # <-- role ping included here
+                content="<@755846766653341756>"  # <-- role ping included here
             )
     vehicle.save()
     operator.save()
@@ -3634,7 +3637,7 @@ def vehicle_mass_edit(request, operator_slug):
                         color=0xFFA500,
                         fields=fields,
                         image_url=f"https://www.mybustimes.cc/operator/vehicle_image/{vehicle.id}/?v={random.randint(1000,9999)}",
-                        content="<@&1348490878024679424>"  # <-- role ping included here
+                        content="<@755846766653341756>"  # <-- role ping included here
                     )
 
                     vehicle.save()
