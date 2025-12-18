@@ -93,10 +93,11 @@
         <!-- Progress Bar -->
         <div id="progress-container" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;background: #000000b2;">
             <div style="max-width: 35em;margin: 0 auto;background: var(--background-color);margin-top: 25vh;padding: 1em;border-radius: 0.5em;">
-            <label>Logging Progress:</label>
-            <progress id="log-progress" value="0" max="100" style="width: 100%;"></progress>
-            <span id="progress-text">0 / 0</span>
-            <div id="log-status" style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border-color); padding: 5px; margin-top: 5px; border-radius: 0.5em; font-size: 0.9em;"></div>
+                <button type="button" style="display: none; float: right; border-radius: 50%; height: 25px; width: 25px; text-align: center; padding: 1px 7px; margin-top: -25px; margin-right: -25px;" id="close-progress-btn">X</button>
+                <label>Logging Progress:</label>
+                <progress id="log-progress" value="0" max="100" style="width: 100%;"></progress>
+                <span id="progress-text">0 / 0</span>
+                <div id="log-status" style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border-color); padding: 5px; margin-top: 5px; border-radius: 0.5em; font-size: 0.9em;"></div>
             </div>
         </div>
 
@@ -253,6 +254,7 @@ document.addEventListener("DOMContentLoaded", function() {
     const progressText = document.getElementById("progress-text");
     const logStatus = document.getElementById("log-status");
     const dateInput = document.getElementById("assign-date");
+    const closeProgressBtn = document.getElementById("close-progress-btn");
 
     startBtn.addEventListener("click", async () => {
         const date = dateInput.value;
@@ -330,6 +332,15 @@ document.addEventListener("DOMContentLoaded", function() {
         }
 
         startBtn.disabled = false;
+        
+        progressBar.accentColor = errors > 0 ? "red" : "green";
+        progressText.innerText += errors > 0 ? ` - Completed with ${errors} errors.` : " - All completed successfully.";
+        closeProgressBtn.style.display = "flex";
+
+        closeProgressBtn.addEventListener("click", () => {
+            progressContainer.style.display = "none";
+            closeProgressBtn.style.display = "none";
+        });
     });
 
 });
