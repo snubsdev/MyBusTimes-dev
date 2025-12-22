@@ -90,10 +90,8 @@ support@mybustimes.cc
 Kind regards,
 MyBusTimes Team
 
-—
 MyBusTimes
 https://mybustimes.cc
-
 This is an automated message sent from a no-reply address.
 """
 

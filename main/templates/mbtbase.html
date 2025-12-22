@@ -31,6 +31,27 @@
     main {
       width: calc(100% - 24px);
     }
+    .in-page-ad {
+        width: 100vw;
+        margin-left: calc(50% - 50vw);
+        text-align: center;
+    }
+
+    .top-ad-border {
+        border-width: 2px;
+        border-color: #7CB5E7;
+        border-style: solid;
+        border-top: 0;
+        -webkit-box-shadow: 0px 0px 20px 0px rgba(0, 0, 0, 0.63);
+        -moz-box-shadow: 0px 0px 20px 0px rgba(0,0,0,0.63);
+        box-shadow: 0px 0px 20px 0px rgba(0, 0, 0, 0.63);
+        display: inline-block;
+        background-color: white;
+    }
+
+    .ad-box {
+      display: block;
+    }
   </style>
 
   <link rel="icon" type="image/png" href="{{ favicon_96x96 }}" sizes="96x96" />
@@ -54,12 +75,8 @@
   <script src="{% static 'js/service-updates.js' %}" defer></script>
 
   {% if google_ads_enabled %}
-  {% include "extra/google-ads.html" %}
-  {% endif %}
-
-  {% if ad_first %}
   {% include "extra/adfirst.html" %}
-  {% endif %}
+  {% endif %} 
 
   {% include "extra/js.html" %}
 
@@ -155,6 +172,11 @@
         {% endfor %}
       </ol>
     </div>
+    {% if ads_enabled %}
+    <div class="top-ad-container in-page-ad" style="position:sticky;top:0px;z-index:101;height:100px;">
+      <div id="AFM_top_ad" class="top-ad-border" style="margin:auto;"></div>
+    </div>
+    {% endif %}
     <div class="content">
       {% if messages %}
       <div class="messages">

@@ -12,7 +12,11 @@
 
 {% block content %}
 <h1>{{ duty.duty_name }}</h1>
-<div class="ad-box" id="body-ad-1"></div>
+<div class="in-page-ad" id="body-ad-1">
+  <div class="incontent-ad-container" style="height:100px;">
+    <div id="AFM_inContent_ad" style="margin:auto;"></div>
+  </div>
+</div>
 <button onclick='window.location.href="{% url 'generate_pdf' duty.duty_operator.operator_slug duty.id %}"'>Print/Download</button>
 {% if 'Edit Duties' in user_perms or 'owner' in user_perms %}
 <button onclick='window.location.href="{% url 'edit-duty' duty.duty_operator.operator_slug duty.id %}"'>Edit Duty</button>

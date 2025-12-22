@@ -20,7 +20,11 @@
 
 {% block content %}
 <h2>{{ titles }}</h2>
-<div class="ad-box" id="body-ad-1"></div>
+<div class="in-page-ad" id="body-ad-1">
+  <div class="incontent-ad-container" style="height:100px;">
+    <div id="AFM_inContent_ad" style="margin:auto;"></div>
+  </div>
+</div>
 {% if add_perm in user_perms or 'owner' in user_perms %}
 <button onclick='window.location.href="{% url 'add-'|add:title|lower|dashify operator.operator_slug %}"'>Add {{ title }}</button>
 {% endif %}
