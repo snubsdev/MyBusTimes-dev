@@ -75,9 +75,16 @@
   <script src="{% static 'js/service-updates.js' %}" defer></script>
 
   {% if google_ads_enabled %}
-  {% include "extra/adfirst.html" %}
-  {% endif %} 
+    {% include "extra/adfirst.html" %}
+  {% endif %}
 
+  {% if ad_enabled != True %}
+  <style>
+    .in-page-ad {
+      display: none;
+    }
+  </style>
+  {% endif %}
   {% include "extra/js.html" %}
 
   {% block extra_js %}{% endblock %}
