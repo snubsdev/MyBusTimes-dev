@@ -32,7 +32,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/maplibre-gl@5.0.0/dist/maplibre-gl.js"></script>
 {% endblock %}
 
 {% block content %}
@@ -75,6 +75,7 @@
 </form>
 
 <script>
+  const savedView = JSON.parse(localStorage.getItem('mbt_map_view') || 'null');
   let hasPro = {% if user.sub_plan == "pro" %}true{% else %}false{% endif %};
   let tilesJSON = 'https://tiles.snubs.dev/styles/light/style.json';
   {% if themeDark == 'True' %}
@@ -84,8 +85,9 @@
   const map = new maplibregl.Map({
     container: 'map',
     style: tilesJSON,
-    center: [-1.9, 54.9],
-    zoom: 6
+    center: savedView?.center || [-2.5, 54.5],
+    zoom: savedView?.zoom || 5,
+    dragRotate: false
   });
 
   map.addControl(new maplibregl.NavigationControl(), 'top-left');

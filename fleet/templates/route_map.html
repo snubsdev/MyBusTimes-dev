@@ -5,7 +5,7 @@
 {% block title %}{{ route.route_num }} Route Map{% endblock %}
 
 {% block extra_css %}
-<link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
+<link href="https://unpkg.com/maplibre-gl@5.0.0/dist/maplibre-gl.css" rel="stylesheet" />
 
 
 <style>
@@ -71,7 +71,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/maplibre-gl@5.0.0/dist/maplibre-gl.js"></script>
 {% endblock %}
 
 {% block content %}
@@ -79,6 +79,7 @@
 <div id="map"></div>
 
 <script>
+  const savedView = JSON.parse(localStorage.getItem('mbt_map_view') || 'null');
   const routeId = {{ route.id }};
   const operatorName = "{{ operator.operator_name }}";
 
@@ -95,8 +96,15 @@
   const map = new maplibregl.Map({
     container: 'map',
     style: tilesJSON,
-    center: [-1.9, 54.9],
-    zoom: 6
+    center: savedView?.center || [-2.5, 54.5],
+    zoom: savedView?.zoom || 5,
+    dragRotate: false
+  });
+
+  map.on('style.load', () => {
+    map.setProjection({
+      type: 'globe'
+    });
   });
 
   btMarkers.forEach(m => m.remove());

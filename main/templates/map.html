@@ -4,7 +4,7 @@
 {% block title %}Live Route Map{% endblock %}
 
 {% block extra_css %}
-<link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
+<link href="https://unpkg.com/maplibre-gl@5.0.0/dist/maplibre-gl.css" rel="stylesheet" />
 <style>
   html,
   body,
@@ -72,7 +72,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/maplibre-gl@5.0.0/dist/maplibre-gl.js"></script>
 {% endblock %}
 
 {% block content %}
@@ -93,8 +93,15 @@
   const map = new maplibregl.Map({
     container: 'map',
     style: tilesJSON,
-    center: savedView?.center || [-1.9, 54.9],
-    zoom: savedView?.zoom || 5                
+    center: savedView?.center || [-2.5, 54.5],
+    zoom: savedView?.zoom || 5,
+    dragRotate: false
+  });
+
+  map.on('style.load', () => {
+    map.setProjection({
+      type: 'globe'
+    });
   });
 
   // Save user view on move
@@ -131,7 +138,7 @@
         <svg width="24" height="16" data-vehicle-id="51623" class="vehicle-marker" style="stroke: ${textStroke}; text-align: center; ${backgroundStyle} transform: rotate(${cellRotation}deg); border: 1px solid rgba(0,0,0); color: ${textColour}; fill: ${textColour}; stroke-width: ${strokeWidth};">
           <text x="12" y="12">${label}</text>
         </svg>
-        <span style="display:flex; margin-top: -27px; margin-left: 16px; color:var(--text-color);">
+        <span style="display:flex; margin-top: -27px; margin-left: 16px; color:black;">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
             <path d="M8 6.65v10.69c0 .64.76.99 1.24.56l6.11-5.35c.34-.3.34-.83 0-1.13L9.24 6.07C8.76 5.65 8 5.99 8 6.63Z" />
           </svg>
@@ -331,7 +338,7 @@
         } else {
           css = left_css;
         }
-
+        
         let textColour = '#000';
 
         if (whiteText) textColour = '#fff';

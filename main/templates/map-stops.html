@@ -4,7 +4,7 @@
 {% block title %}Live Route Map{% endblock %}
 
 {% block extra_css %}
-<link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
+<link href="https://unpkg.com/maplibre-gl@5.0.0/dist/maplibre-gl.css" rel="stylesheet" />
 <style>
   html,
   body,
@@ -72,7 +72,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/maplibre-gl@5.0.0/dist/maplibre-gl.js"></script>
 {% endblock %}
 
 {% block content %}
@@ -92,10 +92,17 @@
   const map = new maplibregl.Map({
     container: 'map',
     style: tilesJSON,
-    center: savedView?.center || [-1.9, 54.9],
-    zoom: savedView?.zoom || 5                
+    center: savedView?.center || [-2.5, 54.5],
+    zoom: savedView?.zoom || 5,
+    dragRotate: false
   });
 
+  map.on('style.load', () => {
+    map.setProjection({
+      type: 'globe'
+    });
+  });
+  
   // Save user view on move
   map.on('moveend', () => {
     const center = map.getCenter();

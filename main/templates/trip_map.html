@@ -4,7 +4,7 @@
 
 {% block title %}Trip Map{% endblock %}
 {% block extra_css %}
-<link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
+<link href="https://unpkg.com/maplibre-gl@5.0.0/dist/maplibre-gl.css" rel="stylesheet" />
 <style>
   html, body, main {
     height: 100%;
@@ -68,7 +68,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/maplibre-gl@5.0.0/dist/maplibre-gl.js"></script>
 {% endblock %}
 
 {% block content %}
@@ -76,6 +76,7 @@
 <div id="map"></div>
 
 <script>
+  const savedView = JSON.parse(localStorage.getItem('mbt_map_view') || 'null');
   const tripId = "{{ trip.trip_id }}";   // ensure string interpolation
   const vehicleId = "{{ trip.trip_vehicle.id|default:'' }}";
   let btMarkers = [];
@@ -91,9 +92,17 @@
   const map = new maplibregl.Map({
     container: 'map',
     style: tilesJSON,
-    center: [-1.9, 54.9],
-    zoom: 6
+    center: savedView?.center || [-2.5, 54.5],
+    zoom: savedView?.zoom || 5,
+    dragRotate: false
   });
+
+  map.on('style.load', () => {
+    map.setProjection({
+      type: 'globe'
+    });
+  });
+
   map.addControl(new maplibregl.NavigationControl(), 'top-left');
 
   function createLiveryIcon({ label = '', rotation = 0, bg = '#0000', css = null, textColour = '#fff', textStroke = "#0000", strokeWidth = "0px" } = {}) {

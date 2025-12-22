@@ -59,7 +59,9 @@ CSRF_TRUSTED_ORIGINS = [
     'https://bm-01.tail7328e3.ts.net',
     'https://bm-02.tail7328e3.ts.net',
     'https://k3s-eu1.kaicoding.cc:8080',
-    'http://k3s-eu1.kaicoding.cc:8080'
+    'http://k3s-eu1.kaicoding.cc:8080',
+    'https://eu1-origin.mybustimes.cc',
+    'https://eu2-origin.mybustimes.cc',
 ]
 
 AUTH_USER_MODEL = 'main.CustomUser'

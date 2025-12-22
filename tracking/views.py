@@ -463,7 +463,7 @@ class trackingAPIView(generics.ListAPIView):
         )
 
         if operator_id:
-            filters &= Q(operator_id=operator_id)
+            filters &= Q(operator_id=operator_id) | Q(loan_operator__id=operator_id)
 
         if route_id:
             filters &= Q(current_trip__trip_route_id=route_id)
