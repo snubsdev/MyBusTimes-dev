@@ -78,7 +78,13 @@
     {% include "extra/adfirst.html" %}
   {% endif %}
 
-  {% if ad_enabled != True %}
+  {% if ad_enabled %}
+  <style>
+    .in-page-ad {
+      display: block;
+    }
+  </style>
+  {% else %}
   <style>
     .in-page-ad {
       display: none;
