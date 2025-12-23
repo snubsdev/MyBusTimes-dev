@@ -50,7 +50,7 @@ urlpatterns = [
     path("create-thread/", ratelimit(key='ip', method='GET', rate='10/s')(create_thread_from_discord), name="create_thread_from_discord"),
 
     path("trips/", ratelimit(key='ip', method='GET', rate='10/s')(TripListView.as_view()), name="trip-list"),
-    path("trips/update_positions/", ratelimit(key='ip', method='POST', rate='2/m')(simulate_positions_view), name="update-trip-positions"),
+    #path("trips/update_positions/", ratelimit(key='ip', method='POST', rate='2/m')(simulate_positions_view), name="update-trip-positions"),
     path("trips/create/", ratelimit(key='ip', method='GET', rate='5/m')(StartNewTripView), name="create-trip"),
     path("trips/current_vehicle_trips/", ratelimit(key='ip', method='GET', rate='10/s')(current_vehicle_trips.as_view()), name="current-vehicle-trips"),
     #path("trips/simulated_positions/", ratelimit(key='ip', method='GET', rate='10/s')(VehiclePositionAPIView.as_view()), name="estimated-positions"),

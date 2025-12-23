@@ -2384,6 +2384,8 @@ def get_timetable(request, route_id, direction):
     import sys
 
     def log(*args):
+        print(*args)
+
     try:
         log("REQUEST route_id=", route_id, "direction=", direction)
 
