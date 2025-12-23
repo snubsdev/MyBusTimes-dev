@@ -152,7 +152,6 @@ def get_changes(entry):
 
 
 def user_activity_view(request):
-    print("=== user_activity_view CALLED ===")
     query_username = request.GET.get("username", "").strip()
     query_operator = request.GET.get("operator", "").strip()
     selected_model = request.GET.get("model", "").strip()
@@ -279,7 +278,6 @@ def user_activity_view(request):
         entry.history_url = f"/api-admin/{instance._meta.app_label}/{instance._meta.model_name}/{obj_id}/history/" if instance else None
         entry.user_url = f"/api-admin/auth/user/{entry.history_user_id}/change/" if entry.history_user_id else None
 
-    print("=== DONE ===")
     print(selected_model)
     return render(request, "user_activity.html", {
         "selected_user": user,

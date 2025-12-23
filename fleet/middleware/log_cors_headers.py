@@ -5,11 +5,4 @@ class LogCORSHeadersMiddleware:
     def __call__(self, request):
         response = self.get_response(request)
 
-        # Log CORS headers
-        print("== CORS Headers ==")
-        print("Origin:", request.headers.get('Origin'))
-        print("Access-Control-Allow-Origin:", response.get('Access-Control-Allow-Origin'))
-        print("Access-Control-Allow-Credentials:", response.get('Access-Control-Allow-Credentials'))
-        print("==================")
-
         return response

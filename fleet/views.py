@@ -863,10 +863,6 @@ def trackable_status(request, operator_slug, route_id):
     else:
         overall_status = "Incomplete"
 
-    print("Inbound Status:", inbound_status)
-    print("Outbound Status:", outbound_status)
-    print("Overall Status:", overall_status)
-
     status_report = {
         'inbound': inbound_status,
         'outbound': outbound_status,
@@ -1373,9 +1369,6 @@ def vehicle_edit(request, operator_slug, vehicle_id):
 
         tabs = []  # populate as needed or reuse your generate_tabs method
 
-        print(advanced_details_to_text(vehicle.advanced_details))
-        print(vehicle.advanced_details)
-
         context = {
             'fleetData': vehicle,
             'operatorData': operators,
@@ -1737,7 +1730,6 @@ def send_to_discord_for_sale_embed(channel_id, title, message, colour=0x00BFFF, 
         json=data
     )
 
-    print(response.text)
     response.raise_for_status()
 
 
@@ -2392,8 +2384,6 @@ def get_timetable(request, route_id, direction):
     import sys
 
     def log(*args):
-        print("[TIMETABLE DEBUG]", *args, file=sys.stdout, flush=True)
-
     try:
         log("REQUEST route_id=", route_id, "direction=", direction)
 
@@ -2588,7 +2578,6 @@ def duty_edit_trips(request, operator_slug, duty_id):
         inbound_trips = request.POST.getlist('inbound_trip[]')
 
 
-        print(len(inbound_trips))
         if not (len(route_nums) == len(start_times) == len(end_times) == len(start_ats) == len(end_ats) == len(inbound_trips)):
             messages.error(request, "Mismatch in trip input lengths.")
             return redirect(request.path)
@@ -2612,10 +2601,6 @@ def duty_edit_trips(request, operator_slug, duty_id):
                 route_obj = route.objects.filter(route_operators=operator, route_num=route_num).first()
             except route.DoesNotExist:
                 route_obj = None
-
-            print("==========================")
-            print("inbound:" + str(inbound_trips[i] == 'true'))
-            print("==========================")
 
             dutyTrip.objects.create(
                 duty=duty_instance,
@@ -2953,8 +2938,6 @@ def operator_edit(request, operator_slug):
         for field in ['operator_name', 'operator_code', 'mapTile', 'region', 'group', 'organisation', 'operator_details']:
             old_value = getattr(old_operator_data, field)
             new_value = getattr(new_operator_data, field)
-
-            print(f"Comparing field '{field}': old value = {old_value}, new value = {new_value}")
 
             # Handle ManyToMany field (region)
             if field == 'region':
@@ -3607,10 +3590,7 @@ def vehicle_mass_edit(request, operator_slug):
                 return redirect(f'/operator/{operator_slug}/vehicles/')
             else:
                 if for_sale:
-                    print("listing")
                     total_for_sale = currently_for_sale + total_vehicles
-
-                    print(total_for_sale)
 
                     if total_for_sale >= max_for_sale:
                         messages.error(request, f"You can only list {max_for_sale} vehicles for sale.")
@@ -3618,7 +3598,6 @@ def vehicle_mass_edit(request, operator_slug):
                         vehicle.save()
                         return redirect(f'/operator/{operator_slug}/vehicles/')
                     else:
-                        print("fuck you cunt")
                         vehicle.for_sale = True
                         encoded_operator_slug = quote(operator_slug)
                     title = "Vehicle Listed for Sale"
@@ -3649,7 +3628,6 @@ def vehicle_mass_edit(request, operator_slug):
 
                     updated_count += 1
                 else:
-                    print("skipped all")
                     vehicle.save()
                     for_sale_count = fleet.objects.filter(operator=operator, for_sale=True).count()
                     operator.vehicles_for_sale = for_sale_count
@@ -3922,8 +3900,6 @@ def route_edit(request, operator_slug, route_id):
             start_date = None
 
         route_operators = MBTOperator.objects.filter(id__in=selected_operators)
-
-        print(selected_operators)
 
         # Update the route instance
         route_instance.route_operators.set(route_operators)
@@ -4848,7 +4824,6 @@ def route_timetable_edit(request, operator_slug, route_id, timetable_id):
 
     formatted_operator_schedule = str(timetable_instance.operator_schedule)
     formatted_operator_schedule = formatted_operator_schedule.strip('[').strip(']').replace("'", "").replace('"', '')
-    print(formatted_operator_schedule)
 
     if route_instance.route_operators.count() > 1:
         showOperatorSchedule = True

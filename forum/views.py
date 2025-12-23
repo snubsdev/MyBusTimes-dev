@@ -81,8 +81,6 @@ def create_thread_from_discord(request):
     if not (title and discord_channel_id and created_by and forum_id):
         return JsonResponse({"error": "Missing data"}, status=400)
     
-    print(f"[DEBUG] Creating thread: title={title}, discord_channel_id={discord_channel_id}, forum_id={forum_id}, created_by={created_by}")
-
     thread = Thread.objects.create(
         title=title,
         created_by=created_by,  # ✅ use value from the request
@@ -260,15 +258,12 @@ def thread_detail(request, thread_id):
         return redirect(f'/forum/thread/{thread.id}/?page={last_page_number}')
     
     last_page_number = paginator.num_pages
-    print(f"[DEBUG] Last page number: {last_page_number}, Current page number: {page_number}")
 
     page_obj = paginator.get_page(page_number)
     if str(page_number) != str(last_page_number):
         is_last_page = False
     else:
         is_last_page = True
-
-    print(f"[DEBUG] is_last_page: {is_last_page}")
 
     posts_with_pfps = []
     for post in page_obj:

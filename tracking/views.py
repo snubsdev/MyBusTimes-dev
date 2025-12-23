@@ -279,12 +279,10 @@ class current_vehicle_trips(generics.ListAPIView):
     permission_classes = [ReadOnly]
     def get_queryset(self):
         current_time = timezone.now()
-        print(f"[DEBUG] current_vehicle_trips: current_time = {current_time}")
         queryset = Trip.objects.filter(
             trip_start_at__lte=current_time,
             trip_end_at__gte=current_time
         )
-        print(f"[DEBUG] current_vehicle_trips: found {queryset.count()} trips")
         return queryset
     
 from django.db.models import Q

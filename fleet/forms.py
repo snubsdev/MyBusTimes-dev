@@ -36,7 +36,6 @@ class TripFromTimetableForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         self.debug_info = {"init": {}, "clean": {}}
-        print("🧩 [INIT] TripFromTimetableForm initializing...")
         self.operator = kwargs.pop('operator', None)
         self.vehicle = kwargs.pop('vehicle', None)
         super().__init__(*args, **kwargs)

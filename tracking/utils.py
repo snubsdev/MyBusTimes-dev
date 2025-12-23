@@ -60,32 +60,25 @@ def get_route_coordinates(route_id, trip):
     3) If trip.trip_inbound is None → fallback to old last-stop detection
     """
 
-    print(f"[DEBUG] get_route_coordinates: route_id={route_id}, inbound={trip.trip_inbound}")
-
     stops_qs = routeStop.objects.filter(route_id=route_id).order_by("id")
-    print(f"[DEBUG] found {stops_qs.count()} routeStop rows")
 
     if not stops_qs:
-        print("[DEBUG] no routeStops found → returning []")
         return []
 
     # -------------------------------
     # EXPLICIT INBOUND/OUTBOUND CHOICE
     # -------------------------------
     if trip.trip_inbound is False:
-        print("[DEBUG] trip_inbound=False → using inbound (index 1)")
         if stops_qs.count() >= 2:
             return extract_coords_from_routeStop(stops_qs[1])
         return extract_coords_from_routeStop(stops_qs[0])
 
     if trip.trip_inbound is True:
-        print("[DEBUG] trip_inbound=True → using outbound (index 0)")
         return extract_coords_from_routeStop(stops_qs[0])
 
     # -------------------------------
     # FALLBACK: AUTO-DETECT LIKE BEFORE
     # -------------------------------
-    print("[DEBUG] trip_inbound=None → using auto-detect fallback")
 
     direction_candidates = []
 
@@ -99,7 +92,6 @@ def get_route_coordinates(route_id, trip):
             })
 
     if not direction_candidates:
-        print("[DEBUG] no valid directions → return []")
         return []
 
     trip_end_location = (trip.trip_end_location or "").lower().strip()
@@ -107,10 +99,8 @@ def get_route_coordinates(route_id, trip):
     for d in direction_candidates:
         ls = (d["last_stop"] or "").lower().strip()
         if trip_end_location and ls and trip_end_location in ls:
-            print(f"[DEBUG] MATCH FOUND: using last_stop '{d['last_stop']}'")
             return d["coords"]
 
-    print("[DEBUG] no match → using first direction")
     return direction_candidates[0]["coords"]
 
 
@@ -168,18 +158,13 @@ def get_progress(trip):
     now = timezone.now()
     start = trip.trip_start_at
     end = trip.trip_end_at
-    print(f"[DEBUG] get_progress: trip_id={trip.pk}, now={now}, start={start}, end={end}")
     duration = (end - start).total_seconds()
     elapsed = (now - start).total_seconds()
-    print(f"[DEBUG] get_progress: duration={duration}s, elapsed={elapsed}s")
     if elapsed <= 0:
-        print(f"[DEBUG] get_progress: returning 0.0 (not started)")
         return 0.0
     if elapsed >= duration:
-        print(f"[DEBUG] get_progress: returning 1.0 (completed)")
         return 1.0
     progress = elapsed / duration
-    print(f"[DEBUG] get_progress: returning {progress}")
     return progress
 
 def interpolate(coords, progress):
