@@ -3634,7 +3634,7 @@ def vehicle_mass_edit(request, operator_slug):
                         channel_id=settings.DISCORD_FOR_SALE_CHANNEL_ID,
                         title=title,
                         message=description,
-                        color=0xFFA500,
+                        colour=0xFFA500,
                         fields=fields,
                         image_url=f"https://www.mybustimes.cc/operator/vehicle_image/{vehicle.id}/?v={random.randint(1000,9999)}",
                         content="<@&1348490878024679424>"  # <-- role ping included here
