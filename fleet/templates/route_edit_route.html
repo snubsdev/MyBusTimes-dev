@@ -129,48 +129,56 @@
   }
 
   async function autoSnapRoute() {
-    if (!hasPro) return;
     const n = selectedCoords.length;
-    if (n < 2) return;
+    if (n < 2) {
+        snappedSegments = [];
+        drawRoute();
+        updateStopDistances();
+        return;
+    }
 
-    snappedSegments = [];
+    if (snappedSegments.length > n - 1) {
+        snappedSegments.length = n - 1;
+    }
 
+    let dirty = false;
     for (let i = 0; i < n - 1; i++) {
         const from = selectedCoords[i];
         const to = selectedCoords[i + 1];
+        const existing = snappedSegments[i];
 
-        const snapped = await snapSegment(from, to);
-
-        if (snapped) snappedSegments[i] = snapped;
-        else {
+        if (!existing || existing.fromCoord !== from || existing.toCoord !== to) {
             snappedSegments[i] = {
                 coords: [[from.lon, from.lat], [to.lon, to.lat]],
                 distance: Math.round(haversineDistance([from.lon, from.lat],[to.lon, to.lat])),
-                time: Math.round(haversineDistance([from.lon, from.lat],[to.lon, to.lat]) / 8.333333)
+                time: Math.round(haversineDistance([from.lon, from.lat],[to.lon, to.lat]) / 8.333333),
+                fromCoord: from,
+                toCoord: to,
+                isPlaceholder: true
             };
+            dirty = true;
         }
     }
 
-    // Build full geometry
-    let combined = [];
-    for (let i = 0; i < snappedSegments.length; i++) {
-        let seg = snappedSegments[i].coords;
-        if (!seg) continue;
-        if (combined.length && seg.length) seg = seg.slice(1);
-        combined.push(...seg);
+    if (dirty) {
+        drawRoute();
+        updateStopDistances();
     }
 
-    window.snappedFullGeometry = combined;
-
-    // Update map
-    if (map.getSource("routeLine")) {
-        map.getSource("routeLine").setData({
-            type: "Feature",
-            geometry: { type: "LineString", coordinates: combined }
-        });
+    for (let i = 0; i < n - 1; i++) {
+        if (snappedSegments[i].isPlaceholder) {
+            const from = selectedCoords[i];
+            const to = selectedCoords[i + 1];
+            const snapped = await snapSegment(from, to);
+            if (snapped) {
+                snappedSegments[i] = { ...snapped, fromCoord: from, toCoord: to, isPlaceholder: false };
+                drawRoute();
+                updateStopDistances();
+            } else {
+                snappedSegments[i].isPlaceholder = false;
+            }
+        }
     }
-
-    updateStopDistances();
   }
 
   // Polyline6 decoder (Valhalla)
@@ -267,7 +275,6 @@
       selectedStops.push(name);
       selectedCoords.push({ lat, lon: lng, heading: null });
       addStopToList(name, timing_point);
-      updateRoute();
       autoSnapRoute();
     });
 
@@ -302,7 +309,6 @@
         selectedCoords.splice(index, 1);
         snappedSegments.splice(index, 1); // keep arrays aligned (safe)
         tr.remove();
-        updateRoute();
         autoSnapRoute();
       }
     });
@@ -315,24 +321,23 @@
     if (map.getSource('routeLine')) map.removeSource('routeLine');
   }
 
-  async function updateRoute() {
-    if (!map.isStyleLoaded()) {
-        map.once('load', updateRoute);
-        return;
+  function drawRoute() {
+    if (!map.isStyleLoaded()) return;
+
+    let combined = [];
+    for (let i = 0; i < snappedSegments.length; i++) {
+        let seg = snappedSegments[i].coords;
+        if (!seg) continue;
+        if (combined.length && seg.length) seg = seg.slice(1);
+        combined.push(...seg);
     }
 
-    const n = selectedCoords.length;
-    if (n < 2) {
-        clearRouteLine();
-        return;
-    }
-
-    let coords = selectedCoords.map(s => [s.lon, s.lat]);
+    window.snappedFullGeometry = combined;
 
     if (!map.getSource("routeLine")) {
         map.addSource("routeLine", {
             type: "geojson",
-            data: { type: "Feature", geometry: { type: "LineString", coordinates: coords } }
+            data: { type: "Feature", geometry: { type: "LineString", coordinates: combined } }
         });
         map.addLayer({
             id: "routeLine",
@@ -343,7 +348,7 @@
     } else {
         map.getSource("routeLine").setData({
             type: "Feature",
-            geometry: { type: "LineString", coordinates: coords }
+            geometry: { type: "LineString", coordinates: combined }
         });
     }
   }
@@ -403,62 +408,8 @@
       if (n < 2) return alert("Need at least 2 stops.");
 
       snappedSegments = [];
-
-      // snap each consecutive pair and collect distance/time
-      for (let i = 0; i < n - 1; i++) {
-          const from = selectedCoords[i];
-          const to   = selectedCoords[i + 1];
-
-          const snapped = await snapSegment(from, to);
-
-          if (snapped) snappedSegments[i] = snapped;
-          else {
-              // fallback to straight line coords between from and to:
-              snappedSegments[i] = {
-                coords: [[from.lon, from.lat], [to.lon, to.lat]],
-                distance: Math.round(haversineDistance([from.lon, from.lat], [to.lon, to.lat])),
-                time: Math.round(haversineDistance([from.lon, from.lat], [to.lon, to.lat]) / 8.333333)
-              };
-          }
-      }
-
-      let combined = [];
-      for (let i = 0; i < snappedSegments.length; i++) {
-        const segObj = snappedSegments[i];
-        if (!segObj) continue;                      // skip undefined entries
-        const segCoords = segObj.coords || null;
-        if (!segCoords || !segCoords.length) continue;
-        // avoid duplicating joining point
-        const toPush = (combined.length && segCoords.length) ? segCoords.slice(1) : segCoords;
-        combined.push(...toPush);
-      }
-
-
-      window.snappedFullGeometry = combined;
-
-      // Ensure routeLine source exists
-      if (!map.getSource("routeLine")) {
-          map.addSource("routeLine", {
-              type: "geojson",
-              data: { type: "Feature", geometry: { type: "LineString", coordinates: combined } }
-          });
-          map.addLayer({
-              id: "routeLine",
-              type: "line",
-              source: "routeLine",
-              paint: { "line-color": "#2f80ed", "line-width": 3 }
-          });
-      } else {
-          map.getSource("routeLine").setData({
-              type: "Feature",
-              geometry: { type: "LineString", coordinates: combined }
-          });
-      }
-
-      // update table with distances
-      updateStopDistances();
-
-      alert("Route snapped to road! Distances and times updated in the stop list.");
+      autoSnapRoute();
+      alert("Route snapping started! Distances and times will update shortly.");
     });
   }
 
@@ -505,11 +456,7 @@
   map.on('moveend', fetchStops);
   map.on("load", () => {
     fetchStops();
-    updateRoute();
-
-    if (hasPro) {
-      autoSnapRoute();
-    }
+    autoSnapRoute();
 
     if (snappedGeom && snappedGeom.length) {
         window.snappedFullGeometry = snappedGeom;
@@ -538,7 +485,7 @@
         // For simplicity, just update the stop rows using haversine between stops for now.
         updateStopDistances();
     } else {
-        updateRoute();
+        autoSnapRoute();
     }
   });
 
@@ -552,7 +499,6 @@
         selectedStops.push(name);
         selectedCoords.push({ lat: lngLat.lat, lon: lngLat.lng, heading: null });
         addStopToList(name);
-        updateRoute();
         autoSnapRoute();
       }
       map.off('click', clickHandler);

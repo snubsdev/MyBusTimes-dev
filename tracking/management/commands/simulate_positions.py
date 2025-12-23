@@ -20,7 +20,7 @@ class Command(BaseCommand):
         # ---------------------------------------------------------
         # 1. Get active trips (start <= now <= end)
         # ---------------------------------------------------------
-        active_trips = (
+        active_trips = (    
             Trip.objects
             .filter(trip_start_at__lte=now, trip_end_at__gte=now, trip_missed=False)
             .select_related("trip_vehicle", "trip_vehicle__operator")
