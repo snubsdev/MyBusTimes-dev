@@ -4047,7 +4047,7 @@ def add_stop_names_only(request, operator_slug, route_id, direction):
 
         if not stop_names:
             messages.error(request, "Please provide at least one stop name.")
-            return redirect(f'/operator/{operator_slug}/route/{route_id}/add-stop-names/')
+            return redirect(f'/operator/{operator_slug}/route/{route_id}/stops/add/{direction}/stop-names-only/')
 
         # Format stops as list of {"stop": "..."} dictionaries
         stops_json = [{"stop": name} for name in stop_names]
@@ -4066,7 +4066,7 @@ def add_stop_names_only(request, operator_slug, route_id, direction):
     breadcrumbs = [
         {'name': 'Home', 'url': '/'},
         {'name': operator.operator_name, 'url': f'/operator/{operator_slug}/'},
-        {'name': 'Add Stop Names', 'url': f'/operator/{operator_slug}/route/{route_id}/add-stop-names/'}
+        {'name': 'Add Stop Names', 'url': f'/operator/{operator_slug}/route/{route_id}/stops/add/{direction}/stop-names-only/'}
     ]
 
     context = {
@@ -4100,7 +4100,7 @@ def edit_stop_names_only(request, operator_slug, route_id, direction):
 
     if not stop_obj:
         messages.error(request, f"No existing stops found for this direction.")
-        return redirect(f'/operator/{operator_slug}/route/{route_id}/add-stop-names/')
+        return redirect(f'/operator/{operator_slug}/route/{route_id}/stops/add/{direction}/stop-names-only/')
 
     if request.method == "POST":
         direction = request.POST.get('direction', direction)
@@ -4109,7 +4109,7 @@ def edit_stop_names_only(request, operator_slug, route_id, direction):
 
         if not stop_names:
             messages.error(request, "Please provide at least one stop name.")
-            return redirect(f'/operator/{operator_slug}/route/{route_id}/edit-stop-names/')
+            return redirect(f'/operator/{operator_slug}/route/{route_id}/stops/edit/{direction}/stop-names-only/')
 
         # Format new stops and update the object
         stop_obj.stops = [{"stop": name} for name in stop_names]
@@ -4124,7 +4124,7 @@ def edit_stop_names_only(request, operator_slug, route_id, direction):
     breadcrumbs = [
         {'name': 'Home', 'url': '/'},
         {'name': operator.operator_name, 'url': f'/operator/{operator_slug}/'},
-        {'name': 'Edit Stop Names', 'url': f'/operator/{operator_slug}/route/{route_id}/edit-stop-names/'}
+        {'name': 'Edit Stop Names', 'url': f'/operator/{operator_slug}/route/{route_id}/stops/edit/{direction}/stop-names-only'}
     ]
 
     context = {
