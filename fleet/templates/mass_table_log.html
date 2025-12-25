@@ -300,29 +300,52 @@ document.addEventListener("DOMContentLoaded", function() {
 
         // Process
         for (const task of assignments) {
-            const formData = new FormData();
-            formData.append("vehicle_id", task.vehicle_id);
-            formData.append("board_type", task.board_type);
-            formData.append("board_id", task.board_id);
-            formData.append("date", task.date);
-            formData.append("csrfmiddlewaretoken", document.querySelector('[name=csrfmiddlewaretoken]').value);
+            let success = false;
+            let lastError = "";
+            const maxAttempts = 3;
 
-            try {
-                const response = await fetch("{% url 'mass_assign_single_vehicle_api' operator.operator_slug %}", {
-                    method: "POST",
-                    body: formData
-                });
-                const result = await response.json();
+            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                const formData = new FormData();
+                formData.append("vehicle_id", task.vehicle_id);
+                formData.append("board_type", task.board_type);
+                formData.append("board_id", task.board_id);
+                formData.append("date", task.date);
+                formData.append("csrfmiddlewaretoken", document.querySelector('[name=csrfmiddlewaretoken]').value);
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
-                if (result.success) {
-                    logStatus.innerHTML += `<div style="color: green;">✓ Vehicle ${task.vehicle_id}: ${result.message}</div>`;
-                } else {
-                    errors++;
-                    logStatus.innerHTML += `<div style="color: red;">✗ Vehicle ${task.vehicle_id}: ${result.error}</div>`;
+                try {
+                    const response = await fetch("{% url 'mass_assign_single_vehicle_api' operator.operator_slug %}", {
+                        method: "POST",
+                        body: formData,
+                        signal: controller.signal
+                    });
+                    clearTimeout(timeoutId);
+                    const result = await response.json();
+
+                    if (result.success) {
+                        logStatus.innerHTML += `<div style="color: green;">✓ Vehicle ${task.vehicle_id}: ${result.message}</div>`;
+                        success = true;
+                        break;
+                    } else {
+                        lastError = result.error;
+                    }
+                } catch (err) {
+                    lastError = "Network error";
+                    clearTimeout(timeoutId);
+                    lastError = err.name === 'AbortError' ? "Request timeout" : `Network error: ${err.message}`;
                 }
-            } catch (err) {
+
+                if (attempt < maxAttempts) {
+                    logStatus.innerHTML += `<div style="color: orange;">⚠ Vehicle ${task.vehicle_id}: ${lastError}. Retrying in 1s... (Attempt ${attempt}/${maxAttempts})</div>`;
+                    logStatus.scrollTop = logStatus.scrollHeight;
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            }
+
+            if (!success) {
                 errors++;
-                logStatus.innerHTML += `<div style="color: red;">✗ Vehicle ${task.vehicle_id}: Network error</div>`;
+                logStatus.innerHTML += `<div style="color: red;">✗ Vehicle ${task.vehicle_id}: Failed after ${maxAttempts} attempts. Last error: ${lastError}</div>`;
             }
 
             completed++;

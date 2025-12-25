@@ -34,6 +34,10 @@ class UpdateLastActiveMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
+        print("REMOTE_ADDR:", request.META.get("REMOTE_ADDR"))
+        print("X_FORWARDED_FOR:", request.META.get("HTTP_X_FORWARDED_FOR"))
+        print("CF_CONNECTING_IP:", request.META.get("HTTP_CF_CONNECTING_IP"))
+
         response = self.get_response(request)
 
         user = request.user
