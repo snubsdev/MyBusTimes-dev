@@ -82,6 +82,13 @@ class google_ad(models.Model):
     ad_id = models.CharField(max_length=100, help_text="Google Ad ID (e.g., 6635106786)")
     ad_place_id = models.CharField(max_length=100, help_text="MBT AD Box ID (e.g., body-ad-1)")
 
+class BanType(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return self.name
 class CustomUser(AbstractUser):
     #mbt_admin_perms = models.ManyToManyField('MBTAdminPermission', related_name='users_with_perm', blank=True, help_text="Administrative permissions for MyBusTimes")
     oidc_sub = models.CharField(max_length=255, unique=True, null=True, blank=True)
@@ -98,10 +105,7 @@ class CustomUser(AbstractUser):
     last_active = models.DateTimeField(blank=True, null=True)
     banned = models.BooleanField(default=False)
 
-    forum_banned = models.BooleanField(default=False)
-    ticket_banned = models.BooleanField(default=False)
-    messaging_banned = models.BooleanField(default=False)
-    wiki_edit_banned = models.BooleanField(default=False)
+    banned_from = models.ManyToManyField(BanType, blank=True, related_name='banned_users', help_text="Types of bans applied to the user")
 
     banned_date = models.DateTimeField(blank=True, null=True)
     banned_reason = models.TextField(blank=True, null=True)

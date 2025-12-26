@@ -47,12 +47,17 @@ class StripeSubscriptionAdmin(SimpleHistoryAdmin):
     search_fields = ('user__username',)
     autocomplete_fields = ('user',)    
 
+@admin.register(BanType)
+class BanTypeAdmin(SimpleHistoryAdmin):
+    list_display = ('name',)
+    search_fields = ('name',)
+
 @admin.register(CustomUser)
 class CustomUserAdmin(SimpleHistoryAdmin, UserAdmin):
     list_display = ('username', 'email', 'discord_username', 'join_date', 'banned', 'ad_free_until', 'last_active')
     list_filter = ('banned', 'is_staff', 'is_superuser', 'ad_free_until', 'theme', 'last_active')
     search_fields = ('username', 'email', 'last_ip', 'last_login_ip', 'discord_username')
-    filter_horizontal = ('badges', 'groups', 'user_permissions')
+    filter_horizontal = ('badges', 'groups', 'user_permissions', 'banned_from')
 
     fieldsets = (
         (None, {'fields': ('username', 'password')}),
@@ -64,10 +69,7 @@ class CustomUserAdmin(SimpleHistoryAdmin, UserAdmin):
         ('Ban Info', {
             'fields': (
                 'banned',
-                'forum_banned',
-                'wiki_edit_banned', 
-                'messaging_banned', 
-                'ticket_banned', 
+                'banned_from',
                 'banned_reason', 
                 'banned_date',
                 'last_login_ip',

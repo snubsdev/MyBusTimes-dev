@@ -58,6 +58,12 @@ from main.models import CustomUser, siteUpdate, featureToggle, siteUpdate, patch
 from .forms import GameForm
 from fleet.models import fleet, fleetChange, ticket, region, helper, liverie, vehicleType
 
+def buying_buses_banned(request):
+    return render(request, 'buying_buses_banned.html')
+
+def selling_buses_banned(request):
+    return render(request, 'selling_buses_banned.html')
+
 def ads_txt_view(request):
     ads_path = os.path.join(settings.BASE_DIR, 'static/ads.txt')
     return FileResponse(open(ads_path, 'rb'), content_type='text/plain')
@@ -773,6 +779,9 @@ def for_sale(request):
     response = feature_enabled(request, "view_for_sale")
     if response:
         return response
+    
+    if request.user.is_authenticated and request.user.banned_from.filter(name='buying_buses').exists():
+        return redirect('buying_buses_banned')
 
     if request.method == "POST":
         vehicle_id = request.POST.get("vehicle_id")
@@ -781,6 +790,9 @@ def for_sale(request):
         vehicle = get_object_or_404(fleet, id=vehicle_id, for_sale=True)
         current_operator = vehicle.operator
         new_operator = get_object_or_404(MBTOperator, id=operator_id)
+
+        if request.user.is_authenticated and request.user.banned_from.filter(name='buying_buses').exists():
+            return redirect('buying_buses_banned')
 
         # Check if user is allowed to buy for that operator
         user_perms = get_helper_permissions(request.user, new_operator)

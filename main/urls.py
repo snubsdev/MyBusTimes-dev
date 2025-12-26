@@ -25,6 +25,9 @@ urlpatterns = [
     path("stats/", stats_page, name="stats"),
     path("transparency/", transparency, name="transparency"),
 
+    path("buying_buses/banned/", buying_buses_banned, name="buying_buses_banned"),
+    path("selling_buses/banned/", selling_buses_banned, name="selling_buses_banned"),
+
  
     path("hub/", community_hub, name="community_hub"),
     path("hub/all_images/", community_hub_images, name="community_hub_images"),

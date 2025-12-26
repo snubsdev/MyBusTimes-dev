@@ -97,7 +97,7 @@ def create_thread_from_discord(request):
     return JsonResponse({"status": "created", "thread_id": thread.id})
 
 def forum_list(request):
-    if request.user.is_authenticated and request.user.forum_banned:
+    if request.user.is_authenticated and request.user.banned_from.filter(name='forums').exists():
         return redirect('forum_banned')
 
     # Annotate threads with latest post date
@@ -108,7 +108,7 @@ def forum_list(request):
     })
 
 def thread_list(request, forum_name):
-    if request.user.is_authenticated and request.user.forum_banned:
+    if request.user.is_authenticated and request.user.banned_from.filter(name='forums').exists():
         return redirect('forum_banned')
 
     # time cutoff
@@ -242,7 +242,7 @@ def thread_details_api(request, thread_id):
     })
 
 def thread_detail(request, thread_id):
-    if request.user.is_authenticated and request.user.forum_banned:
+    if request.user.is_authenticated and request.user.banned_from.filter(name='forums').exists():
         return redirect('forum_banned')
     
     thread = get_object_or_404(Thread, pk=thread_id)
@@ -384,7 +384,7 @@ def thread_detail(request, thread_id):
 
 @login_required
 def new_thread(request):
-    if request.user.is_authenticated and request.user.forum_banned:
+    if request.user.is_authenticated and request.user.banned_from.filter(name='forums').exists():
         return redirect('forum_banned')
     
     if request.method == 'POST':

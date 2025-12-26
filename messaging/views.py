@@ -18,7 +18,7 @@ def messaging_banned(request):
 
 @login_required
 def send_file(request):
-    if request.user.is_authenticated and request.user.messaging_banned:
+    if request.user.is_authenticated and request.user.banned_from.filter(name='messaging').exists():
         return redirect('messaging_banned')
     if request.method == "POST":
         chat_id = request.POST.get("chat_id")
@@ -78,7 +78,7 @@ def send_file(request):
 
 @login_required
 def home(request):
-    if request.user.is_authenticated and request.user.messaging_banned:
+    if request.user.is_authenticated and request.user.banned_from.filter(name='messaging').exists():
         return redirect('messaging_banned')
     user = request.user
 
@@ -106,7 +106,7 @@ def home(request):
 
 @login_required
 def chat_detail(request, chat_id):
-    if request.user.is_authenticated and request.user.messaging_banned:
+    if request.user.is_authenticated and request.user.banned_from.filter(name='messaging').exists():
         return redirect('messaging_banned')
     chat = get_object_or_404(Chat, id=chat_id)
     ChatMember.objects.filter(chat=chat, user=request.user).update(last_seen_at=timezone.now())
@@ -122,7 +122,7 @@ def chat_detail(request, chat_id):
 
 @login_required
 def start_chat(request):
-    if request.user.is_authenticated and request.user.messaging_banned:
+    if request.user.is_authenticated and request.user.banned_from.filter(name='messaging').exists():
         return redirect('messaging_banned')
     if request.method == "POST":
         form = StartChatForm(request.POST, current_user=request.user)

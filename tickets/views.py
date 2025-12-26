@@ -129,7 +129,7 @@ def rebuild_ticket_channel(request, ticket_id):
 
 @csrf_exempt
 def ticket_list_api(request):
-    if request.user.is_authenticated and request.user.ticket_banned:
+    if request.user.is_authenticated and request.user.banned_from.filter(name='tickets').exists():
         return redirect('ticket_banned')
     if request.method == "GET":
         discord_channel_id = request.GET.get("discord_channel_id")
@@ -156,7 +156,7 @@ def ticket_list_api(request):
 
 @login_required
 def ticket_home(request):
-    if request.user.is_authenticated and request.user.ticket_banned:
+    if request.user.is_authenticated and request.user.banned_from.filter(name='tickets').exists():
         return redirect('ticket_banned')
     mytickets = Ticket.objects.filter(user=request.user, status='open').order_by('-created_at')
 
@@ -177,7 +177,7 @@ def ticket_home(request):
 
 @login_required
 def ticket_messages_api(request, ticket_id):
-    if request.user.is_authenticated and request.user.ticket_banned:
+    if request.user.is_authenticated and request.user.banned_from.filter(name='tickets').exists():
         return redirect('ticket_banned')
     assigned_teams = [request.user.mbt_team] if request.user.mbt_team else []
 
@@ -255,7 +255,7 @@ def ticket_messages_api(request, ticket_id):
 
 @csrf_exempt
 def create_ticket_api_key_auth(request):
-    if request.user.is_authenticated and request.user.ticket_banned:
+    if request.user.is_authenticated and request.user.banned_from.filter(name='tickets').exists():
         return redirect('ticket_banned')
     key = request.headers.get("Authorization")
     if not key:
@@ -328,7 +328,7 @@ def create_ticket_api_key_auth(request):
 
 @csrf_exempt
 def ticket_messages_api_key_auth(request, ticket_id):
-    if request.user.is_authenticated and request.user.ticket_banned:
+    if request.user.is_authenticated and request.user.banned_from.filter(name='tickets').exists():
         return redirect('ticket_banned')
     key = request.headers.get("Authorization")
     if not key:
@@ -390,7 +390,7 @@ from django.http import HttpResponseNotAllowed
 
 @login_required
 def close_ticket(request, ticket_id):
-    if request.user.is_authenticated and request.user.ticket_banned:
+    if request.user.is_authenticated and request.user.banned_from.filter(name='tickets').exists():
         return redirect('ticket_banned')
     # Only allow POST
     if request.method != "POST":
@@ -429,7 +429,7 @@ def close_ticket(request, ticket_id):
     return redirect("ticket_detail", ticket_id=ticket.id)
 
 def ticket_detail(request, ticket_id):
-    if request.user.is_authenticated and request.user.ticket_banned:
+    if request.user.is_authenticated and request.user.banned_from.filter(name='tickets').exists():
         return redirect('ticket_banned')
     
     if not request.user.is_authenticated:
@@ -467,7 +467,7 @@ def ticket_detail(request, ticket_id):
     return render(request, "ticket_detail.html", {"ticket": ticket, "is_admin": is_admin, "is_closed": ticket.status == 'closed'})
 
 def ticket_meta_details(request, ticket_id):
-    if request.user.is_authenticated and request.user.ticket_banned:
+    if request.user.is_authenticated and request.user.banned_from.filter(name='tickets').exists():
         return redirect('ticket_banned')
     
     if request.user.is_authenticated:
@@ -494,7 +494,7 @@ def ticket_meta_details(request, ticket_id):
 @login_required
 @ratelimit(key='ip', method='POST', rate='2/h', block=True)
 def create_ticket(request):
-    if request.user.is_authenticated and request.user.ticket_banned:
+    if request.user.is_authenticated and request.user.banned_from.filter(name='tickets').exists():
         return redirect('ticket_banned')
     if request.method == "POST":
         form = TicketForm(request.POST)

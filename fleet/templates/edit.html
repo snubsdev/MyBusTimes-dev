@@ -19,9 +19,17 @@
   <p>Ticket machine code:</p>
   <code>{{ fleetData.fleet_number }} - {{ fleetData.reg }}</code><br><br>
 
-  <button class="btn"
-    onclick='window.location.href="/operator/{{ fleetData.operator.operator_slug }}/vehicles/{{ fleetData.id }}/list_for_sale/"'>{% if fleetData.for_sale == True %}Remove
-    For Sale{% else %}List For Sale{% endif %}</button>
+  <button class="btn" {% if hide_sell_button %}disabled style="pointer-events: none; opacity: 0.6;"{% endif %}
+    onclick='window.location.href="/operator/{{ fleetData.operator.operator_slug }}/vehicles/{{ fleetData.id }}/list_for_sale/"'>
+    {% if hide_sell_button %}Selling Buses Disabled{% else %}
+      {% if fleetData.for_sale == True %}
+        Remove For Sale
+      {% else %}
+        List For Sale
+      {% endif %}
+    {% endif %}
+  </button>
+
 
   <form action="" method="POST">
     {% csrf_token %}

@@ -27,9 +27,10 @@
     <label for="preserved">Preserved:</label>
     <input type="checkbox" id="preserved" name="preserved" {% if fleetData.preserved %}checked{% endif %}><br>
 
+    {% if not hide_sell_button %}
     <label for="for_sale">List For Sale:</label>
     <input type="checkbox" id="for_sale" name="for_sale" {% if fleetData.for_sale %}checked{% endif %}><br><br>
-
+    {% endif %}
     <input type="hidden" name="number_of_vehicles" id="number_of_vehicles" value="{{ vehicles|length }}" min="1" required>
 
     <div id="vehicle-details-container">

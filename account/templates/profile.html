@@ -89,6 +89,25 @@
         {% endif %}
     </div>
 </div>
+{% if user.is_staff %}
+<div class="admin-user-tools">
+    <div>
+        <h3>Admin Tools</h3>
+        <ul>
+            <li><a href="/admin/user-activity/?username={{ profile_user.username|urlencode }}&operator=&model=">View User History</a></li>
+            <li><a href="/admin/edit-user/{{ profile_user.id }}/">Edit User</a></li>
+        </ul>
+    </div>
+    <h3>Banned From</h3>
+    <ul>
+        {% for ban in profile_user.banned_from.all %}
+        <li>{{ ban.name }}</li>
+        {% empty %}
+        <li>Not banned from any features</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
 <div class="ad-box user-profile-ad" id="body-ad-1"></div>
 <div class="flex-wrapper">
     <div class="flex-wrapper-left">

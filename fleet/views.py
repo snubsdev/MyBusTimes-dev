@@ -945,6 +945,9 @@ def vehicles(request, operator_slug, depot=None, withdrawn=False):
     else:
         sales_operator = False
 
+    if request.user.is_authenticated and request.user.banned_from.filter(name='buying_buses').exists():
+        sales_operator = False
+
 
     withdrawn = request.GET.get('withdrawn')
     depot = request.GET.get('depot')
@@ -1369,7 +1372,13 @@ def vehicle_edit(request, operator_slug, vehicle_id):
 
         tabs = []  # populate as needed or reuse your generate_tabs method
 
+        if request.user.is_authenticated and request.user.banned_from.filter(name='selling_buses').exists():
+            hide_sell_button = True
+        else:
+            hide_sell_button = False
+
         context = {
+            'hide_sell_button': hide_sell_button,
             'fleetData': vehicle,
             'operatorData': operators,
             'typeData': types,
@@ -1736,6 +1745,9 @@ def send_to_discord_for_sale_embed(channel_id, title, message, colour=0x00BFFF, 
 @login_required
 @require_http_methods(["GET", "POST"])
 def vehicle_sell(request, operator_slug, vehicle_id):
+    if request.user.is_authenticated and request.user.banned_from.filter(name='selling_buses').exists():
+        return redirect('selling_buses_banned')
+    
     response = feature_enabled(request, "sell_vehicles")
     if response:
         return response
@@ -1753,6 +1765,9 @@ def vehicle_sell(request, operator_slug, vehicle_id):
         operator.vehicles_for_sale = max(operator.vehicles_for_sale - 1, 0)  # prevent negative
         message = "removed"
     else:
+        if request.user.is_authenticated and request.user.banned_from.filter(name='selling_buses').exists():
+            return redirect('selling_buses_banned')
+        
         if operator.vehicles_for_sale >= max_for_sale:
             messages.error(request, f"You can only list {max_for_sale} vehicles for sale.")
             vehicle.for_sale = False
@@ -3592,6 +3607,9 @@ def vehicle_mass_edit(request, operator_slug):
                 return redirect(f'/operator/{operator_slug}/vehicles/')
             else:
                 if for_sale:
+                    if request.user.is_authenticated and request.user.banned_from.filter(name='selling_buses').exists():
+                        return redirect('selling_buses_banned')
+
                     total_for_sale = currently_for_sale + total_vehicles
 
                     if total_for_sale >= max_for_sale:
@@ -3610,6 +3628,9 @@ def vehicle_mass_edit(request, operator_slug):
                         {"name": "Type", "value": getattr(vehicle.vehicleType, 'type_name', 'N/A'), "inline": False},
                         {"name": "View", "value": f"https://www.mybustimes.cc/operator/{encoded_operator_slug}/vehicles/{vehicle.id}/?v={random.randint(1000,9999)}", "inline": False}
                     ]
+
+                    if request.user.is_authenticated and request.user.banned_from.filter(name='selling_buses').exists():
+                        return redirect('selling_buses_banned')
 
                     send_to_discord_for_sale_embed(
                         channel_id=settings.DISCORD_FOR_SALE_CHANNEL_ID,
@@ -3640,8 +3661,14 @@ def vehicle_mass_edit(request, operator_slug):
         return redirect(f'/operator/{operator_slug}/vehicles/')
 
     else:
+
+        if request.user.is_authenticated and request.user.banned_from.filter(name='selling_buses').exists():
+            hide_sell_button = True
+        else:
+            hide_sell_button = False
         # GET: pre-fill form with first vehicle for shared fields
         context = {
+            'hide_sell_button': hide_sell_button,
             'fleetData': vehicles[0],  # Used for shared fields
             'vehicles': vehicles,
             'operatorData': allowed_operators,
