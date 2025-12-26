@@ -10,7 +10,6 @@
 
 {% block content %}
 
-{% if ads_enabled %}
 <h2 class="section-title">Support MyBusTimes</h2>
 <p class="subtitle">Choose a plan that works for you. Faster, cleaner, and built for the community - with your support</p>
 
@@ -21,6 +20,9 @@
 
 <div class="subscription-options">
     {% include 'stripe/pricing_table.html' %}
+    {% if user.is_authenticated and user.has_active_subscription %}
+    <a style="text-align: center; display: block;" href="{{ STRIPE_BILLING_PORTAL_URL }}">Update or cancel anytime</a>
+    {% endif %}
     <br>
     <p style="text-align: center;">Join {{ current_sub_count }} other members in supporting MyBusTimes!</p>
     <a style="text-align: center;width: 100%;display: block;" href="https://www.mybustimes.cc/climate">🌱 Our climate promise</a>
@@ -45,8 +47,5 @@
 <div class="note">
     <p>You’re directly helping keep MyBusTimes fast and focused on buses – not ads.</p>
 </div>
-{% else %}
-<h2>Looks like you're already subscribed! Thank you.</h2>
-<a href="{{ STRIPE_BILLING_PORTAL_URL }}">Cancel anytime</a>
-{% endif %}
+
 {% endblock %}

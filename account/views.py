@@ -322,6 +322,54 @@ def cancel_subscription(request):
 
     return render(request, 'cancel_subscription.html')
 
+def calculate_sub_class(user):
+    """Return current subscription tier string based on Stripe subscription.
+
+    - Staff users fall back to basic_monthly if no valid subscription is found.
+    - Looks up the latest StripeSubscription for the user, fetches the live
+      subscription from Stripe, and maps the price to a plan using _price_catalog.
+    - Falls back to the user's stored sub_plan or "free" if unavailable.
+    """
+
+    # Find the latest subscription record for this user
+    sub_record = (
+        StripeSubscription.objects.filter(user=user)
+        .order_by("-id")
+        .first()
+    )
+
+    if not sub_record or not sub_record.subscription_id:
+        return user.sub_plan or "free"
+
+    try:
+        stripe_sub = stripe.Subscription.retrieve(sub_record.subscription_id)
+    except Exception as exc:  # Stripe errors / network
+        print("[calculate_sub_class] Stripe retrieve failed:", exc)
+        return user.sub_plan or "free"
+
+    # Extract price id from first item
+    items = stripe_sub.get("items", {}).get("data", []) if stripe_sub else []
+    if not items:
+        return user.sub_plan or "free"
+
+    price_id = items[0].get("price", {}).get("id")
+    price_map = _price_catalog()
+    if price_id and price_id in price_map:
+        plan = price_map[price_id]["plan"]
+        interval_months = price_map[price_id].get("months", 1)
+        # Build a simple tier label
+        if interval_months >= 12:
+            return f"{plan}_yearly"
+        if interval_months >= 1:
+            return f"{plan}_monthly"
+        return plan
+
+    if user.is_staff:
+        return "basic_monthly"
+
+
+    return user.sub_plan or "free"
+
 @login_required
 def subscribe_ad_free(request):
     today = timezone.now()
@@ -330,7 +378,9 @@ def subscribe_ad_free(request):
         is_staff=False
     ).count()
 
-    return render(request, 'subscribe.html', {'month_options': range(1, 13), 'current_sub_count': current_sub_count})
+    current_sub = calculate_sub_class(request.user)
+
+    return render(request, 'subscribe.html', {'current_sub': current_sub, 'month_options': range(1, 13), 'current_sub_count': current_sub_count})
 
 @login_required
 def payment_success(request):
@@ -391,6 +441,7 @@ class stripe_webhook(APIView):
 
         user_id = session.get("client_reference_id")
         subscription_id = session.get("subscription")
+        customer_id = session.get("customer")
 
         if not user_id:
             print("❌ Missing client_reference_id in session")
@@ -401,6 +452,23 @@ class stripe_webhook(APIView):
         except CustomUser.DoesNotExist:
             print("❌ User not found:", user_id)
             return Response(status=404)
+
+        # Ensure StripeSubscription record exists/updated
+        if subscription_id:
+            sub_defaults = {
+                "user": user,
+                "customer_id": customer_id,
+                "product_name": "Ad free",
+                "start_date": timezone.now().date(),
+            }
+            sub_obj, created = StripeSubscription.objects.update_or_create(
+                subscription_id=subscription_id,
+                defaults=sub_defaults,
+            )
+            if created:
+                print("✔ Created StripeSubscription record")
+            else:
+                print("✔ Updated StripeSubscription record")
 
         # Save subscription ID
         if subscription_id:

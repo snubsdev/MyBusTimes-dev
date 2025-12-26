@@ -155,6 +155,10 @@
           <li><a href="/forum/">Forum</a></li>
           <li><a href="/wiki/">Wiki</a></li>
           <li><a id="tracking-profile" href="/map/">Map</a></li>
+          {% if ads_enabled == False %}
+          <li><a href="/account/subscribe">Subscribe</a></li>
+          {% endif %}
+          <br>
           <li>
             {% if request.user.is_authenticated %}
             <form id="logout-form" method="post" action="{% url 'logout' %}" style="display: none;">

@@ -180,13 +180,22 @@ subscribe:457:13
                                     <li>Faster page loads</li>
                                 </ul>
                             </div>
-                            <button class="Button PriceColumn-button  Button--primary Button--lg" type="button"
-                            onclick="submitCheckoutForm('basic_monthly', 1)"
-                                style="background-color: var(--brand-color); border-color: var(--border-color);">
-                                <div class="flex-container justify-content-center align-items-center"><span
-                                        class="Text Text-color--default Text-fontWeight--500 Text--truncate">Subscribe</span>
-                                </div>
-                            </button>
+                            {% if current_sub == "basic_monthly" or user.is_staff %}
+                                <button class="Button PriceColumn-button  Button--primary Button--lg" type="button" disabled
+                                    style="background-color: var(--brand-color); border-color: var(--border-color);">
+                                    <div class="flex-container justify-content-center align-items-center"><span
+                                            class="Text Text-color--default Text-fontWeight--500 Text--truncate">You already have this</span>
+                                    </div>
+                                </button>
+                            {% else %}
+                                <button class="Button PriceColumn-button  Button--primary Button--lg" type="button"
+                                onclick="submitCheckoutForm('basic_monthly', 1)"
+                                    style="background-color: var(--brand-color); border-color: var(--border-color);">
+                                    <div class="flex-container justify-content-center align-items-center"><span
+                                            class="Text Text-color--default Text-fontWeight--500 Text--truncate">Subscribe</span>
+                                    </div>
+                                </button>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -226,13 +235,22 @@ subscribe:457:13
                                     <li>Automatic timetables</li>
                                 </ul>
                             </div>
-                            <button class="Button PriceColumn-button  Button--primary Button--lg" type="button"
-                            onclick="submitCheckoutForm('pro_monthly', 1)"
-                                style="background-color: var(--brand-color); border-color: var(--border-color);">
-                                <div class="flex-container justify-content-center align-items-center"><span
-                                        class="Text Text-color--default Text-fontWeight--500 Text--truncate">Subscribe</span>
-                                </div>
-                            </button>
+                            {% if current_sub == "pro_monthly" %}
+                                <button class="Button PriceColumn-button  Button--primary Button--lg" type="button" disabled
+                                    style="background-color: var(--brand-color); border-color: var(--border-color);">
+                                    <div class="flex-container justify-content-center align-items-center"><span
+                                            class="Text Text-color--default Text-fontWeight--500 Text--truncate">You already have this</span>
+                                    </div>
+                                </button>
+                            {% else %}
+                                <button class="Button PriceColumn-button  Button--primary Button--lg" type="button"
+                                onclick="submitCheckoutForm('pro_monthly', 1)"
+                                    style="background-color: var(--brand-color); border-color: var(--border-color);">
+                                    <div class="flex-container justify-content-center align-items-center"><span
+                                            class="Text Text-color--default Text-fontWeight--500 Text--truncate">Subscribe</span>
+                                    </div>
+                                </button>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -275,13 +293,22 @@ subscribe:457:13
                                     <li>Faster page loads</li>
                                 </ul>
                             </div>
-                            <button class="Button PriceColumn-button  Button--primary Button--lg" type="button"
-                                style="background-color: var(--brand-color); border-color: var(--border-color);"
-                                onclick="submitCheckoutForm('basic_yearly', 12)">
-                                <div class="flex-container justify-content-center align-items-center"><span
-                                        class="Text Text-color--default Text-fontWeight--500 Text--truncate">Subscribe</span>
-                                </div>
-                            </button>
+                            {% if current_sub == "basic_yearly" or user.is_staff %}
+                                <button class="Button PriceColumn-button  Button--primary Button--lg" type="button" disabled
+                                    style="background-color: var(--brand-color); border-color: var(--border-color);">
+                                    <div class="flex-container justify-content-center align-items-center"><span
+                                            class="Text Text-color--default Text-fontWeight--500 Text--truncate">You already have this</span>
+                                    </div>
+                                </button>
+                            {% else %}
+                                <button class="Button PriceColumn-button  Button--primary Button--lg" type="button"
+                                    style="background-color: var(--brand-color); border-color: var(--border-color);"
+                                    onclick="submitCheckoutForm('basic_yearly', 12)">
+                                    <div class="flex-container justify-content-center align-items-center"><span
+                                            class="Text Text-color--default Text-fontWeight--500 Text--truncate">Subscribe</span>
+                                    </div>
+                                </button>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -324,13 +351,22 @@ subscribe:457:13
                                     <li>Automatic timetables</li>
                                 </ul>
                             </div>
-                            <button class="Button PriceColumn-button  Button--primary Button--lg" type="button"
-                                style="background-color: var(--brand-color); border-color: var(--border-color);"
-                                onclick="submitCheckoutForm('pro_yearly', 12)">
-                                <div class="flex-container justify-content-center align-items-center"><span
-                                        class="Text Text-color--default Text-fontWeight--500 Text--truncate">Subscribe</span>
-                                </div>
-                            </button>
+                            {% if current_sub == "pro_yearly" %}
+                                <button class="Button PriceColumn-button  Button--primary Button--lg" type="button" disabled
+                                    style="background-color: var(--brand-color); border-color: var(--border-color);">
+                                    <div class="flex-container justify-content-center align-items-center"><span
+                                            class="Text Text-color--default Text-fontWeight--500 Text--truncate">You already have this</span>
+                                    </div>
+                                </button>
+                            {% else %}
+                                <button class="Button PriceColumn-button  Button--primary Button--lg" type="button"
+                                    style="background-color: var(--brand-color); border-color: var(--border-color);"
+                                    onclick="submitCheckoutForm('pro_yearly', 12)">
+                                    <div class="flex-container justify-content-center align-items-center"><span
+                                            class="Text Text-color--default Text-fontWeight--500 Text--truncate">Subscribe</span>
+                                    </div>
+                                </button>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
