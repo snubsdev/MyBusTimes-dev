@@ -59,7 +59,7 @@ def approve_page(request, slug):
 
 @login_required
 def create_wiki_page(request):
-    if request.user.is_authenticated and request.user.wiki_edit_banned:
+    if request.user.is_authenticated and request.user.banned_from.filter(name='wiki_edit').exists():
         return redirect('wiki_edit_banned')
     if request.method == 'POST':
         form = WikiPageForm(request.POST)
@@ -76,7 +76,7 @@ def create_wiki_page(request):
 
 @login_required
 def edit_wiki_page(request, slug):
-    if request.user.is_authenticated and request.user.wiki_edit_banned:
+    if request.user.is_authenticated and request.user.banned_from.filter(name='wiki_edit').exists():
         return redirect('wiki_edit_banned')
     page = get_object_or_404(WikiPage, slug=slug)
 

@@ -49,6 +49,50 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 
 debug = settings.DEBUG
 
+# Helpers for subscription handling
+def _price_catalog():
+    """Return a map of Stripe price IDs to plan metadata."""
+    catalog = {
+        settings.STRIPE_BASIC_MONTHLY_PRICE_ID: {"months": 1, "plan": "basic", "mode": "subscription"},
+        settings.STRIPE_BASIC_YEARLY_PRICE_ID: {"months": 12, "plan": "basic", "mode": "subscription"},
+        settings.STRIPE_BASIC_ONE_OFF_PRICE_ID: {"months": 1, "plan": "basic", "mode": "payment"},
+        settings.STRIPE_PRO_MONTHLY_PRICE_ID: {"months": 1, "plan": "pro", "mode": "subscription"},
+        settings.STRIPE_PRO_YEARLY_PRICE_ID: {"months": 12, "plan": "pro", "mode": "subscription"},
+        settings.STRIPE_PRO_ONE_OFF_PRICE_ID: {"months": 1, "plan": "pro", "mode": "payment"},
+        # Legacy IDs for backward compatibility
+        settings.STRIPE_MONTHLY_PRICE_ID: {"months": 1, "plan": "basic", "mode": "subscription"},
+        settings.STRIPE_YEARLY_PRICE_ID: {"months": 12, "plan": "basic", "mode": "subscription"},
+        settings.STRIPE_CUSTOM_PRICE_ID: {"months": 1, "plan": "basic", "mode": "subscription"},
+    }
+    # Drop None values to avoid key collisions
+    return {pid: meta for pid, meta in catalog.items() if pid}
+
+
+def _extend_ad_free_until(user, months):
+    """Calculate new ad free expiry using legacy month-adding logic."""
+    if months <= 0:
+        return user.ad_free_until
+    base = user.ad_free_until if user.ad_free_until and user.ad_free_until > timezone.now() else timezone.now()
+    return base + relativedelta(months=months)
+
+
+def _apply_subscription_benefits(user, months, plan_level):
+    """Extend ad-free period and set plan level if provided."""
+    new_until = _extend_ad_free_until(user, months)
+    update_fields = []
+
+    if new_until and (not user.ad_free_until or new_until > user.ad_free_until):
+        user.ad_free_until = new_until
+        update_fields.append("ad_free_until")
+
+    if plan_level and plan_level in dict(CustomUser.PLAN_CHOICES):
+        if user.sub_plan != plan_level:
+            user.sub_plan = plan_level
+            update_fields.append("sub_plan")
+
+    if update_fields:
+        user.save(update_fields=update_fields)
+
 @login_required
 def link_discord_account(request):
     discord_username = request.GET.get('username', '').strip()
@@ -246,19 +290,11 @@ def user_profile(request, username):
 
     return render(request, 'profile.html', context)
 
-# Price IDs from .env
-if debug == False:
-    price_ids = {
-        'monthly': os.getenv("PRICE_ID_MONTHLY"),
-        'yearly': os.getenv("PRICE_ID_YEARLY"),
-        'custom': os.getenv("PRICE_ID_CUSTOM"),
-    }
-else:
-    price_ids = {
-        'monthly': os.getenv("PRICE_ID_MONTHLY_TEST"),
-        'yearly': os.getenv("PRICE_ID_YEARLY_TEST"),
-        'custom': os.getenv("PRICE_ID_CUSTOM_TEST"),
-    }
+price_ids = {
+    'monthly': os.getenv("PRICE_ID_MONTHLY_TEST"),
+    'yearly': os.getenv("PRICE_ID_YEARLY_TEST"),
+    'custom': os.getenv("PRICE_ID_CUSTOM_TEST"),
+}
 
 @login_required
 def cancel_subscription(request):
@@ -306,154 +342,245 @@ def payment_cancel(request):
 
 import datetime
 
-
 class stripe_webhook(APIView):
     authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
-    SUPPORTED_EVENTS = [
-        "checkout.session.completed",
-        "invoice.payment_succeeded",
-    ]
-
-    def handle_checkout_session_completed(self, event_data_obj):
-        print("Handling checkout.session.completed event")
-        """Triggered when user completes a new subscription checkout."""
-        session = event_data_obj.get("data", {}).get("object", {})
-
-        # Extract details from event
-        user_id = session.get("client_reference_id")  # you set this to the Django user id
-        customer_id = session.get("customer")
-        subscription_id = session.get("subscription")
-        email = session.get("customer_details", {}).get("email")
-        name = session.get("customer_details", {}).get("name")
-
-        if not user_id or not customer_id or not subscription_id:
-            return Response({"error": "Missing required fields"}, status=400)
-
-        # Get the user
-        try:
-            user = User.objects.get(id=user_id)
-        except User.DoesNotExist:
-            return Response({"error": "User not found"}, status=404)
-
-        # Check if subscription already exists
-        sub, created = StripeSubscription.objects.get_or_create(
-            subscription_id=subscription_id,
-            defaults={
-                "user": user,
-                "customer_id": customer_id,
-                "product_name": "Ad free",
-                "start_date": timezone.now().date(),
-            },
-        )
-
-        if not created:
-            # Update existing record if re-subscribed
-            sub.user = user
-            sub.customer_id = customer_id
-            sub.start_date = timezone.now().date()
-            sub.save(update_fields=["user", "customer_id", "start_date"])
-
-        return Response({"success": True, "created": created})
-    
-    def handle_invoice_payment_succeeded(self, event_data_obj):
-        """Triggered on renewal payments or initial invoices."""
-        invoice = event_data_obj.get("data", {}).get("object", {})
-        customer_id = invoice.get("customer")
-
-        if not customer_id:
-            return Response({"error": "Missing customer_id"}, status=400)
-
-        stripe_sub = StripeSubscription.objects.filter(customer_id=customer_id).first()
-        if not stripe_sub or not stripe_sub.user:
-            return Response({"error": "No linked user"}, status=404)
-
-        user = stripe_sub.user
-
-        # Get the invoice’s first line item
-        line_items = invoice.get("lines", {}).get("data", [])
-        if not line_items:
-            return Response({"error": "No line items"}, status=400)
-
-        line = line_items[0]
-        period = line.get("period", {})
-        period_end = period.get("end")
-
-        if not period_end:
-            return Response({"error": "Missing period end"}, status=400)
-
-        # ✅ Correct, working conversion:
-        ad_free_until = datetime.datetime.fromtimestamp(period_end, tz=datetime.timezone.utc)
-
-        # Only extend forward
-        if not user.ad_free_until or ad_free_until > user.ad_free_until:
-            user.ad_free_until = ad_free_until
-            user.save(update_fields=["ad_free_until"])
-
-        return Response({"success": True})
+    def log(self, *args):
+        print("[StripeWebhook DEBUG]", *args)
 
     def post(self, request):
+        stripe.api_key = settings.STRIPE_SECRET_KEY
         payload = request.body
         sig_header = request.META.get("HTTP_STRIPE_SIGNATURE")
 
+        print("🔔 Received webhook POST")
+        print("Payload (truncated):", payload[:300])
+
         try:
             event = stripe.Webhook.construct_event(
-                payload,
-                sig_header,
-                settings.STRIPE_WEBHOOK_SECRET,
-                api_key=settings.STRIPE_SECRET_KEY
+                payload, sig_header, settings.STRIPE_WEBHOOK_SECRET
             )
-        except (ValueError, stripe.error.SignatureVerificationError):
-            return Response({}, status=400)
+        except Exception as e:
+            print("❌ Webhook verification failed:", str(e))
+            return Response(status=400)
 
-        event_type = event["type"]
+        event_type = event.get("type")
+        data_obj = event.get("data", {}).get("object", {})
 
-        # Handle only relevant events
-        if event_type == "invoice.payment_succeeded":
-            return self.handle_invoice_payment_succeeded(event)
-        elif event_type == "checkout.session.completed":
-            return self.handle_checkout_session_completed(event)
+        print("📌 Event type:", event_type)
 
-        return Response({}, status=200)
+        try:
+            if event_type == "checkout.session.completed":
+                return self.handle_checkout_session_completed(data_obj)
+            elif event_type == "invoice.payment_succeeded":
+                return self.handle_invoice_payment_succeeded(data_obj)
+            else:
+                print("⚠ Unhandled event type:", event_type)
+                return Response(status=200)
+
+        except Exception as e:
+            print("❗ Handler exception:", str(e))
+            import traceback
+            traceback.print_exc()
+            return Response(status=500)
+
+    def handle_checkout_session_completed(self, session):
+        print("👉 Handling checkout.session.completed")
+        print("Session metadata:", session.get("metadata"))
+
+        user_id = session.get("client_reference_id")
+        subscription_id = session.get("subscription")
+
+        if not user_id:
+            print("❌ Missing client_reference_id in session")
+            return Response(status=400)
+
+        try:
+            user = CustomUser.objects.get(id=user_id)
+        except CustomUser.DoesNotExist:
+            print("❌ User not found:", user_id)
+            return Response(status=404)
+
+        # Save subscription ID
+        if subscription_id:
+            user.stripe_subscription_id = subscription_id
+            print("✔ Stored stripe_subscription_id:", subscription_id)
+
+        # If checkout session metadata has plan info, use it
+        session_meta = session.get("metadata") or {}
+        plan_level = session_meta.get("plan_level")
+        months = session_meta.get("months")
+
+        if plan_level:
+            user.sub_plan = plan_level
+            print("✔ Set plan from session metadata:", plan_level)
+
+        if months:
+            try:
+                dur = int(months)
+                user.ad_free_until = timezone.now() + datetime.timedelta(days=30*dur)
+                print("✔ Set ad_free_until from session metadata:", user.ad_free_until)
+            except Exception as e:
+                print("⚠ Could not parse months metadata:", str(e))
+
+        user.save(update_fields=["sub_plan", "ad_free_until", "stripe_subscription_id"])
+        print("✔ Completed checkout.session.completed")
+        return Response(status=200)
+
+    def handle_invoice_payment_succeeded(self, invoice):
+        print("👉 Handling invoice.payment_succeeded")
+        print("Invoice top-level metadata:", invoice.get("metadata"))
+
+        customer_id = invoice.get("customer")
+        subscription_id = invoice.get("subscription")
+
+        # Find user
+        user = None
+        sub_obj = None
+        if subscription_id:
+            sub_obj = StripeSubscription.objects.filter(subscription_id=subscription_id).first()
+            if sub_obj:
+                user = sub_obj.user
+                print("✔ Found user via subscription_id:", user.username)
+
+        if not user and customer_id:
+            sub_obj = StripeSubscription.objects.filter(customer_id=customer_id).order_by("-id").first()
+            if sub_obj:
+                user = sub_obj.user
+                print("✔ Found user via customer_id:", user.username)
+
+        if not user:
+            print("❌ No linked user found for invoice")
+            return Response(status=404)
+
+        # Get first invoice line
+        lines = invoice.get("lines", {}).get("data", [])
+        if not lines:
+            print("❌ No invoice lines found")
+            return Response(status=400)
+
+        first_line = lines[0]
+        line_meta = first_line.get("metadata") or {}
+        print("Line item metadata:", line_meta)
+
+        # Extract billing period end
+        period = first_line.get("period", {})
+        period_end_ts = period.get("end")
+        if not period_end_ts:
+            print("❌ Missing period end on invoice line")
+            return Response(status=400)
+
+        ad_free_until = datetime.datetime.fromtimestamp(period_end_ts, tz=datetime.timezone.utc)
+        print("✔ Calculated ad_free_until:", ad_free_until)
+        if not user.ad_free_until or ad_free_until > user.ad_free_until:
+            user.ad_free_until = ad_free_until
+
+        # Extract plan from line item metadata
+        plan_level = line_meta.get("plan_level")
+        if plan_level:
+            user.sub_plan = plan_level
+            print("✔ Set user.sub_plan from line metadata:", plan_level)
+
+        user.save(update_fields=["ad_free_until", "sub_plan"])
+        print("✔ User updated:", user.username, user.sub_plan, user.ad_free_until)
+
+
+        # Update or create subscription record
+        if subscription_id:
+            StripeSubscription.objects.update_or_create(
+                subscription_id=subscription_id,
+                defaults={"end_date": ad_free_until.date(), "user": user}
+            )
+            print("✔ Updated StripeSubscription end_date")
+
+        return Response(status=200)
     
 @api_view(["POST"])
 def create_checkout_session(request):
     stripe.api_key = settings.STRIPE_SECRET_KEY
     try:
         user_id = request.user.id
-        product_type = request.data.get("product_type")  # 'monthly', 'yearly', or 'custom'
-        months = int(request.data.get("months", 1))      # for 'custom' product type
+        product_type = request.data.get("product_type")
+        try:
+            months = int(request.data.get("months", 1))
+        except (TypeError, ValueError):
+            return Response({"error": "Invalid months value"}, status=status.HTTP_400_BAD_REQUEST)
 
-        print('Creating checkout session for user:', user_id, 'product_type:', product_type, 'months:', months)
+        price_map = _price_catalog()
+        price_id = None
+        plan_level = None
+        mode = "subscription"
+        quantity = 1
 
-        # Pick the correct price ID from your Stripe config
-        if product_type == "monthly":
+        # Map product_type to price IDs (new and legacy)
+        if product_type == "basic_monthly":
+            price_id = settings.STRIPE_BASIC_MONTHLY_PRICE_ID
+        elif product_type == "pro_monthly":
+            price_id = settings.STRIPE_PRO_MONTHLY_PRICE_ID
+            plan_level = "pro"
+        elif product_type == "basic_yearly":
+            price_id = settings.STRIPE_BASIC_YEARLY_PRICE_ID
+            months = 12
+        elif product_type == "pro_yearly":
+            price_id = settings.STRIPE_PRO_YEARLY_PRICE_ID
+            months = 12
+            plan_level = "pro"
+        elif product_type == "basic_one_off":
+            price_id = settings.STRIPE_BASIC_ONE_OFF_PRICE_ID
+            mode = "payment"
+        elif product_type == "pro_one_off":
+            price_id = settings.STRIPE_PRO_ONE_OFF_PRICE_ID
+            mode = "payment"
+            plan_level = "pro"
+        elif product_type == "monthly":  # legacy
             price_id = settings.STRIPE_MONTHLY_PRICE_ID
-            quantity = 1
-        elif product_type == "yearly":
+        elif product_type == "yearly":  # legacy
             price_id = settings.STRIPE_YEARLY_PRICE_ID
-            quantity = 1
-        elif product_type == "custom":
+            months = 12
+        elif product_type == "custom":  # legacy custom quantity
             price_id = settings.STRIPE_CUSTOM_PRICE_ID
             quantity = months
-        else:
+
+        if price_id and price_id in price_map:
+            plan_level = plan_level or price_map[price_id]["plan"]
+            mode = price_map[price_id]["mode"]
+        
+        if not price_id:
             return Response({"error": "Invalid product type"}, status=status.HTTP_400_BAD_REQUEST)
+
+        print("[checkout_session] user", user_id, "product_type", product_type, "price_id", price_id, "months", months, "plan", plan_level, "mode", mode, "quantity", quantity)
 
         # URLs required by Stripe
         success_url = request.build_absolute_uri('/u/subscribe/success/')
         cancel_url = request.build_absolute_uri('/u/subscribe/cancel/')
 
-        # Create checkout session
-        checkout_session = stripe.checkout.Session.create(
-            success_url=success_url,
-            cancel_url=cancel_url,
-            line_items=[{"price": price_id, "quantity": quantity}],
-            mode="subscription",
-            client_reference_id=str(user_id),
-            allow_promotion_codes=True,
-            payment_method_types=["card"],
-        )
+        session_params = {
+            "success_url": success_url,
+            "cancel_url": cancel_url,
+            "line_items": [{"price": price_id, "quantity": quantity}],
+            "mode": mode,
+            "client_reference_id": str(user_id),
+            "allow_promotion_codes": True,
+            "payment_method_types": ["card"],
+            "metadata": {
+                "user_id": str(user_id),
+                "product_type": product_type,
+                "months": str(months),
+                "plan_level": plan_level or "basic",
+            },
+        }
+
+        # Persist plan and months on the subscription itself so invoice events can read them
+        if mode == "subscription":
+            session_params["subscription_data"] = {
+                "metadata": {
+                    "months": str(months),
+                    "plan_level": plan_level or "basic",
+                }
+            }
+
+        checkout_session = stripe.checkout.Session.create(**session_params)
 
         return redirect(checkout_session.url)
 

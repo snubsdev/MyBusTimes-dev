@@ -145,7 +145,8 @@ subscribe:457:13
                     </div>
                 </div>
             </div>
-            <div class="PricingTable-grid" id="1-month-container">
+            <div class="PricingTable-grid" id="1-month-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; width: 100%;">
+                <!-- Basic Monthly -->
                 <div class="PriceColumn flex-container direction-column justify-content-flex-start align-items-center"
                     style="--pt-animate-in-order: 0;" data-testid="price-column">
                     <div
@@ -155,10 +156,8 @@ subscribe:457:13
                                 <div class="PriceColumn-textContainerHeightAligner" style="height: 52px;">
                                     <div class="PriceColumn-textContainer flex-container direction-column">
                                         <div class="PriceColumn-name flex-container"><span
-                                                class="Text Text-color--default Text-fontSize--20 Text-fontWeight--600">Ad
-                                                free Monthly</span></div><span
-                                            class="PriceColumn-description Text Text-color--default Text-fontSize--14">Pay
-                                            £1 per month to remove all ads</span>
+                                                class="Text Text-color--default Text-fontSize--20 Text-fontWeight--600">Basic Monthly</span></div><span
+                                            class="PriceColumn-description Text Text-color--default Text-fontSize--14">Essential ad-free experience</span>
                                     </div>
                                 </div>
                             </div>
@@ -169,13 +168,66 @@ subscribe:457:13
                                     <div class="flex-container spacing-4 direction-column align-items-flex-start">
                                         <div class="flex-container align-items-center"><span
                                                 class="PriceColumn-price Text Text-color--default Text-fontSize--36 Text-fontWeight--700"><span
-                                                    class="CurrencyAmount">£1</span></span><span
+                                                    class="CurrencyAmount">£0.99</span></span><span
                                                 class="PriceColumn-interval Text Text-color--default Text-fontSize--13">per
                                                 <br>month</span></div>
                                     </div>
                                 </div>
-                            </div><button class="Button PriceColumn-button  Button--primary Button--lg" type="button"
-                            onclick="submitCheckoutForm('monthly', 1)"
+                            </div>
+                            <div class="PriceColumn-features" style="margin: 20px 0; width: 100%; flex-grow: 1;">
+                                <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px; line-height: 1.6;">
+                                    <li>Ad free</li>
+                                    <li>Faster page loads</li>
+                                </ul>
+                            </div>
+                            <button class="Button PriceColumn-button  Button--primary Button--lg" type="button"
+                            onclick="submitCheckoutForm('basic_monthly', 1)"
+                                style="background-color: var(--brand-color); border-color: var(--border-color);">
+                                <div class="flex-container justify-content-center align-items-center"><span
+                                        class="Text Text-color--default Text-fontWeight--500 Text--truncate">Subscribe</span>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <!-- Pro Monthly -->
+                <div class="PriceColumn flex-container direction-column justify-content-flex-start align-items-center"
+                    style="--pt-animate-in-order: 1;" data-testid="price-column">
+                    <div
+                        class="PriceColumn-content flex-container direction-column justify-content-flex-start align-items-center">
+                        <div class="PriceColumn-aboutProduct flex-container direction-column">
+                            <div class="PriceColumn-textAndProductImage flex-container">
+                                <div class="PriceColumn-textContainerHeightAligner" style="height: 52px;">
+                                    <div class="PriceColumn-textContainer flex-container direction-column">
+                                        <div class="PriceColumn-name flex-container"><span
+                                                class="Text Text-color--default Text-fontSize--20 Text-fontWeight--600">Pro Monthly</span></div><span
+                                            class="PriceColumn-description Text Text-color--default Text-fontSize--14">Advanced features for power users</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="PriceColumn-priceAndButton flex-container direction-column">
+                            <div class="PriceColumn-priceContainerHeightAligner" style="height: 42px;">
+                                <div class="PriceColumn-priceContainer">
+                                    <div class="flex-container spacing-4 direction-column align-items-flex-start">
+                                        <div class="flex-container align-items-center"><span
+                                                class="PriceColumn-price Text Text-color--default Text-fontSize--36 Text-fontWeight--700"><span
+                                                    class="CurrencyAmount">£3.99</span></span><span
+                                                class="PriceColumn-interval Text Text-color--default Text-fontSize--13">per
+                                                <br>month</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="PriceColumn-features" style="margin: 20px 0; width: 100%; flex-grow: 1;">
+                                <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px; line-height: 1.6;">
+                                    <li>Ad free</li>
+                                    <li>Snap to road</li>
+                                    <li>Snap to road tracking</li>
+                                    <li>Automatic timetables</li>
+                                </ul>
+                            </div>
+                            <button class="Button PriceColumn-button  Button--primary Button--lg" type="button"
+                            onclick="submitCheckoutForm('pro_monthly', 1)"
                                 style="background-color: var(--brand-color); border-color: var(--border-color);">
                                 <div class="flex-container justify-content-center align-items-center"><span
                                         class="Text Text-color--default Text-fontWeight--500 Text--truncate">Subscribe</span>
@@ -185,43 +237,96 @@ subscribe:457:13
                     </div>
                 </div>
             </div>
-            <div class="PricingTable-grid" id="1-year-container" style="display: none;">
+            <div class="PricingTable-grid" id="1-year-container" style="display: none; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; width: 100%;">
+                <!-- Basic Yearly -->
                 <div class="PriceColumn flex-container direction-column justify-content-flex-start align-items-center"
                     style="--pt-animate-in-order: 0;" data-testid="price-column">
                     <div
                         class="PriceColumn-content flex-container direction-column justify-content-flex-start align-items-center">
-                        <div class="PriceColumn-aboutProduct flex-container direction-column" id="1-month-container">
+                        <div class="PriceColumn-aboutProduct flex-container direction-column">
                             <div class="PriceColumn-sandboxBadge flex-container">
-                                <div class="_440e-XBS__SandboxBadge _3Dwx094j__SandboxBadge-pricingTable">
-                                    </svg>Best Value</div>
+                                <div class="_440e-XBS__SandboxBadge _3Dwx094j__SandboxBadge-pricingTable">Best Value</div>
                             </div>
                             <div class="PriceColumn-textAndProductImage flex-container">
                                 <div class="PriceColumn-textContainerHeightAligner" style="height: 52px;">
                                     <div class="PriceColumn-textContainer flex-container direction-column">
                                         <div class="PriceColumn-name flex-container"><span
-                                                class="Text Text-color--default Text-fontSize--20 Text-fontWeight--600">Ad
-                                                free Yearly</span></div><span
-                                            class="PriceColumn-description Text Text-color--default Text-fontSize--14">Pay
-                                            £10 per year to remove all ads</span>
+                                                class="Text Text-color--default Text-fontSize--20 Text-fontWeight--600">Basic Yearly</span></div><span
+                                            class="PriceColumn-description Text Text-color--default Text-fontSize--14">Essential ad-free experience</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <div class="PriceColumn-priceAndButton flex-container direction-column" id="1-year-container">
+                        <div class="PriceColumn-priceAndButton flex-container direction-column">
                             <div class="PriceColumn-priceContainerHeightAligner" style="height: 42px;">
                                 <div class="PriceColumn-priceContainer">
                                     <div class="flex-container spacing-4 direction-column align-items-flex-start">
                                         <div class="flex-container align-items-center"><span
                                                 class="PriceColumn-price Text Text-color--default Text-fontSize--36 Text-fontWeight--700"><span
-                                                    class="CurrencyAmount">£10</span></span><span
+                                                    class="CurrencyAmount">£9.99</span></span><span
                                                 class="PriceColumn-interval Text Text-color--default Text-fontSize--13">per
                                                 <br>year</span></div>
                                     </div>
                                 </div>
                             </div>
+                            <div class="PriceColumn-features" style="margin: 20px 0; width: 100%; flex-grow: 1;">
+                                <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px; line-height: 1.6;">
+                                    <li>Ad free</li>
+                                    <li>Faster page loads</li>
+                                </ul>
+                            </div>
                             <button class="Button PriceColumn-button  Button--primary Button--lg" type="button"
                                 style="background-color: var(--brand-color); border-color: var(--border-color);"
-                                onclick="submitCheckoutForm('yearly', 12)">
+                                onclick="submitCheckoutForm('basic_yearly', 12)">
+                                <div class="flex-container justify-content-center align-items-center"><span
+                                        class="Text Text-color--default Text-fontWeight--500 Text--truncate">Subscribe</span>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <!-- Pro Yearly -->
+                <div class="PriceColumn flex-container direction-column justify-content-flex-start align-items-center"
+                    style="--pt-animate-in-order: 1;" data-testid="price-column">
+                    <div
+                        class="PriceColumn-content flex-container direction-column justify-content-flex-start align-items-center">
+                        <div class="PriceColumn-aboutProduct flex-container direction-column">
+                            <div class="PriceColumn-sandboxBadge flex-container">
+                                <div class="_440e-XBS__SandboxBadge _3Dwx094j__SandboxBadge-pricingTable">Best Value</div>
+                            </div>
+                            <div class="PriceColumn-textAndProductImage flex-container">
+                                <div class="PriceColumn-textContainerHeightAligner" style="height: 52px;">
+                                    <div class="PriceColumn-textContainer flex-container direction-column">
+                                        <div class="PriceColumn-name flex-container"><span
+                                                class="Text Text-color--default Text-fontSize--20 Text-fontWeight--600">Pro Yearly</span></div><span
+                                            class="PriceColumn-description Text Text-color--default Text-fontSize--14">Advanced features for power users</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="PriceColumn-priceAndButton flex-container direction-column">
+                            <div class="PriceColumn-priceContainerHeightAligner" style="height: 42px;">
+                                <div class="PriceColumn-priceContainer">
+                                    <div class="flex-container spacing-4 direction-column align-items-flex-start">
+                                        <div class="flex-container align-items-center"><span
+                                                class="PriceColumn-price Text Text-color--default Text-fontSize--36 Text-fontWeight--700"><span
+                                                    class="CurrencyAmount">£39.99</span></span><span
+                                                class="PriceColumn-interval Text Text-color--default Text-fontSize--13">per
+                                                <br>year</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="PriceColumn-features" style="margin: 20px 0; width: 100%; flex-grow: 1;">
+                                <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px; line-height: 1.6;">
+                                    <li>Ad free</li>
+                                    <li>Snap to road</li>
+                                    <li>Snap to road tracking</li>
+                                    <li>Automatic timetables</li>
+                                </ul>
+                            </div>
+                            <button class="Button PriceColumn-button  Button--primary Button--lg" type="button"
+                                style="background-color: var(--brand-color); border-color: var(--border-color);"
+                                onclick="submitCheckoutForm('pro_yearly', 12)">
                                 <div class="flex-container justify-content-center align-items-center"><span
                                         class="Text Text-color--default Text-fontWeight--500 Text--truncate">Subscribe</span>
                                 </div>
@@ -230,48 +335,92 @@ subscribe:457:13
                     </div>
                 </div>
             </div>
-            <div class="PricingTable-grid" id="one-time-container" style="display: none;">
+            <div class="PricingTable-grid" id="one-time-container" style="display: none; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; width: 100%;">
+                <!-- Basic One Time -->
                 <div class="PriceColumn flex-container direction-column justify-content-flex-start align-items-center"
                     style="--pt-animate-in-order: 0;" data-testid="price-column">
                     <div
                         class="PriceColumn-content flex-container direction-column justify-content-flex-start align-items-center">
-                        <div class="PriceColumn-aboutProduct flex-container direction-column" id="1-month-container">
+                        <div class="PriceColumn-aboutProduct flex-container direction-column">
                             <div class="PriceColumn-textAndProductImage flex-container">
                                 <div class="PriceColumn-textContainerHeightAligner" style="height: 52px;">
                                     <div class="PriceColumn-textContainer flex-container direction-column">
                                         <div class="PriceColumn-name flex-container"><span
-                                                class="Text Text-color--default Text-fontSize--20 Text-fontWeight--600">Ad
-                                                free One Time</span></div><span
-                                            class="PriceColumn-description Text Text-color--default Text-fontSize--14">Pay
-                                            £1 per month as a one of payment to remove all ads</span>
+                                                class="Text Text-color--default Text-fontSize--20 Text-fontWeight--600">Basic One Time</span></div><span
+                                            class="PriceColumn-description Text Text-color--default Text-fontSize--14">One month of ad-free experience</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <div class="PriceColumn-priceAndButton flex-container direction-column" id="1-year-container">
+                        <div class="PriceColumn-priceAndButton flex-container direction-column">
                             <div class="PriceColumn-priceContainerHeightAligner" style="height: 42px;">
                                 <div class="PriceColumn-priceContainer">
                                     <div class="flex-container spacing-4 direction-column align-items-flex-start">
                                         <div class="flex-container align-items-center"><span
                                                 class="PriceColumn-price Text Text-color--default Text-fontSize--36 Text-fontWeight--700"><span
-                                                    class="CurrencyAmount">£1</span></span><span
-                                                class="PriceColumn-interval Text Text-color--default Text-fontSize--13">per
-                                                <br>month</span></div>
+                                                    class="CurrencyAmount">£0.99</span></span><span
+                                                class="PriceColumn-interval Text Text-color--default Text-fontSize--13">one
+                                                <br>off</span></div>
                                     </div>
                                 </div>
                             </div>
-                            <!--<button class="Button PriceColumn-button  Button--primary Button--lg" type="button"
-                                onclick="submitCheckoutForm('custom', 1)">
-                                style="background-color: var(--brand-color); border-color: var(--border-color);">
-                                <div class="flex-container justify-content-center align-items-center"><span
-                                        class="Text Text-color--default Text-fontWeight--500 Text--truncate">Buy
-                                        Now</span>
-                                </div>
-                            </button>-->
+                            <div class="PriceColumn-features" style="margin: 20px 0; width: 100%; flex-grow: 1;">
+                                <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px; line-height: 1.6;">
+                                    <li>Ad free</li>
+                                    <li>Faster page loads</li>
+                                </ul>
+                            </div>
                             <button class="Button PriceColumn-button  Button--primary Button--lg" type="button"
-                                style="background-color: var(--brand-color); border-color: var(--border-color);">
+                                style="background-color: var(--brand-color); border-color: var(--border-color);"
+                                onclick="submitCheckoutForm('basic_one_off', 1)">
                                 <div class="flex-container justify-content-center align-items-center"><span
-                                        class="Text Text-color--default Text-fontWeight--500 Text--truncate">Coming Soon</span>
+                                        class="Text Text-color--default Text-fontWeight--500 Text--truncate">Buy Now</span>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <!-- Pro One Time -->
+                <div class="PriceColumn flex-container direction-column justify-content-flex-start align-items-center"
+                    style="--pt-animate-in-order: 1;" data-testid="price-column">
+                    <div
+                        class="PriceColumn-content flex-container direction-column justify-content-flex-start align-items-center">
+                        <div class="PriceColumn-aboutProduct flex-container direction-column">
+                            <div class="PriceColumn-textAndProductImage flex-container">
+                                <div class="PriceColumn-textContainerHeightAligner" style="height: 52px;">
+                                    <div class="PriceColumn-textContainer flex-container direction-column">
+                                        <div class="PriceColumn-name flex-container"><span
+                                                class="Text Text-color--default Text-fontSize--20 Text-fontWeight--600">Pro One Time</span></div><span
+                                            class="PriceColumn-description Text Text-color--default Text-fontSize--14">One month of advanced features</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="PriceColumn-priceAndButton flex-container direction-column">
+                            <div class="PriceColumn-priceContainerHeightAligner" style="height: 42px;">
+                                <div class="PriceColumn-priceContainer">
+                                    <div class="flex-container spacing-4 direction-column align-items-flex-start">
+                                        <div class="flex-container align-items-center"><span
+                                                class="PriceColumn-price Text Text-color--default Text-fontSize--36 Text-fontWeight--700"><span
+                                                    class="CurrencyAmount">£3.99</span></span><span
+                                                class="PriceColumn-interval Text Text-color--default Text-fontSize--13">one
+                                                <br>off</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="PriceColumn-features" style="margin: 20px 0; width: 100%; flex-grow: 1;">
+                                <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px; line-height: 1.6;">
+                                    <li>Ad free</li>
+                                    <li>Snap to road</li>
+                                    <li>Snap to road tracking</li>
+                                    <li>Automatic timetables</li>
+                                </ul>
+                            </div>
+                            <button class="Button PriceColumn-button  Button--primary Button--lg" type="button"
+                                style="background-color: var(--brand-color); border-color: var(--border-color);"
+                                onclick="submitCheckoutForm('pro_one_off', 1)">
+                                <div class="flex-container justify-content-center align-items-center"><span
+                                        class="Text Text-color--default Text-fontWeight--500 Text--truncate">Buy Now</span>
                                 </div>
                             </button>
                         </div>
