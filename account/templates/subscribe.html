@@ -17,6 +17,41 @@
     <div class="error" style="color: red; margin-bottom: 1rem;">{{ error_message }}</div>
 {% endif %}
 
+<div class="warning">
+    <strong>Note for existing subscribers:</strong><br>
+    If you upgrade to <strong>Pro</strong>, please open a support ticket or email
+    <a href="mailto:support@mybustimes.cc">support@mybustimes.cc</a>.
+    There is currently a known issue where Pro is not automatically added to your account,
+    so it needs to be applied manually. <br><br>
+    We apologize for the inconvenience and are working to resolve this issue.
+</div>
+
+<style>
+    .warning {
+    background-color: #fff4e5;
+    border-left: 4px solid #f59e0b;
+    padding: 12px 16px;
+    margin: 16px 0;
+    border-radius: 6px;
+    color: #92400e;
+    font-size: 0.95rem;
+}
+
+.warning strong {
+    color: #78350f;
+}
+
+.warning a {
+    color: #92400e;
+    font-weight: 600;
+    text-decoration: underline;
+}
+
+.warning a:hover {
+    text-decoration: none;
+}
+
+</style>
 
 <div class="subscription-options">
     {% include 'stripe/pricing_table.html' %}
