@@ -115,6 +115,9 @@ class CustomUser(AbstractUser):
     pfp = models.ImageField(upload_to='images/profile_pics/', default='images/default_profile_pic.png', blank=True, null=True)
     banner = models.ImageField(upload_to='images/profile_banners/', default='images/default_banner.png', blank=True, null=True)
     stripe_subscription_id = models.CharField(max_length=255, blank=True, null=True)
+
+    had_pro_trial = models.BooleanField(default=False)
+
     PLAN_CHOICES = [
         ('free', 'Free'),
         ('basic', 'Basic'),

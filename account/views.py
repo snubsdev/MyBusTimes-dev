@@ -378,9 +378,11 @@ def subscribe_ad_free(request):
         is_staff=False
     ).count()
 
+    had_pro_trial = request.user.had_pro_trial
+
     current_sub = calculate_sub_class(request.user)
 
-    return render(request, 'subscribe.html', {'current_sub': current_sub, 'month_options': range(1, 13), 'current_sub_count': current_sub_count})
+    return render(request, 'subscribe.html', {'had_pro_trial': had_pro_trial, 'current_sub': current_sub, 'month_options': range(1, 13), 'current_sub_count': current_sub_count})
 
 @login_required
 def payment_success(request):
@@ -567,97 +569,114 @@ class stripe_webhook(APIView):
 @api_view(["POST"])
 def create_checkout_session(request):
     stripe.api_key = settings.STRIPE_SECRET_KEY
-    try:
-        user_id = request.user.id
-        product_type = request.data.get("product_type")
+
+    if request.data.get("product_type", "").endswith("_free_trial"):
+        days = int(request.data.get("months", 7))
+        product_type = request.data.get("product_type").replace("_free_trial", "")
+
+        user = request.user
+
+        user.sub_plan = product_type
+        user.had_pro_trial = True
+        user.ad_free_until = timezone.now() + datetime.timedelta(days=days)
+
+        user.save(update_fields=["sub_plan", "had_pro_trial", "ad_free_until"])
+
+        return redirect('/u/subscribe/success/')
+    
+    else:
+
         try:
-            months = int(request.data.get("months", 1))
-        except (TypeError, ValueError):
-            return Response({"error": "Invalid months value"}, status=status.HTTP_400_BAD_REQUEST)
+            user_id = request.user.id
+            product_type = request.data.get("product_type")
+            try:
+                months = int(request.data.get("months", 1))
+            except (TypeError, ValueError):
+                return Response({"error": "Invalid months value"}, status=status.HTTP_400_BAD_REQUEST)
 
-        price_map = _price_catalog()
-        price_id = None
-        plan_level = None
-        mode = "subscription"
-        quantity = 1
+            price_map = _price_catalog()
+            price_id = None
+            plan_level = None
+            mode = "subscription"
+            quantity = 1
 
-        # Map product_type to price IDs (new and legacy)
-        if product_type == "basic_monthly":
-            price_id = settings.STRIPE_BASIC_MONTHLY_PRICE_ID
-        elif product_type == "pro_monthly":
-            price_id = settings.STRIPE_PRO_MONTHLY_PRICE_ID
-            plan_level = "pro"
-        elif product_type == "basic_yearly":
-            price_id = settings.STRIPE_BASIC_YEARLY_PRICE_ID
-            months = 12
-        elif product_type == "pro_yearly":
-            price_id = settings.STRIPE_PRO_YEARLY_PRICE_ID
-            months = 12
-            plan_level = "pro"
-        elif product_type == "basic_one_off":
-            price_id = settings.STRIPE_BASIC_ONE_OFF_PRICE_ID
-            mode = "payment"
-        elif product_type == "pro_one_off":
-            price_id = settings.STRIPE_PRO_ONE_OFF_PRICE_ID
-            mode = "payment"
-            plan_level = "pro"
-        elif product_type == "monthly":  # legacy
-            price_id = settings.STRIPE_MONTHLY_PRICE_ID
-        elif product_type == "yearly":  # legacy
-            price_id = settings.STRIPE_YEARLY_PRICE_ID
-            months = 12
-        elif product_type == "custom":  # legacy custom quantity
-            price_id = settings.STRIPE_CUSTOM_PRICE_ID
-            quantity = months
+            # Map product_type to price IDs (new and legacy)
+            if product_type == "basic_monthly":
+                price_id = settings.STRIPE_BASIC_MONTHLY_PRICE_ID
+            elif product_type == "pro_monthly":
+                price_id = settings.STRIPE_PRO_MONTHLY_PRICE_ID
+                plan_level = "pro"
+            elif product_type == "basic_yearly":
+                price_id = settings.STRIPE_BASIC_YEARLY_PRICE_ID
+                months = 12
+            elif product_type == "pro_yearly":
+                price_id = settings.STRIPE_PRO_YEARLY_PRICE_ID
+                months = 12
+                plan_level = "pro"
+            elif product_type == "basic_one_off":
+                price_id = settings.STRIPE_BASIC_ONE_OFF_PRICE_ID
+                mode = "payment"
+            elif product_type == "pro_one_off":
+                price_id = settings.STRIPE_PRO_ONE_OFF_PRICE_ID
+                mode = "payment"
+                plan_level = "pro"
+            elif product_type == "monthly":  # legacy
+                price_id = settings.STRIPE_MONTHLY_PRICE_ID
+            elif product_type == "yearly":  # legacy
+                price_id = settings.STRIPE_YEARLY_PRICE_ID
+                months = 12
+            elif product_type == "custom":  # legacy custom quantity
+                price_id = settings.STRIPE_CUSTOM_PRICE_ID
+                quantity = months
 
-        if price_id and price_id in price_map:
-            plan_level = plan_level or price_map[price_id]["plan"]
-            mode = price_map[price_id]["mode"]
-        
-        if not price_id:
-            return Response({"error": "Invalid product type"}, status=status.HTTP_400_BAD_REQUEST)
+            if price_id and price_id in price_map:
+                plan_level = plan_level or price_map[price_id]["plan"]
+                mode = price_map[price_id]["mode"]
+            
+            if not price_id:
+                return Response({"error": "Invalid product type"}, status=status.HTTP_400_BAD_REQUEST)
 
-        print("[checkout_session] user", user_id, "product_type", product_type, "price_id", price_id, "months", months, "plan", plan_level, "mode", mode, "quantity", quantity)
+            print("[checkout_session] user", user_id, "product_type", product_type, "price_id", price_id, "months", months, "plan", plan_level, "mode", mode, "quantity", quantity)
 
-        # URLs required by Stripe
-        success_url = request.build_absolute_uri('/u/subscribe/success/')
-        cancel_url = request.build_absolute_uri('/u/subscribe/cancel/')
+            # URLs required by Stripe
+            success_url = request.build_absolute_uri('/u/subscribe/success/')
+            cancel_url = request.build_absolute_uri('/u/subscribe/cancel/')
 
-        session_params = {
-            "success_url": success_url,
-            "cancel_url": cancel_url,
-            "line_items": [{"price": price_id, "quantity": quantity}],
-            "mode": mode,
-            "client_reference_id": str(user_id),
-            "allow_promotion_codes": True,
-            "payment_method_types": ["card"],
-            "metadata": {
-                "user_id": str(user_id),
-                "product_type": product_type,
-                "months": str(months),
-                "plan_level": plan_level or "basic",
-            },
-        }
-
-        # Persist plan and months on the subscription itself so invoice events can read them
-        if mode == "subscription":
-            session_params["subscription_data"] = {
+            session_params = {
+                "success_url": success_url,
+                "cancel_url": cancel_url,
+                "line_items": [{"price": price_id, "quantity": quantity}],
+                "mode": mode,
+                "client_reference_id": str(user_id),
+                "allow_promotion_codes": True,
+                "payment_method_types": ["card"],
                 "metadata": {
+                    "user_id": str(user_id),
+                    "product_type": product_type,
                     "months": str(months),
                     "plan_level": plan_level or "basic",
-                }
+                },
             }
 
-        checkout_session = stripe.checkout.Session.create(**session_params)
+            # Persist plan and months on the subscription itself so invoice events can read them
+            if mode == "subscription":
+                session_params["subscription_data"] = {
+                    "metadata": {
+                        "months": str(months),
+                        "plan_level": plan_level or "basic",
+                    }
+                }
 
-        return redirect(checkout_session.url)
+            checkout_session = stripe.checkout.Session.create(**session_params)
 
-    except Exception as e:
-        logger.exception("Unable to create stripe checkout session")
-        return Response(
-            {"error": f"Unable to create checkout session: {str(e)}"},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+            return redirect(checkout_session.url)
+
+        except Exception as e:
+            logger.exception("Unable to create stripe checkout session")
+            return Response(
+                {"error": f"Unable to create checkout session: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 from io import BytesIO
 from django.core.files.base import ContentFile

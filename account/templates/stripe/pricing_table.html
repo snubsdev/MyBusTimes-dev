@@ -37,44 +37,85 @@ subscribe:457:13
         const oneTimeButton = document.getElementById('one-time-button');
         const oneTimeTab = document.getElementById('one-time-tab');
         const oneTimePanel = document.getElementById('one-time-container');
+        const freeTrialButton = document.getElementById('free-trial-tab-button');
+        const freeTrialTab = document.getElementById('free-trial-tab');
+        const freeTrialPanel = document.getElementById('free-trial-container');
         const overlay = document.getElementById('overlay');
 
         if (tabId === '1-month-tab') {
             monthlyTab.classList.add('Tabs-TabListItemContainer--is-selected');
             yearlyTab.classList.remove('Tabs-TabListItemContainer--is-selected');
+            oneTimeTab.classList.remove('Tabs-TabListItemContainer--is-selected');
+            freeTrialTab.classList.remove('Tabs-TabListItemContainer--is-selected');
+
             monthlyButton.classList.add('Tabs-TabListItem--is-selected');
             yearlyButton.classList.remove('Tabs-TabListItem--is-selected');
             oneTimeButton.classList.remove('Tabs-TabListItem--is-selected');
-            oneTimeTab.classList.remove('Tabs-TabListItemContainer--is-selected');
+            freeTrialButton.classList.remove('Tabs-TabListItem--is-selected');
+
             monthlyPanel.style.display = 'grid';
             yearlyPanel.style.display = 'none';
             oneTimePanel.style.display = 'none';
+            freeTrialPanel.style.display = 'none';
+
             overlay.style.setProperty('--offset', '2px');
             overlay.style.width = '117px';
+            overlay.style.display = 'block';
         } else if (tabId === '1-year-tab') {
             yearlyTab.classList.add('Tabs-TabListItemContainer--is-selected');
             monthlyTab.classList.remove('Tabs-TabListItemContainer--is-selected');
+            oneTimeTab.classList.remove('Tabs-TabListItemContainer--is-selected');
+            freeTrialTab.classList.remove('Tabs-TabListItemContainer--is-selected');
+
             yearlyButton.classList.add('Tabs-TabListItem--is-selected');
             monthlyButton.classList.remove('Tabs-TabListItem--is-selected');
             oneTimeButton.classList.remove('Tabs-TabListItem--is-selected');
-            oneTimeTab.classList.remove('Tabs-TabListItemContainer--is-selected');
+            freeTrialButton.classList.remove('Tabs-TabListItem--is-selected');
+
             yearlyPanel.style.display = 'grid';
             monthlyPanel.style.display = 'none';
             oneTimePanel.style.display = 'none';
+            freeTrialPanel.style.display = 'none';
+
             overlay.style.setProperty('--offset', '121px');
             overlay.style.width = '102px';
+            overlay.style.display = 'block';
         } else if (tabId === 'one-time-tab') {
             oneTimeTab.classList.add('Tabs-TabListItemContainer--is-selected');
             monthlyTab.classList.remove('Tabs-TabListItemContainer--is-selected');
             yearlyTab.classList.remove('Tabs-TabListItemContainer--is-selected');
+            freeTrialTab.classList.remove('Tabs-TabListItemContainer--is-selected');
+
             oneTimeButton.classList.add('Tabs-TabListItem--is-selected');
             monthlyButton.classList.remove('Tabs-TabListItem--is-selected');
             yearlyButton.classList.remove('Tabs-TabListItem--is-selected');
+            freeTrialButton.classList.remove('Tabs-TabListItem--is-selected');
+
             oneTimePanel.style.display = 'grid';
             monthlyPanel.style.display = 'none';
             yearlyPanel.style.display = 'none';
+            freeTrialPanel.style.display = 'none';
+
             overlay.style.setProperty('--offset', '223px');
             overlay.style.width = '126px';
+            overlay.style.display = 'block';
+        } else if (tabId === 'free-trial-tab') {
+            freeTrialTab.classList.add('Tabs-TabListItemContainer--is-selected');
+            monthlyTab.classList.remove('Tabs-TabListItemContainer--is-selected');
+            yearlyTab.classList.remove('Tabs-TabListItemContainer--is-selected');
+            oneTimeTab.classList.remove('Tabs-TabListItemContainer--is-selected');
+
+            freeTrialButton.classList.add('Tabs-TabListItem--is-selected');
+            monthlyButton.classList.remove('Tabs-TabListItem--is-selected');
+            yearlyButton.classList.remove('Tabs-TabListItem--is-selected');
+            oneTimeButton.classList.remove('Tabs-TabListItem--is-selected');
+
+            freeTrialPanel.style.display = 'grid';
+            monthlyPanel.style.display = 'none';
+            yearlyPanel.style.display = 'none';
+            oneTimePanel.style.display = 'none';
+
+            overlay.style.display = 'none';
         }
     }
 </script>
@@ -89,6 +130,13 @@ subscribe:457:13
             const form = document.getElementById('checkoutForm');
             form.querySelector('input[name="product_type"]').value = productType;
             form.querySelector('input[name="months"]').value = months;
+            form.submit();
+        }
+
+        function startTrial(plan, days) {
+            const form = document.getElementById('checkoutForm');
+            form.querySelector('input[name="product_type"]').value = plan + '_free_trial';
+            form.querySelector('input[name="months"]').value = days;
             form.submit();
         }
     </script>
@@ -138,12 +186,23 @@ subscribe:457:13
                                     </div>
                                 </button>
                             </div>
-
                             <span class="IntervalTabs-glider" id="overlay"
                                 style="background-color: var(--brand-color); --offset: 2px; height: 36px; width: 117px;"></span>
                         </div>
                     </div>
                 </div>
+            </div>
+            <div role="presentation" class="Tabs-TabListItemContainer"
+                onclick="selectTab('free-trial-tab')" id="free-trial-tab">
+                <button class="Tabs-TabListItem" data-testid="free-trial-tab-button" role="tab"
+                    id="free-trial-tab-button" type="button" aria-controls="free-trial-tab-panel"
+                    aria-label="Free Trial" aria-selected="false" tabindex="-3" title="Free Trial">
+                    <div class="Tabs-TabListItemContent">
+                        <div class="Tabs-TabListPaymentMethod">
+                           <div class="Tabs-TabListPaymentLabel" data-text="Free Trial">Free Trials</div>
+                        </div>
+                    </div>
+                </button>
             </div>
             <div class="PricingTable-grid" id="1-month-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; width: 100%;">
                 <!-- Basic Monthly -->
@@ -459,6 +518,65 @@ subscribe:457:13
                                         class="Text Text-color--default Text-fontWeight--500 Text--truncate">Buy Now</span>
                                 </div>
                             </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="PricingTable-grid" id="free-trial-container" style="display: none; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; width: 100%;">
+                <!-- Pro Free Trial -->
+                <div class="PriceColumn flex-container direction-column justify-content-flex-start align-items-center"
+                    style="--pt-animate-in-order: 1;" data-testid="price-column">
+                    <div
+                        class="PriceColumn-content flex-container direction-column justify-content-flex-start align-items-center">
+                        <div class="PriceColumn-aboutProduct flex-container direction-column">
+                            <div class="PriceColumn-textAndProductImage flex-container">
+                                <div class="PriceColumn-textContainerHeightAligner" style="height: 52px;">
+                                    <div class="PriceColumn-textContainer flex-container direction-column">
+                                        <div class="PriceColumn-name flex-container"><span
+                                                class="Text Text-color--default Text-fontSize--20 Text-fontWeight--600">Pro free trial</span></div><span
+                                            class="PriceColumn-description Text Text-color--default Text-fontSize--14">7 Days of advanced features</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="PriceColumn-priceAndButton flex-container direction-column">
+                            <div class="PriceColumn-priceContainerHeightAligner" style="height: 42px;">
+                                <div class="PriceColumn-priceContainer">
+                                    <div class="flex-container spacing-4 direction-column align-items-flex-start">
+                                        <div class="flex-container align-items-center"><span
+                                                class="PriceColumn-price Text Text-color--default Text-fontSize--36 Text-fontWeight--700"><span
+                                                    class="CurrencyAmount">£0.00</span></span><span
+                                                class="PriceColumn-interval Text Text-color--default Text-fontSize--13">free
+                                                <br>trial</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="PriceColumn-features" style="margin: 20px 0; width: 100%; flex-grow: 1;">
+                                <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px; line-height: 1.6;">
+                                    <li>Ad free</li>
+                                    <li>Snap to road</li>
+                                    <li>Snap to road tracking</li>
+                                    <li>Automatic timetables</li>
+                                    <br>
+                                    <li>No card required</li>
+                                </ul>
+                            </div>
+                            {% if not had_pro_trial %}
+                            <button class="Button PriceColumn-button  Button--primary Button--lg" type="button"
+                                style="background-color: var(--brand-color); border-color: var(--border-color);"
+                                onclick="startTrial('pro', 7)">
+                                <div class="flex-container justify-content-center align-items-center"><span
+                                        class="Text Text-color--default Text-fontWeight--500 Text--truncate">Try Now</span>
+                                </div>
+                            </button>
+                            {% else %}
+                            <button class="Button PriceColumn-button  Button--primary Button--lg" type="button" disabled
+                                    style="background-color: var(--brand-color); border-color: var(--border-color);">
+                                    <div class="flex-container justify-content-center align-items-center"><span
+                                            class="Text Text-color--default Text-fontWeight--500 Text--truncate">Trial used</span>
+                                    </div>  
+                            </button>
+                            {% endif %}
                         </div>
                     </div>
                 </div>

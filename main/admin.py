@@ -63,7 +63,7 @@ class CustomUserAdmin(SimpleHistoryAdmin, UserAdmin):
         (None, {'fields': ('username', 'password')}),
         ('Personal info', {
             'fields': (
-                'email', 'discord_username', 'pfp', 'ad_free_until', 'sub_plan', 'first_name', 'last_name'
+                'email', 'discord_username', 'pfp', 'had_pro_trial', 'ad_free_until', 'sub_plan', 'first_name', 'last_name'
             )
         }),
         ('Ban Info', {
