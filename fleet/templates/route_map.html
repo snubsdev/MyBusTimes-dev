@@ -283,23 +283,31 @@
 
     // Add stop markers
     for (const stop of stops) {
+      if (!stop.cords) continue;
       const [lat, lon] = stop.cords.split(',').map(Number);
       if (isNaN(lat) || isNaN(lon)) continue;
+
+      const isWaypoint = stop.waypoint === true;
+      const borderColor = isWaypoint ? '#ff9800' : '#2f80ed';
+      const display = isWaypoint ? 'none' : 'block';
 
       const el = document.createElement('div');
       el.style.cssText = `
         width:10px;height:10px;
-        border:3px solid #2f80ea;
+        border:3px solid ${borderColor};
         border-radius:50%;
         background:#fff;
         cursor:pointer;
+        display: ${display};
       `;
+
+      const popupContent = isWaypoint 
+        ? `<span style="display:none;color:#ff9800;font-style:italic;">Waypoint</span>`
+        : `<a href="/stop/?name=${encodeURIComponent(stop.stop)}">${stop.stop}</a>`;
 
       const marker = new maplibregl.Marker({ element: el })
         .setLngLat([lon, lat])
-        .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(
-          `<a href="/stop/?name=${encodeURIComponent(stop.stop)}">${stop.stop}</a>`
-        ))
+        .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(popupContent))
         .addTo(map);
 
       markers.push(marker);

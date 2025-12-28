@@ -587,6 +587,12 @@ def route_detail(request, operator_slug, route_id):
     route_stop_full_inbound = routeStop.objects.filter(route=route_instance, inbound=True).first()
     route_stop_full_outbound = routeStop.objects.filter(route=route_instance, inbound=False).first()
 
+    # Filter out waypoints from stops for display
+    if route_stop_full_inbound and route_stop_full_inbound.stops:
+        route_stop_full_inbound.stops = [s for s in route_stop_full_inbound.stops if not s.get('waypoint', False)]
+    if route_stop_full_outbound and route_stop_full_outbound.stops:
+        route_stop_full_outbound.stops = [s for s in route_stop_full_outbound.stops if not s.get('waypoint', False)]
+
     days = dayType.objects.all()
 
     selected_day_id = request.GET.get('day')
