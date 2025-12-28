@@ -3563,9 +3563,6 @@ def vehicle_mass_edit(request, operator_slug):
 
             current_operator = vehicle.operator
 
-            if MBTOperator.objects.get(id=request.POST.get('operator')) != current_operator:
-                vehicle.for_sale = False
-
             # Foreign Keys
             try:
                 vehicle.operator = MBTOperator.objects.get(id=request.POST.get('operator'))
@@ -3599,6 +3596,10 @@ def vehicle_mass_edit(request, operator_slug):
 
             delete_all = 'delete' in request.POST
             for_sale = 'for_sale' in request.POST
+
+            if vehicle.operator != current_operator:
+                for_sale = False
+                vehicle.for_sale = False
 
             if delete_all:
                 for vehicle in vehicles:

@@ -302,7 +302,7 @@ document.addEventListener("DOMContentLoaded", function() {
         for (const task of assignments) {
             let success = false;
             let lastError = "";
-            const maxAttempts = 3;
+            const maxAttempts = 6;
 
             for (let attempt = 1; attempt <= maxAttempts; attempt++) {
                 const formData = new FormData();
@@ -337,9 +337,9 @@ document.addEventListener("DOMContentLoaded", function() {
                 }
 
                 if (attempt < maxAttempts) {
-                    logStatus.innerHTML += `<div style="color: orange;">⚠ Vehicle ${task.vehicle_id}: ${lastError}. Retrying in 1s... (Attempt ${attempt}/${maxAttempts})</div>`;
+                    logStatus.innerHTML += `<div style="color: orange;">⚠ Vehicle ${task.vehicle_id}: ${lastError}. Retrying in 10s... (Attempt ${attempt}/${maxAttempts})</div>`;
                     logStatus.scrollTop = logStatus.scrollHeight;
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    await new Promise(resolve => setTimeout(resolve, 10000));
                 }
             }
 

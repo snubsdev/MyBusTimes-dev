@@ -89,6 +89,19 @@
         {% endif %}
     </div>
 </div>
+
+{% if user == profile_user %}
+<style>
+    .sub-status p {
+        margin: 0;
+    }
+</style>
+<div class="sub-status">
+    <p>Plan: {{ profile_user.sub_plan }}</p>
+    <p>Expires: {{ profile_user.ad_free_until }}</p>
+</div>
+{% endif %}
+
 {% if user.is_staff %}
 <div class="admin-user-tools">
     <div>
