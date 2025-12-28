@@ -45,8 +45,36 @@
   .timing-point { transform: rotate(-90deg); border: 0; font-weight: normal; text-align: center; padding: 5px; margin-top: 40px; display: block; font-size: 11px; }
   .timing-point-check-box { width: 30px; text-align: center; }
   @media (max-width: 768px) {
-    #map { width: 100%; height: 60vh; }
-    .stop-list { top: 60vh; width: 100%; }
+    #map { width: 100%; height: 50vh; position: fixed !important; top: 55px; }
+    .stop-list { top: calc(50vh + 55px); width: 100%; height: calc(50vh - 55px); transition: none; }
+    .stop-list.resizing { transition: none; }
+  }
+  /* Mobile resize handle */
+  .resize-handle {
+    display: none;
+    width: 100%;
+    height: 24px;
+    background: var(--background-color);
+    border-top: 1px solid rgba(0,0,0,0.1);
+    cursor: ns-resize;
+    touch-action: none;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .resize-handle::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 40px;
+    height: 4px;
+    background: #ccc;
+    border-radius: 2px;
+  }
+  .resize-handle:active::before { background: var(--brand-color); }
+  @media (max-width: 768px) {
+    .resize-handle { display: block; }
   }
   .maplibregl-popup-tip,
   .maplibregl-popup-content {
@@ -238,7 +266,8 @@
 <div class="toast-container" id="toastContainer"></div>
 <div class="route-click-hint" id="routeClickHint">Click on the blue route line to add a waypoint</div>
 
-<div class="stop-list">
+<div class="stop-list" id="stopListPanel">
+  <div class="resize-handle" id="resizeHandle"></div>
   <div class="mode-banner" id="modeBanner">
     <span class="mode-text" id="modeText">Click on the map to add a stop</span>
     <button class="mode-cancel" id="modeCancel">Cancel</button>
@@ -1123,5 +1152,106 @@
 
     document.getElementById("routeForm").submit();
   });
+  // Mobile resize handle functionality
+  (function() {
+    const resizeHandle = document.getElementById('resizeHandle');
+    const stopListPanel = document.getElementById('stopListPanel');
+    const mapEl = document.getElementById('map');
+    let isResizing = false;
+    let startY = 0;
+    let startTop = 0;
+
+    function isMobile() {
+      return window.innerWidth <= 768;
+    }
+
+    function getClientY(e) {
+      return e.touches ? e.touches[0].clientY : e.clientY;
+    }
+
+    function onStart(e) {
+      if (!isMobile()) return;
+      isResizing = true;
+      startY = getClientY(e);
+      startTop = stopListPanel.getBoundingClientRect().top;
+      stopListPanel.classList.add('resizing');
+      document.body.style.userSelect = 'none';
+      e.preventDefault();
+    }
+
+    function onMove(e) {
+      if (!isResizing) return;
+      const clientY = getClientY(e);
+      const delta = clientY - startY;
+      let newTop = startTop + delta;
+      
+      // Constrain: min 100px for map, min 150px for stop list
+      const minTop = 55 + 100; // navbar + min map height
+      const maxTop = window.innerHeight - 150; // min stop list height
+      newTop = Math.max(minTop, Math.min(maxTop, newTop));
+      
+      const mapHeight = newTop - 55;
+      const listHeight = window.innerHeight - newTop;
+      
+      mapEl.style.height = mapHeight + 'px';
+      stopListPanel.style.top = newTop + 'px';
+      stopListPanel.style.height = listHeight + 'px';
+      
+      e.preventDefault();
+    }
+
+    function onEnd() {
+      if (!isResizing) return;
+      isResizing = false;
+      stopListPanel.classList.remove('resizing');
+      document.body.style.userSelect = '';
+      // Trigger map resize
+      if (map) map.resize();
+    }
+
+    // AbortController for cleanup
+    const controller = new AbortController();
+    const signal = controller.signal;
+
+    // Clear inline styles and reset to CSS defaults
+    function clearInlineStyles() {
+      mapEl.style.height = '';
+      stopListPanel.style.top = '';
+      stopListPanel.style.height = '';
+      if (map) map.resize();
+    }
+
+    // Debounce helper
+    function debounce(fn, delay) {
+      let timeoutId;
+      return function(...args) {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => fn.apply(this, args), delay);
+      };
+    }
+
+    // Handle viewport changes (resize, orientation)
+    const handleViewportChange = debounce(() => {
+      if (!isMobile()) {
+        if (isResizing) {
+          onEnd();
+        }
+        clearInlineStyles();
+      }
+    }, 150);
+
+    // Register all event listeners with AbortController signal
+    resizeHandle.addEventListener('mousedown', onStart, { signal });
+    resizeHandle.addEventListener('touchstart', onStart, { passive: false, signal });
+    document.addEventListener('mousemove', onMove, { signal });
+    document.addEventListener('touchmove', onMove, { passive: false, signal });
+    document.addEventListener('mouseup', onEnd, { signal });
+    document.addEventListener('touchend', onEnd, { signal });
+    window.addEventListener('resize', handleViewportChange, { signal });
+    window.addEventListener('orientationchange', handleViewportChange, { signal });
+
+    // Cleanup on page unload
+    window.addEventListener('pagehide', () => controller.abort(), { once: true });
+  })();
 </script>
 {% endblock %}

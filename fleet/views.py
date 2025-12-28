@@ -4571,6 +4571,10 @@ def route_timetable_add(request, operator_slug, route_id, direction):
 
     stops = routeStop.objects.filter(route=route_instance, inbound=direction == "inbound").first()
 
+    # Filter out waypoints from stops for timetable
+    if stops and stops.stops:
+        stops.stops = [s for s in stops.stops if not s.get('waypoint', False)]
+
     if request.method == "POST":
         base_times_str = request.POST.get("departure_times")
         selected_days = request.POST.getlist("days[]")
