@@ -81,7 +81,7 @@
   const vehicleId = "{{ trip.trip_vehicle.id|default:'' }}";
   let btMarkers = [];
   let btVehicleData = []; // Store vehicle data to re-render on zoom change
-  const DETAIL_ZOOM_THRESHOLD = 12; // Zoom level to switch between circle and full icon
+  const DETAIL_ZOOM_THRESHOLD = 10; // Zoom level to switch between circle and full icon
   let currentDirection = "inbound";
 
   // Choose tile style
@@ -226,6 +226,8 @@
 
       let el;
       if (showDetailedIcon) {
+        // Only show multiple carriages when zoomed in past level 12
+        const displayCarriages = zoom > 12 ? carriages : 1;
         el = createLiveryIcon({
           label: line,
           css,
@@ -233,7 +235,7 @@
           rotation: heading,
           textStroke,
           strokeWidth,
-          carriages
+          carriages: displayCarriages
         });
       } else {
         el = createSimpleCircle({ colour: vehicleColour, borderColour: '#333' });

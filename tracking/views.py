@@ -285,9 +285,10 @@ class current_vehicle_trips(generics.ListAPIView):
         )
         return queryset
     
-from django.db.models import Q
+from django.db.models import Q, Prefetch
 
 class VehicleDetailSerializer(serializers.Serializer):
+    """Optimized vehicle serializer - expects a fleet object directly."""
     url = serializers.SerializerMethodField()
     name = serializers.SerializerMethodField()
     features = serializers.SerializerMethodField()
@@ -300,171 +301,124 @@ class VehicleDetailSerializer(serializers.Serializer):
     stroke_colour = serializers.SerializerMethodField()
     custom_features = serializers.SerializerMethodField()
 
-    def _get_vehicle_obj(self, obj):
-        # Convert int → vehicle instance AND cache so we don't hit DB multiple times
-        if isinstance(obj, int):
-            if not hasattr(self, "_vehicle_cache"):
-                self._vehicle_cache = {}
-            if obj not in self._vehicle_cache:
-                self._vehicle_cache[obj] = fleet.objects.select_related("operator", "livery").get(id=obj)
-            return self._vehicle_cache[obj]
-
-        return obj
-
-    def get_url(self, obj):
-        obj = self._get_vehicle_obj(obj)
-        return f"/operator/{obj.operator.operator_slug}/vehicles/{obj.id}/"
-
-    def get_custom_features(self, obj):
-        obj = self._get_vehicle_obj(obj)
-        if not obj.advanced_details:
-            return None
-        return obj.advanced_details
-
-    def get_name(self, obj):
-        obj = self._get_vehicle_obj(obj)
-        if obj.fleet_number:
-            return f"{obj.fleet_number} - {obj.reg}"
-        return obj.reg or "Unknown Vehicle"
-
-    def get_features(self, obj):
-        obj = self._get_vehicle_obj(obj)
-        if not obj.features:
-            return ""
-        if isinstance(obj.features, list):
-            return "<br>".join(obj.features)
-        return str(obj.features)
-
-    def get_livery(self, obj):
-        obj = self._get_vehicle_obj(obj)
-        livery = {
-            "id": obj.livery.id if obj.livery else None,
-            "name": obj.livery.name if obj.livery else "Default",
-            "colour": obj.livery.colour if obj.livery else (obj.colour or "#000000"),
-            "text_colour": obj.livery.text_colour if obj.livery else "#ffffff",
-            "left_css": obj.livery.left_css if obj.livery else "",
-            "right_css": obj.livery.right_css if obj.livery else "",
-            "stroke_colour": obj.livery.stroke_colour if obj.livery else "",
+    def to_representation(self, obj):
+        # Pre-compute all livery values once to avoid repeated attribute access
+        livery = obj.livery
+        has_livery = livery is not None
+        
+        livery_colour = livery.colour if has_livery else (obj.colour or "#000000")
+        livery_text = livery.text_colour if has_livery else "#ffffff"
+        livery_left = livery.left_css if has_livery else ""
+        livery_right = livery.right_css if has_livery else ""
+        livery_stroke = livery.stroke_colour if has_livery else ""
+        
+        # Use obj.colour override if set
+        left_css = obj.colour if obj.colour else livery_left
+        right_css = obj.colour if obj.colour else livery_right
+        
+        # Build name
+        name = f"{obj.fleet_number} - {obj.reg}" if obj.fleet_number else (obj.reg or "Unknown Vehicle")
+        
+        # Build features string
+        features = ""
+        if obj.features:
+            features = "<br>".join(obj.features) if isinstance(obj.features, list) else str(obj.features)
+        
+        return {
+            "url": f"/operator/{obj.operator.operator_slug}/vehicles/{obj.id}/",
+            "name": name,
+            "features": features,
+            "livery": {
+                "id": livery.id if has_livery else None,
+                "name": livery.name if has_livery else "Default",
+                "colour": livery_colour,
+                "text_colour": livery_text,
+                "left_css": livery_left,
+                "right_css": livery_right,
+                "stroke_colour": livery_stroke,
+            },
+            "colour": livery_colour,
+            "text_colour": livery_text,
+            "white_text": livery_text.lower() in ("#fff", "#ffffff", "white"),
+            "left_css": left_css,
+            "right_css": right_css,
+            "stroke_colour": livery_stroke,
+            "custom_features": obj.advanced_details if obj.advanced_details else None,
         }
-        return livery
-
-    def get_colour(self, obj):
-        obj = self._get_vehicle_obj(obj)
-        return obj.livery.colour if obj.livery else (obj.colour or "#000000")
-
-    def get_text_colour(self, obj):
-        obj = self._get_vehicle_obj(obj)
-        return obj.livery.text_colour if obj.livery else "#ffffff"
-
-    def get_white_text(self, obj):
-        return self.get_text_colour(obj).lower() in ["#fff", "#ffffff", "white"]
-
-    def get_left_css(self, obj):
-        obj = self._get_vehicle_obj(obj)
-        if obj.colour:
-            return obj.colour
-        return obj.livery.left_css if obj.livery else ""
-
-    def get_right_css(self, obj):
-        obj = self._get_vehicle_obj(obj)
-        if obj.colour:
-            return obj.colour
-        return obj.livery.right_css if obj.livery else ""
-
-    def get_stroke_colour(self, obj):
-        obj = self._get_vehicle_obj(obj)
-        return obj.livery.stroke_colour if obj.livery else ""
 
 class ServiceDetailSerializer(serializers.Serializer):
-    url = serializers.SerializerMethodField()
-    line_name = serializers.SerializerMethodField()
-
-    def _get_route(self, route_obj):
-        # route_obj is already a route instance
-        return route_obj
-
-    def get_url(self, route_obj):
+    """Optimized service serializer - uses prefetched operator."""
+    
+    def to_representation(self, route_obj):
         if not route_obj:
-            return None
-
-        op = route_obj.route_operators.first()
-        if not op:
-            return None
-
-        return f"/operator/{op.operator_slug}/route/{route_obj.id}/"
-
-    def get_line_name(self, route_obj):
-        return route_obj.route_num if route_obj else "Unknown Service"
+            return {"url": None, "line_name": "Unknown Service"}
+        
+        # Use prefetched operators if available
+        operators = getattr(route_obj, '_prefetched_operators', None)
+        if operators is None:
+            # Fallback - this should be avoided with proper prefetching
+            op = route_obj.route_operators.first()
+        else:
+            op = operators[0] if operators else None
+        
+        url = f"/operator/{op.operator_slug}/route/{route_obj.id}/" if op else None
+        
+        return {
+            "url": url,
+            "line_name": route_obj.route_num or "Unknown Service"
+        }
 
 class EstimatedPositionSerializer(serializers.Serializer):
-    trip_id = serializers.SerializerMethodField()
-    vehicle = VehicleDetailSerializer(source='*')
-    service_id = serializers.SerializerMethodField()
-    service = ServiceDetailSerializer(source="current_trip.trip_route")
-    progress = serializers.SerializerMethodField()
-    lat = serializers.FloatField(source="sim_lat")
-    lng = serializers.FloatField(source="sim_lon")
-    destination = serializers.SerializerMethodField()
-    heading = serializers.FloatField(source="sim_heading")
-    updated_at = serializers.DateTimeField()
-
-    def get_trip_id(self, obj):
-        ct = obj.current_trip
-        if not ct:
-            return None
+    """Optimized position serializer - minimizes method calls."""
     
-        return ct.trip_id if hasattr(ct, "trip_id") else ct
-
-    def get_service(self, obj):
-        if not obj.current_trip:
-            return None
-        if not obj.current_trip.trip_route:
-            return None
-        return obj.current_trip.trip_route.route_num
-
-    def get_service_id(self, obj):
+    def to_representation(self, obj):
         ct = obj.current_trip
-        if not ct:
-            return None
-
-        # If it's just an ID, fetch the trip with its route relation
-        if not hasattr(ct, "trip_route"):
-            ct = Trip.objects.filter(id=ct).select_related("trip_route").first()
-            if not ct:
-                return None
-
-        return ct.trip_route.id
-
-
-    def get_progress(self, obj):
-        if not obj.current_trip:
-            return None
-        from tracking.utils import get_progress
-        return get_progress(obj.current_trip)
-
-    def get_destination(self, obj):
-        if not obj.current_trip:
-            return ""
-
-        return obj.current_trip.trip_end_location or ""
+        trip_route = ct.trip_route if ct else None
+        
+        # Get progress if trip exists
+        progress = None
+        if ct:
+            from tracking.utils import get_progress
+            progress = get_progress(ct)
+        
+        # Serialize vehicle inline for speed
+        vehicle_data = VehicleDetailSerializer().to_representation(obj)
+        
+        # Serialize service inline
+        service_data = ServiceDetailSerializer().to_representation(trip_route)
+        
+        return {
+            "trip_id": ct.trip_id if ct and hasattr(ct, "trip_id") else None,
+            "vehicle": vehicle_data,
+            "service_id": trip_route.id if trip_route else None,
+            "service": service_data,
+            "progress": progress,
+            "lat": obj.sim_lat,
+            "lng": obj.sim_lon,
+            "destination": ct.trip_end_location if ct else "",
+            "heading": obj.sim_heading,
+            "updated_at": obj.updated_at,
+        }
 
 class trackingAPIView(generics.ListAPIView):
     serializer_class = EstimatedPositionSerializer
     permission_classes = [AllowAny]
 
     def get_queryset(self):
+        params = self.request.query_params
+        
         # Convert bounding box params safely
         try:
-            min_lat = float(self.request.query_params.get("ymin"))
-            max_lat = float(self.request.query_params.get("ymax"))
-            min_lng = float(self.request.query_params.get("xmin"))
-            max_lng = float(self.request.query_params.get("xmax"))
+            min_lat = float(params.get("ymin"))
+            max_lat = float(params.get("ymax"))
+            min_lng = float(params.get("xmin"))
+            max_lng = float(params.get("xmax"))
         except (TypeError, ValueError):
             return fleet.objects.none()
 
-        operator_id = self.request.query_params.get("operator_id")
-        route_id = self.request.query_params.get("route_id")
-        vehicle_id = self.request.query_params.get("vehicle_id")
+        operator_id = params.get("operator_id")
+        route_id = params.get("route_id")
+        vehicle_id = params.get("vehicle_id")
 
         filters = Q(
             sim_lat__isnull=False,
@@ -473,7 +427,7 @@ class trackingAPIView(generics.ListAPIView):
             sim_lat__lte=max_lat,
             sim_lon__gte=min_lng,
             sim_lon__lte=max_lng,
-            current_trip__isnull=False  # vehicle must be on a trip
+            current_trip__isnull=False
         )
 
         if operator_id:
@@ -485,11 +439,32 @@ class trackingAPIView(generics.ListAPIView):
         if vehicle_id:
             filters &= Q(id=vehicle_id)
 
+        # Optimized query with prefetch for route_operators
         return fleet.objects.select_related(
             "operator",
             "livery",
             "current_trip",
             "current_trip__trip_route",
+        ).prefetch_related(
+            Prefetch(
+                "current_trip__trip_route__route_operators",
+                queryset=MBTOperator.objects.only("id", "operator_slug"),
+                to_attr="_prefetched_operators"
+            )
+        ).only(
+            # Fleet fields
+            "id", "fleet_number", "reg", "colour", "advanced_details", "features",
+            "sim_lat", "sim_lon", "sim_heading", "updated_at",
+            # Operator fields
+            "operator__id", "operator__operator_slug",
+            # Livery fields
+            "livery__id", "livery__name", "livery__colour", "livery__text_colour",
+            "livery__left_css", "livery__right_css", "livery__stroke_colour",
+            # Trip fields
+            "current_trip__trip_id", "current_trip__trip_end_location",
+            "current_trip__trip_start_at", "current_trip__trip_end_at",
+            # Route fields
+            "current_trip__trip_route__id", "current_trip__trip_route__route_num",
         ).filter(filters)
     
 #@require_POST

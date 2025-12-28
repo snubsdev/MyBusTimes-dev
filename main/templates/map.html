@@ -165,7 +165,7 @@
 
   function createSimpleCircle({ colour = '#000', borderColour = '#000' } = {}) {
     const el = document.createElement('div');
-    el.style.cssText = `width: 12px; height: 12px; background: ${colour}; border: 2px solid ${borderColour}; border-radius: 50%;`;
+    el.style.cssText = `width: 10px; height: 10px; background: ${colour}; border-radius: 50%;`;
     return el;
   }
 
@@ -173,7 +173,7 @@
   const stopMarkers = [];
   const btMarkers = [];
   let btVehicleData = []; // Store vehicle data to re-render on zoom change
-  const DETAIL_ZOOM_THRESHOLD = 12; // Zoom level to switch between circle and full icon
+  const DETAIL_ZOOM_THRESHOLD = 10; // Zoom level to switch between circle and full icon
 
   function clearMarkers(list) {
     while (list.length) {
@@ -273,7 +273,7 @@
 
   async function fetchStops() {
     const zoom = map.getZoom();
-    if (zoom < 14) {
+    if (zoom < 16) {
       clearMarkers(stopMarkers);
       return;
     }
@@ -299,7 +299,7 @@
 
         const el = document.createElement('div');
         el.className = 'stop-marker';
-        el.style.cssText = 'width:10px;height:10px;border:3px solid #2f80ea;border-radius:50%;background:#fff;';
+        el.style.cssText = 'width:10px;height:10px;border:3px solid var(--brand-color);border-radius:50%;background:#fff;';
         const m = new maplibregl.Marker({ element: el })  // ✅ FIXED
           .setLngLat([lng, lat])
           .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(`<a href="/stop/?name=${encodeURIComponent(name)}">${name}</a>`))
@@ -324,7 +324,6 @@
       const res = await fetch(`/api/trips/simulated_positions/?${q}&limit=5000`);
       const data = await res.json();
 
-      console.log('BT vehicle data:', data);
       let vehicles = Array.isArray(data.results) ? data.results : (data.features || []);
       btVehicleData = vehicles; // Store for re-rendering on zoom
       clearMarkers(btMarkers);
@@ -417,8 +416,12 @@
 
       let el;
       if (showDetailedIcon) {
+        // Only show multiple carriages when zoomed in past level 12
+        const zoom = map.getZoom();
+        const displayCarriages = zoom > 12 ? carriages : 1;
+
         el = createLiveryIcon({
-          label: line, css, textColour, rotation: heading, textStroke, strokeWidth, carriages
+          label: line, css, textColour, rotation: heading, textStroke, strokeWidth, carriages: displayCarriages
         });
       } else {
         // Simple circle when zoomed out - use vehicle colour
