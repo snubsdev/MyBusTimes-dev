@@ -333,6 +333,7 @@
     } catch (e) {
       console.error('BT vehicle fetch failed', e);
     }
+  }
 
   function renderBTMarkers() {
     clearMarkers(btMarkers);
@@ -354,9 +355,9 @@
       let textStroke = v.vehicle?.stroke_colour ?? false;
       const livery = v.vehicle?.livery || null;
 
-      const adjustedHeading = heading + 180;
-      const rotation = adjustedHeading;
-      const finalHeading = adjustedHeading + 90;
+      heading = heading + 180;
+      const rotation = heading;
+      heading = heading + 90;
 
       const left_css = v.vehicle?.left_css || null;
       const right_css = v.vehicle?.right_css || null;
@@ -366,17 +367,11 @@
       if (rotation > 180 && rotation < 360) {
         css = right_css;
       } else {
-      const left_css = v.vehicle?.left_css || null;
-      const right_css = v.vehicle?.right_css || null;
-
-      let css = left_css;
-      const normalizedRotation = ((rotation % 360) + 360) % 360;
-
-      if (normalizedRotation > 180 && normalizedRotation < 360) {
-        css = right_css;
-      } else {
         css = left_css;
       }
+      
+      let textColour = '#000';
+
       if (whiteText) textColour = '#fff';
 
       if (v.vehicle?.text_colour) textColour = v.vehicle.text_colour;
@@ -413,9 +408,7 @@
         }
       }
 
-      let html = '';
-
-      html = `
+      let html = `
       <a href="${serviceLink}">${line} to ${dest}</a><br>
       ${vehicleName ? `<a href="${vehicleLink}">${vehicleName}</a>` : ''}<br>
         <span class="time-ago" data-time="${v.updated_at}">${timeAgo(v.updated_at)}</span>
