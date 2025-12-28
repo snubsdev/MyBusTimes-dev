@@ -16,6 +16,14 @@ def default_route_details():
         }
     }
 
+class routeType(models.Model):
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True, null=True)
+
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return self.name
 class route(models.Model):
     id = models.AutoField(primary_key=True)
     hidden = models.BooleanField(default=False)
@@ -35,6 +43,8 @@ class route(models.Model):
 
     linked_route = models.ManyToManyField('self', symmetrical=True, blank=True)
     related_route = models.ManyToManyField('self', symmetrical=True, blank=True)
+
+    route_type = models.ForeignKey(routeType, on_delete=models.SET_NULL, blank=True, null=True)
 
     history = HistoricalRecords()
 

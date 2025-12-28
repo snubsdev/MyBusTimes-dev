@@ -128,17 +128,31 @@
     return `${days} day${days !== 1 ? 's' : ''} ago`;
   }
 
-  function createLiveryIcon({ label = '', rotation = 0, bg = '#0000', css = null, textColour = '#fff', textStroke = "#0000", strokeWidth = "0px" } = {}) {
+  function createLiveryIcon({ label = '', rotation = 0, bg = '#0000', css = null, textColour = '#fff', textStroke = "#0000", strokeWidth = "0px", carriages = 1 } = {}) {
     const normalisedRotation = ((rotation % 360) + 360) % 360;
     const cellRotation = (normalisedRotation < 90 || normalisedRotation > 270) ? 0 : 180;
     const backgroundStyle = css ? `background: ${css};` : `background: ${bg};`;
     const html = document.createElement('div');
-    html.innerHTML = `
-      <div style="display:inline-block; transform: rotate(${rotation}deg);">
-        <svg width="24" height="16" data-vehicle-id="51623" class="vehicle-marker" style="stroke: ${textStroke}; text-align: center; ${backgroundStyle} transform: rotate(${cellRotation}deg); border: 1px solid rgba(0,0,0); color: ${textColour}; fill: ${textColour}; stroke-width: ${strokeWidth};">
-          <text x="12" y="12">${label}</text>
+    
+    // Ensure carriages is at least 1
+    const numCarriages = Math.max(1, parseInt(carriages) || 1);
+    
+    // Build carriage SVGs - last carriage (front) has label, rest are empty
+    let carriageSvgs = '';
+    for (let i = 0; i < numCarriages; i++) {
+      const isLastCarriage = i === numCarriages - 1;
+      const carriageLabel = isLastCarriage ? label : '';
+      carriageSvgs += `
+        <svg width="24" height="16" class="vehicle-marker" style="stroke: ${textStroke}; text-align: center; ${backgroundStyle} transform: rotate(${cellRotation}deg); border: 1px solid rgba(0,0,0); color: ${textColour}; fill: ${textColour}; stroke-width: ${strokeWidth}; ${i > 0 ? 'margin-left: 3px;' : ''}">
+          <text x="12" y="12">${carriageLabel}</text>
         </svg>
-        <span style="display:flex; margin-top: -27px; margin-left: 16px; color:black;">
+      `;
+    }
+    
+    html.innerHTML = `
+      <div style="display:inline-flex; transform: rotate(${rotation}deg); align-items: center;">
+        ${carriageSvgs}
+        <span style="display:flex; margin-left: -8px; color:black; ">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
             <path d="M8 6.65v10.69c0 .64.76.99 1.24.56l6.11-5.35c.34-.3.34-.83 0-1.13L9.24 6.07C8.76 5.65 8 5.99 8 6.63Z" />
           </svg>
@@ -149,9 +163,17 @@
     return html;
   }
 
+  function createSimpleCircle({ colour = '#000', borderColour = '#000' } = {}) {
+    const el = document.createElement('div');
+    el.style.cssText = `width: 12px; height: 12px; background: ${colour}; border: 2px solid ${borderColour}; border-radius: 50%;`;
+    return el;
+  }
+
   const vehicleMarkers = [];
   const stopMarkers = [];
   const btMarkers = [];
+  let btVehicleData = []; // Store vehicle data to re-render on zoom change
+  const DETAIL_ZOOM_THRESHOLD = 12; // Zoom level to switch between circle and full icon
 
   function clearMarkers(list) {
     while (list.length) {
@@ -304,82 +326,119 @@
 
       console.log('BT vehicle data:', data);
       let vehicles = Array.isArray(data.results) ? data.results : (data.features || []);
+      btVehicleData = vehicles; // Store for re-rendering on zoom
       clearMarkers(btMarkers);
 
-      if (vehicles.length > 5000) return;
-
-      for (const v of vehicles.slice(0, 5000)) {
-        const lng = v.lng;
-        const lat = v.lat;
-
-        let heading = v.heading ?? 0;
-        const line = v.service?.line_name || '';
-        const serviceLink = v.service?.url || '';
-        const vehicleLink = v.vehicle?.url || '';
-        const dest = v.destination || '';
-        const vehicleName = v.vehicle?.name || '';
-        const vehicleColour = v.vehicle?.colour || '#0000';
-        const whiteText = v.vehicle?.white_text ?? false;
-        let textStroke = v.vehicle?.stroke_colour ?? false;
-        const livery = v.vehicle?.livery || null;
-
-        heading = heading + 180;
-
-        rotation = heading;
-        heading = heading + 90;
-
-        const left_css = v.vehicle?.left_css || null;
-        const right_css = v.vehicle?.right_css || null;
-
-        let css = left_css;
-
-        if (rotation > 180 && rotation < 360) {
-          css = right_css;
-        } else {
-          css = left_css;
-        }
-        
-        let textColour = '#000';
-
-        if (whiteText) textColour = '#fff';
-
-        if (v.vehicle?.text_colour) textColour = v.vehicle.text_colour;
-
-        let strokeWidth = "0px";
-
-        if (textStroke != false) strokeWidth = "2px";
-
-        if (livery == null) {
-          textColour = '#000';
-          css = "#fff";
-        }
-
-        if (v.vehicle?.css) {
-          css = v.vehicle.css;
-        }
-
-        let html = '';
-
-        html = `
-        <a href="${serviceLink}">${line} to ${dest}</a><br>
-        ${vehicleName ? `<a href="${vehicleLink}">${vehicleName}</a>` : ''}<br>
-          <span class="time-ago" data-time="${v.updated_at}">${timeAgo(v.updated_at)}</span>
-          <small style="margin-bottom: 0;">Simulated Location</small>
-        `;
-
-        const el = createLiveryIcon({
-          label: line, css, textColour, rotation: heading, textStroke, strokeWidth
-        });
-        const m = new maplibregl.Marker({ element: el })
-          .setLngLat([lng, lat])
-          .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(`
-            ${html}
-          `))
-          .addTo(map);
-        btMarkers.push(m);
-      }
+      renderBTMarkers();
     } catch (e) {
       console.error('BT vehicle fetch failed', e);
+    }
+
+  function renderBTMarkers() {
+    clearMarkers(btMarkers);
+    const zoom = map.getZoom();
+    const showDetailedIcon = zoom >= DETAIL_ZOOM_THRESHOLD;
+
+    for (const v of btVehicleData.slice(0, 5000)) {
+      const lng = v.lng;
+      const lat = v.lat;
+
+      let heading = v.heading ?? 0;
+      const line = v.service?.line_name || '';
+      const serviceLink = v.service?.url || '';
+      const vehicleLink = v.vehicle?.url || '';
+      const dest = v.destination || '';
+      const vehicleName = v.vehicle?.name || '';
+      const vehicleColour = v.vehicle?.colour || '#000';
+      const whiteText = v.vehicle?.white_text ?? false;
+      let textStroke = v.vehicle?.stroke_colour ?? false;
+      const livery = v.vehicle?.livery || null;
+
+      const adjustedHeading = heading + 180;
+      const rotation = adjustedHeading;
+      const finalHeading = adjustedHeading + 90;
+
+      const left_css = v.vehicle?.left_css || null;
+      const right_css = v.vehicle?.right_css || null;
+
+      let css = left_css;
+
+      if (rotation > 180 && rotation < 360) {
+        css = right_css;
+      } else {
+      const left_css = v.vehicle?.left_css || null;
+      const right_css = v.vehicle?.right_css || null;
+
+      let css = left_css;
+      const normalizedRotation = ((rotation % 360) + 360) % 360;
+
+      if (normalizedRotation > 180 && normalizedRotation < 360) {
+        css = right_css;
+      } else {
+        css = left_css;
+      }
+      if (whiteText) textColour = '#fff';
+
+      if (v.vehicle?.text_colour) textColour = v.vehicle.text_colour;
+
+      let strokeWidth = "0px";
+
+      if (textStroke != false) strokeWidth = "2px";
+
+      if (livery == null) {
+        textColour = '#000';
+        css = "#fff";
+      }
+
+      if (v.vehicle?.css) {
+        css = v.vehicle.css;
+      }
+
+      // Parse custom_features for carriages
+      let carriages = 1;
+      const customFeatures = v.vehicle?.custom_features;
+      if (customFeatures) {
+        try {
+          // Handle JSON object, JSON string, or Python-style string dict
+          let features = customFeatures;
+          if (typeof customFeatures === 'string') {
+            // Replace single quotes with double quotes for Python-style dicts
+            features = JSON.parse(customFeatures.replace(/'/g, '"'));
+          }
+          if (features && features.carriages) {
+            carriages = parseInt(features.carriages) || 1;
+          }
+        } catch (e) {
+          console.warn('Failed to parse custom_features:', customFeatures, e);
+        }
+      }
+
+      let html = '';
+
+      html = `
+      <a href="${serviceLink}">${line} to ${dest}</a><br>
+      ${vehicleName ? `<a href="${vehicleLink}">${vehicleName}</a>` : ''}<br>
+        <span class="time-ago" data-time="${v.updated_at}">${timeAgo(v.updated_at)}</span>
+        <small style="margin-bottom: 0;">Simulated Location</small>
+      `;
+
+      let el;
+      if (showDetailedIcon) {
+        el = createLiveryIcon({
+          label: line, css, textColour, rotation: heading, textStroke, strokeWidth, carriages
+        });
+      } else {
+        // Simple circle when zoomed out - use vehicle colour
+        el = createSimpleCircle({ colour: vehicleColour, borderColour: '#333' });
+      }
+
+      const m = new maplibregl.Marker({ element: el })
+        .setLngLat([lng, lat])
+        .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(`
+          ${html}
+        `))
+        .addTo(map);
+      btMarkers.push(m);
     }
   }
 
@@ -410,6 +469,20 @@
     await fetchStops();          // stops → below
     await refreshMarkers();      // vehicles → above
     if (btToggle.checked) await fetchBTVehicles(); // bt vehicles → top
+  });
+
+  // Re-render BT markers when zooming past the threshold (without re-fetching data)
+  let lastZoomLevel = map.getZoom();
+  map.on('zoom', () => {
+    const currentZoom = map.getZoom();
+    const crossedThreshold = 
+      (lastZoomLevel < DETAIL_ZOOM_THRESHOLD && currentZoom >= DETAIL_ZOOM_THRESHOLD) ||
+      (lastZoomLevel >= DETAIL_ZOOM_THRESHOLD && currentZoom < DETAIL_ZOOM_THRESHOLD);
+    
+    if (crossedThreshold && btToggle.checked && btVehicleData.length > 0) {
+      renderBTMarkers();
+    }
+    lastZoomLevel = currentZoom;
   });
 
   setInterval(() => {

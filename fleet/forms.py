@@ -65,42 +65,61 @@ class TripFromTimetableForm(forms.ModelForm):
         
         if timetable_id:
             try:
-                # --- Determine API URL dynamically ---
-                base_url = getattr(settings, "BASE_URL", None)
-                if not base_url:
-                    # Fallback: use current site or localhost if not defined
-                    base_url = "https://localhost"  # or your dev domain
+                # --- Query timetable directly from database ---
+                tt = timetableEntry.objects.get(id=timetable_id)
+                
+                # Parse stop_times if it's a JSON string
+                stop_times = tt.stop_times
+                if stop_times is None:
+                    raise ValueError("Timetable has no stop_times data")
+                if isinstance(stop_times, str):
+                    stop_times = json.loads(stop_times)
 
-                api_url = f"{base_url.rstrip('/')}/api/get_trip_times/?timetable_id={timetable_id}"
+                # Sort stops by order (if order exists, otherwise keep insertion order)
+                ordered_stops = sorted(stop_times.items(), key=lambda x: x[1].get('order', 0))
+                stop_keys = [stop[0] for stop in ordered_stops]
 
-                # --- Fetch data from API ---
-                response = requests.get(api_url, timeout=5)
-                response.raise_for_status()
-                data = response.json()
+                # Use stopname from each stop object
+                start_key = stop_keys[0]
+                end_key = stop_keys[-1]
+                start_stop = stop_times[start_key]["stopname"]
+                end_stop = stop_times[end_key]["stopname"]
 
-                # --- Parse API data ---
-                times_data = data.get("times", {})
-                start_stop = data.get("start_stop", "Unknown Start")
-                end_stop = data.get("end_stop", "Unknown End")
+                start_times = stop_times[start_key]["times"]
+                end_times = stop_times[end_key]["times"]
 
-                choices = [
-                    (t, info.get("label", f"{t} — {start_stop} ➝ {end_stop}"))
-                    for t, info in times_data.items()
-                ]
+                # Build choices for the dropdown
+                choices = []
+                for i, start_time in enumerate(start_times):
+                    end_time = end_times[i] if i < len(end_times) else None
+                    label = f"{start_time} — {start_stop} ➝ {end_stop}"
+                    choices.append((start_time, label))
+
                 self.fields["start_time_choice"].choices = choices
 
                 # --- Debug info ---
                 self.debug_info["init"].update({
-                    "source": "API",
-                    "api_url": api_url,
-                    "trip_times": list(times_data.keys()),
+                    "source": "database",
+                    "trip_times": start_times,
                     "start_stop": start_stop,
                     "end_stop": end_stop,
                     "choice_count": len(choices)
                 })
 
+            except timetableEntry.DoesNotExist:
+                err = "Timetable entry not found."
+                print("❌", err)
+                self.debug_info["init"]["error"] = err
+                self.fields["start_time_choice"].choices = []
+                self.add_error("timetable", err)
+            except (json.JSONDecodeError, KeyError, IndexError) as e:
+                err = f"Invalid timetable data: {str(e)}"
+                print("❌", err)
+                self.debug_info["init"]["error"] = err
+                self.fields["start_time_choice"].choices = []
+                self.add_error("timetable", err)
             except Exception as e:
-                err = f"Error loading timetable details from API: {type(e).__name__} - {e}"
+                err = f"Error loading timetable details: {type(e).__name__} - {e}"
                 print("❌", err)
                 self.debug_info["init"]["error"] = err
                 self.fields["start_time_choice"].choices = []
@@ -116,9 +135,9 @@ class TripFromTimetableForm(forms.ModelForm):
 
         if timetable and start_time:
             try:
-                # if times came from the API, skip timetable-based indexing
-                if self.debug_info["init"].get("source") == "API":
-                    self.debug_info["clean"]["note"] = "Using API times — skipping timetable indexing"
+                # if times came from the database query, skip timetable-based indexing
+                if self.debug_info["init"].get("source") == "database":
+                    self.debug_info["clean"]["note"] = "Using database times — skipping timetable indexing"
                     start_stop = self.debug_info["init"].get("start_stop", "Unknown Start")
                     end_stop = self.debug_info["init"].get("end_stop", "Unknown End")
                     today = date.today()

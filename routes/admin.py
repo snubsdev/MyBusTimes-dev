@@ -24,6 +24,11 @@ def deduplicate_routes(modeladmin, request, queryset):
 
     modeladmin.message_user(request, f"{len(duplicates)} duplicate routes removed.")
 
+
+class routeTypeAdmin(SimpleHistoryAdmin):
+    search_fields = ['name']
+    list_display = ['name', 'description']
+
 class routeAdmin(SimpleHistoryAdmin):
     search_fields = ['id', 'route_num']
     list_filter = ['route_operators']
@@ -100,6 +105,7 @@ class TransitAuthoritiesColourAdmin(SimpleHistoryAdmin):
 
 
 admin.site.register(route, routeAdmin)
+admin.site.register(routeType, routeTypeAdmin)
 admin.site.register(serviceUpdate, serviceUpdateAdmin)
 admin.site.register(stop, stopAdmin)
 admin.site.register(dayType, dayTypeAdmin)

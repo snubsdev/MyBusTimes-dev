@@ -298,6 +298,7 @@ class VehicleDetailSerializer(serializers.Serializer):
     left_css = serializers.SerializerMethodField()
     right_css = serializers.SerializerMethodField()
     stroke_colour = serializers.SerializerMethodField()
+    custom_features = serializers.SerializerMethodField()
 
     def _get_vehicle_obj(self, obj):
         # Convert int → vehicle instance AND cache so we don't hit DB multiple times
@@ -313,6 +314,12 @@ class VehicleDetailSerializer(serializers.Serializer):
     def get_url(self, obj):
         obj = self._get_vehicle_obj(obj)
         return f"/operator/{obj.operator.operator_slug}/vehicles/{obj.id}/"
+
+    def get_custom_features(self, obj):
+        obj = self._get_vehicle_obj(obj)
+        if not obj.advanced_details:
+            return None
+        return obj.advanced_details
 
     def get_name(self, obj):
         obj = self._get_vehicle_obj(obj)
@@ -330,7 +337,16 @@ class VehicleDetailSerializer(serializers.Serializer):
 
     def get_livery(self, obj):
         obj = self._get_vehicle_obj(obj)
-        return obj.livery.id if obj.livery else None
+        livery = {
+            "id": obj.livery.id if obj.livery else None,
+            "name": obj.livery.name if obj.livery else "Default",
+            "colour": obj.livery.colour if obj.livery else (obj.colour or "#000000"),
+            "text_colour": obj.livery.text_colour if obj.livery else "#ffffff",
+            "left_css": obj.livery.left_css if obj.livery else "",
+            "right_css": obj.livery.right_css if obj.livery else "",
+            "stroke_colour": obj.livery.stroke_colour if obj.livery else "",
+        }
+        return livery
 
     def get_colour(self, obj):
         obj = self._get_vehicle_obj(obj)
