@@ -133,8 +133,18 @@ class routeStop(models.Model):
     def __str__(self):
         return f"{self.route.id}"
 
+class board_category(models.Model):
+    name = models.CharField(max_length=100)
+    parent_category = models.ForeignKey('self', on_delete=models.CASCADE, blank=True, null=True, related_name='subcategories')
+
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return self.name
+
 class duty(models.Model):
     duty_name = models.CharField(max_length=100)
+    catagory = models.CharField(max_length=50, blank=True, null=True)
     duty_operator = models.ForeignKey(MBTOperator, on_delete=models.CASCADE, related_name='duties', blank=True, null=True)
     duty_day = models.ManyToManyField(dayType, related_name='duty_types')
     duty_details = models.JSONField(blank=True, null=True)

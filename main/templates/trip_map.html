@@ -144,7 +144,7 @@
 
   function createSimpleCircle({ colour = '#000', borderColour = '#000' } = {}) {
     const el = document.createElement('div');
-    el.style.cssText = `width: 12px; height: 12px; background: ${colour}; border: 2px solid ${borderColour}; border-radius: 50%;`;
+    el.style.cssText = `width: 10px; height: 10px; background: ${colour}; border-radius: 50%;`;
     return el;
   }
 
@@ -319,7 +319,7 @@
       const [lat, lon] = stop.cords.split(',').map(Number);
       if (isNaN(lat) || isNaN(lon)) continue;
       const el = document.createElement('div');
-      el.style.cssText = "width:10px;height:10px;border:3px solid #2f80ea;border-radius:50%;background:#fff;cursor:pointer;";
+      el.style.cssText = "width:10px;height:10px;border:3px solid var(--brand-color);border-radius:50%;background:#fff;cursor:pointer;";
       new maplibregl.Marker({ element: el })
         .setLngLat([lon, lat])
         .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(`<a href="/stop/?name=${encodeURIComponent(stop.stop)}">${stop.stop}</a>`))
