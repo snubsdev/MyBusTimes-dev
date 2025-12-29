@@ -47,7 +47,7 @@
       <label>Trips:</label>
       <button type="button" id="add-trip">Add Trip</button>
       <div id="trips-container">
-        {% for trip in duty_instance.duty_trips.all %}
+        {% for trip in duty_instance.duty_trips.all|dictsort:"start_time" %}
           <div class="trip-group">
             <button type="button" class="remove-trip" title="Remove Trip">&times;</button>
 
