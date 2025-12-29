@@ -5842,12 +5842,26 @@ def mass_assign_single_vehicle_api(request, operator_slug):
     trip_set = board_obj.duty_trips.all()
     
     created_count = 0
+    skipped_count = 0
+    skipped_details = []
     errors = []
 
     # Create trips for this board
     for trip in trip_set:
         start_dt = make_aware(datetime.combine(selected_date, trip.start_time))
         end_dt = make_aware(datetime.combine(selected_date, trip.end_time))
+
+        # Check if vehicle already has a trip that overlaps with this time
+        overlapping_trip = Trip.objects.filter(
+            trip_vehicle=vehicle,
+            trip_start_at__lt=end_dt,
+            trip_end_at__gt=start_dt
+        ).first()
+
+        if overlapping_trip:
+            skipped_count += 1
+            skipped_details.append(f"{trip.start_time.strftime('%H:%M')}-{trip.end_time.strftime('%H:%M')} (conflicts with {overlapping_trip.trip_route_num or 'existing trip'})")
+            continue
 
         created_trip = Trip(
             trip_vehicle=vehicle,
@@ -5874,8 +5888,17 @@ def mass_assign_single_vehicle_api(request, operator_slug):
                 for error in field_errors:
                     errors.append(f"{error}")
 
+    # Real errors (validation failures) - return failure
     if errors:
         return JsonResponse({'success': False, 'error': "; ".join(errors)}, status=400)
+
+    # Skipped trips due to conflicts - return partial success
+    if skipped_count > 0:
+        return JsonResponse({
+            'success': True, 
+            'message': f"Logged {created_count} trips for {vehicle.fleet_number}. Skipped {skipped_count} due to conflicts.",
+            'skipped': skipped_details
+        })
 
     return JsonResponse({'success': True, 'message': f"Logged {created_count} trips for {vehicle.fleet_number}."})
 

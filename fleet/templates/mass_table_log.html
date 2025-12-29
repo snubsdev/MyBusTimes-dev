@@ -324,7 +324,18 @@ document.addEventListener("DOMContentLoaded", function() {
                     const result = await response.json();
 
                     if (result.success) {
-                        logStatus.innerHTML += `<div style="color: green;">✓ Vehicle ${task.vehicle_id}: ${result.message}</div>`;
+                        // Check if any trips were skipped (partial success)
+                        if (result.skipped && result.skipped.length > 0) {
+                            let skippedHtml = `<div style="color: orange; margin-bottom: 8px;">⚠ Vehicle ${task.vehicle_id}: ${result.message}</div>`;
+                            skippedHtml += `<div style="margin-left: 20px; font-size: 0.85em; color: #888; margin-bottom: 8px;">`;
+                            result.skipped.forEach(detail => {
+                                skippedHtml += `<div>• ${detail}</div>`;
+                            });
+                            skippedHtml += `</div>`;
+                            logStatus.innerHTML += skippedHtml;
+                        } else {
+                            logStatus.innerHTML += `<div style="color: green; margin-bottom: 8px;">✓ Vehicle ${task.vehicle_id}: ${result.message}</div>`;
+                        }
                         success = true;
                         break;
                     } else {
@@ -337,7 +348,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 }
 
                 if (attempt < maxAttempts) {
-                    logStatus.innerHTML += `<div style="color: orange;">⚠ Vehicle ${task.vehicle_id}: ${lastError}. Retrying in 10s... (Attempt ${attempt}/${maxAttempts})</div>`;
+                    logStatus.innerHTML += `<div style="color: orange; margin-bottom: 8px;">⚠ Vehicle ${task.vehicle_id}: ${lastError}. Retrying in 10s... (Attempt ${attempt}/${maxAttempts})</div>`;
                     logStatus.scrollTop = logStatus.scrollHeight;
                     await new Promise(resolve => setTimeout(resolve, 10000));
                 }
@@ -345,7 +356,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
             if (!success) {
                 errors++;
-                logStatus.innerHTML += `<div style="color: red;">✗ Vehicle ${task.vehicle_id}: Failed after ${maxAttempts} attempts. Last error: ${lastError}</div>`;
+                logStatus.innerHTML += `<div style="color: red; margin-bottom: 8px;">✗ Vehicle ${task.vehicle_id}: Failed after ${maxAttempts} attempts. Last error: ${lastError}</div>`;
             }
 
             completed++;
