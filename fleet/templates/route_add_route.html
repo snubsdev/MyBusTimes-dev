@@ -382,11 +382,13 @@
 
     // Now fetch snapped routes for segments that need it
     for (let i = 0; i < n - 1; i++) {
-        if (snappedSegments[i].isPlaceholder && snappedSegments[i].snapEnabled && hasPro) {
+        const seg = snappedSegments[i];
+        if (seg?.isPlaceholder && seg?.snapEnabled && hasPro) {
             const from = selectedCoords[i];
             const to = selectedCoords[i + 1];
+            if (!from || !to) continue; // Safety check
             const snapped = await snapSegment(from, to);
-            if (snapped) {
+            if (snapped && snappedSegments[i]) {
                 snappedSegments[i] = { 
                     ...snapped, 
                     pointsKey: snappedSegments[i].pointsKey,
@@ -395,10 +397,10 @@
                 };
                 drawRoute();
                 updateStopDistances();
-            } else {
+            } else if (snappedSegments[i]) {
                 snappedSegments[i].isPlaceholder = false;
             }
-        } else if (snappedSegments[i].isPlaceholder) {
+        } else if (seg?.isPlaceholder) {
             snappedSegments[i].isPlaceholder = false;
         }
     }
@@ -648,7 +650,7 @@
     // Segment snap toggle handler
     if (hasPro) {
       const snapToggle = tr.querySelector('.segment-snap-toggle');
-      snapToggle.addEventListener('change', (e) => {
+      if (snapToggle) snapToggle.addEventListener('change', (e) => {
         const currentIndex = parseInt(tr.dataset.index);
         // This toggle controls the segment AFTER this stop (between this stop and the next)
         if (currentIndex < snappedSegments.length) {
@@ -797,7 +799,7 @@
 
       if (hasPro) {
         const snapToggle = tr.querySelector('.segment-snap-toggle');
-        snapToggle.addEventListener('change', (e) => {
+        if (snapToggle) snapToggle.addEventListener('change', (e) => {
           const currentIndex = parseInt(tr.dataset.index);
           if (currentIndex < selectedCoords.length - 1) {
             if (!snappedSegments[currentIndex]) {
