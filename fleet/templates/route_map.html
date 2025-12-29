@@ -149,7 +149,7 @@
 
   function createSimpleCircle({ colour = '#000', borderColour = '#000' } = {}) {
     const el = document.createElement('div');
-    el.style.cssText = `width: 10px; height: 10px; background: ${colour}; border-radius: 50%;`;
+    el.style.cssText = `width: 12px; height: 12px; background: ${colour}; border: 2px solid ${borderColour}; border-radius: 50%;`;
     return el;
   }
 
@@ -336,7 +336,7 @@
         type: 'line',
         source: 'routeLine',
         paint: {
-          'line-color': '#2f80ed',
+          'line-color': 'var(--brand-color)',
           'line-width': 3
         }
       });

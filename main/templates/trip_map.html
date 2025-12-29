@@ -307,7 +307,7 @@
         id: routeLayerId,
         type: 'line',
         source: routeLayerId,
-        paint: { 'line-color': '#2f80ed', 'line-width': 3 }
+        paint: { 'line-color': 'var(--brand-color)', 'line-width': 3 }
       });
       const bounds = new maplibregl.LngLatBounds();
       geometryToDraw.forEach(c => bounds.extend(c));
