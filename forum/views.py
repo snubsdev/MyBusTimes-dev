@@ -49,7 +49,9 @@ def discord_message(request):
         image = request.FILES.get("image")
 
     try:
-        thread = Thread.objects.get(discord_channel_id=str(thread_channel_id))
+        thread = Thread.objects.filter(discord_channel_id=str(thread_channel_id)).first()
+        if not thread:
+            return JsonResponse({"error": "Thread not found"}, status=404)
     except Thread.DoesNotExist:
         return JsonResponse({"error": "Thread not found"}, status=404)
 

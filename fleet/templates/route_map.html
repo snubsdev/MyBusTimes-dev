@@ -336,7 +336,7 @@
         type: 'line',
         source: 'routeLine',
         paint: {
-          'line-color': 'var(--brand-color)',
+          'line-color': '#2f80ed',
           'line-width': 3
         }
       });
@@ -354,7 +354,7 @@
       if (isNaN(lat) || isNaN(lon)) continue;
 
       const isWaypoint = stop.waypoint === true;
-      const borderColor = isWaypoint ? '#ff9800' : 'var(--brand-color)';
+      const borderColor = isWaypoint ? '#ff9800' : '#2f80ed';
       const display = isWaypoint ? 'none' : 'block';
 
       const el = document.createElement('div');
