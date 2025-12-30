@@ -9,6 +9,8 @@ from django.views.decorators.cache import cache_control
 from django.views.generic.base import RedirectView
 
 urlpatterns = [
+    path('BusTimes/', RedirectView.as_view(url='/', permanent=False)),
+    path('BusTimes/<path:path>', RedirectView.as_view(url='/', permanent=False)),
     path('api-admin/', admin.site.urls),
     path('admin/', include('admin_dash.urls')),  # Include your admin dashboard app urls here
     path('operator/', include('fleet.urls')),  # Include your operator app urls here
