@@ -946,20 +946,19 @@ def vehicles(request, operator_slug, depot=None, withdrawn=False):
 
         return redirect("vehicles", operator_slug=operator_slug)
 
-    if operator.operator_details.get("type") == "Sales Company":
-        sales_operator = True
-    else:
-        sales_operator = False
+    # Cache operator details check
+    operator_details = operator.operator_details or {}
+    sales_operator = operator_details.get("type") == "Sales Company"
 
-    if request.user.is_authenticated and request.user.banned_from.filter(name='buying_buses').exists():
-        sales_operator = False
-
+    if request.user.is_authenticated and sales_operator:
+        if request.user.banned_from.filter(name='buying_buses').exists():
+            sales_operator = False
 
     withdrawn = request.GET.get('withdrawn')
     depot = request.GET.get('depot')
     show_withdrawn = withdrawn and withdrawn.lower() == 'true'
 
-    # Base queryset
+    # Base queryset with optimized filtering
     qs = fleet.objects.filter(
         Q(operator=operator) | Q(loan_operator=operator)
     )
@@ -969,15 +968,20 @@ def vehicles(request, operator_slug, depot=None, withdrawn=False):
     if depot:
         qs = qs.filter(depot=depot)
 
+    # Get count before pagination (use cached count if available)
     total_count = qs.count()
 
-    # Only load fields actually used in rendering
-    qs = qs.select_related('livery', 'vehicleType', 'operator', 'loan_operator').only(
+    # Optimized field selection - only load what's needed
+    qs = qs.select_related(
+        'livery', 'vehicleType', 'operator', 'loan_operator'
+    ).only(
         'id', 'fleet_number', 'fleet_number_sort', 'reg', 'prev_reg', 'colour',
-        'branding', 'depot', 'name', 'features', 'last_tracked_date',
-        'livery__name', 'livery__left_css', 'livery__stroke_colour', 'livery__text_colour', 'type_details',
-        'vehicleType__type_name', 'open_top', 'loan_operator__operator_slug',
-        'operator__operator_slug', 'operator__operator_code', 'in_service'
+        'branding', 'depot', 'name', 'features', 'last_tracked_date', 'for_sale',
+        'type_details', 'open_top', 'in_service',
+        'livery__name', 'livery__left_css', 'livery__stroke_colour', 'livery__text_colour',
+        'vehicleType__type_name',
+        'loan_operator__operator_slug',
+        'operator__operator_slug', 'operator__operator_code'
     ).order_by('fleet_number_sort')
 
     # Pagination
@@ -985,47 +989,53 @@ def vehicles(request, operator_slug, depot=None, withdrawn=False):
     page = request.GET.get('page')
     page_obj = paginator.get_page(page)
 
-    # Use .values() for speed if serializer overhead is high
+    # Use .values() for faster serialization - single query
     serialized_vehicles = list(page_obj.object_list.values(
         'id', 'fleet_number', 'fleet_number_sort', 'reg', 'prev_reg', 'colour',
-        'branding', 'depot', 'name', 'features', 'last_tracked_date',
-        'livery__name', 'livery__left_css', 'livery__stroke_colour', 'livery__text_colour', 'type_details',
-        'vehicleType__type_name', 'open_top', 'loan_operator__operator_slug',
-        'operator__operator_slug', 'operator__operator_code', 'in_service'
+        'branding', 'depot', 'name', 'features', 'last_tracked_date', 'for_sale',
+        'type_details', 'open_top', 'in_service',
+        'livery__name', 'livery__left_css', 'livery__stroke_colour', 'livery__text_colour',
+        'vehicleType__type_name',
+        'loan_operator__operator_slug',
+        'operator__operator_slug', 'operator__operator_code'
     ))
 
     vehicle_ids = [v['id'] for v in serialized_vehicles]
 
+    # Get latest trips per vehicle - simple and efficient approach
     latest_trips = {}
     for trip in (
         Trip.objects
         .filter(trip_vehicle_id__in=vehicle_ids, trip_missed=False, trip_start_at__lte=timezone.now())
+        .select_related('trip_route')
+        .only('trip_id', 'trip_vehicle_id', 'trip_start_at', 'trip_route_num', 'trip_route__route_num')
         .order_by('trip_vehicle_id', '-trip_start_at')
     ):
         if trip.trip_vehicle_id not in latest_trips:
             latest_trips[trip.trip_vehicle_id] = trip
 
+    # Cache current time for date formatting
+    now_local = timezone.localtime(timezone.now())
+    now_date = now_local.date()
+    now_year = now_local.year
+
     def format_last_trip_display(trip_date):
         local = timezone.localtime(trip_date)
-        now = timezone.localtime(timezone.now())
-        date = local.strftime('%d %b')
-    
-
-        if local.date() == now.date():
-            date = local.strftime('%H:%M')
-            return date
-        if local.year != now.year:
-            date = local.strftime('%d %b %Y')
-
-            if date[0] == '0':
-                date = date[1:]
-            return date
         
-        if date[0] == '0':
-            date = date[1:]
-        return date
+        if local.date() == now_date:
+            return local.strftime('%H:%M')
+        
+        date_str = local.strftime('%d %b %Y') if local.year != now_year else local.strftime('%d %b')
+        return date_str.lstrip('0')
+
+    # Initialize show flags
+    show_livery = show_branding = show_prev_reg = False
+    show_name = show_depot = show_features = False
+    
+    operator_slug_val = operator.operator_slug
 
     for item in serialized_vehicles:
+        # Add trip data
         trip = latest_trips.get(item['id'])
         if trip:
             item['last_trip_route'] = str(trip.trip_route.route_num) if trip.trip_route else str(trip.trip_route_num)
@@ -1036,41 +1046,32 @@ def vehicles(request, operator_slug, depot=None, withdrawn=False):
             item['last_trip_display'] = None
             item['last_trip_date'] = None
 
-        # Check if the vehicle is on loan away from its normal operator
+        # Check loan status
         home_operator_slug = item['operator__operator_slug']
         loan_operator_slug = item.get('loan_operator__operator_slug')
+        item['onloan'] = bool(
+            loan_operator_slug and 
+            home_operator_slug == operator_slug_val and 
+            loan_operator_slug != operator_slug_val
+        )
 
-        if loan_operator_slug and home_operator_slug == operator.operator_slug and loan_operator_slug != operator.operator_slug:
-            item['onloan'] = True
-        else:
-            item['onloan'] = False
-
-        if item['reg']:
-            reg = item['reg'] or ''
-            reg_cut = item['reg'].replace(' ', '') or ''
-        else:
-            reg = ''
-            reg_cut = ''
-
-        if item['prev_reg']:
-            prev_reg = item['prev_reg'] or ''
-            prev_reg_cut = item['prev_reg'].replace(' ', '') or ''
-
+        # Build Flickr link
+        reg = item.get('reg') or ''
+        reg_cut = reg.replace(' ', '')
+        prev_reg = item.get('prev_reg') or ''
+        
+        if prev_reg:
+            prev_reg_cut = prev_reg.replace(' ', '')
             item['flickr_link'] = f'https://www.flickr.com/search/?text="{reg}"%20or%20{reg_cut}%20or%20"{prev_reg}"%20or%20{prev_reg_cut}&sort=date-taken-desc'
-
         else:
             item['flickr_link'] = f'https://www.flickr.com/search/?text="{reg}"%20or%20{reg_cut}&sort=date-taken-desc'
 
-    # One pass for all "show_*" flags
-    show_livery = show_branding = show_prev_reg = False
-    show_name = show_depot = show_features = False
-
-    for item in serialized_vehicles:
+        # Update show flags in same loop
         if not show_livery and (item.get('livery__name') or item.get('colour')):
             show_livery = True
         if not show_branding and item.get('branding') and item.get('livery__name'):
             show_branding = True
-        if not show_prev_reg and item.get('prev_reg'):
+        if not show_prev_reg and prev_reg:
             show_prev_reg = True
         if not show_name and item.get('name'):
             show_name = True
@@ -1078,21 +1079,25 @@ def vehicles(request, operator_slug, depot=None, withdrawn=False):
             show_depot = True
         if not show_features and item.get('features'):
             show_features = True
-        if all((show_livery, show_branding, show_prev_reg, show_name, show_depot, show_features)):
-            break
 
+    # Get allowed operators for buy feature (only if needed)
     allowed_operators = []
-
+    helper_permissions = []
+    
     if request.user.is_authenticated:
-        helper_operator_ids = helper.objects.filter(
-            helper=request.user,
-            perms__perm_name="Edit Buses"
-        ).values_list("operator_id", flat=True)
+        helper_permissions = get_helper_permissions(request.user, operator)
+        
+        if sales_operator:
+            helper_operator_ids = helper.objects.filter(
+                helper=request.user,
+                perms__perm_name="Edit Buses"
+            ).values_list("operator_id", flat=True)
 
-        # 3. Combined queryset (owners + allowed helpers)
-        allowed_operators = MBTOperator.objects.filter(
-            Q(id__in=helper_operator_ids) | Q(owner=request.user)
-        ).distinct().order_by('operator_name')
+            allowed_operators = MBTOperator.objects.filter(
+                Q(id__in=helper_operator_ids) | Q(owner=request.user)
+            ).only('id', 'operator_name').distinct().order_by('operator_name')
+    else:
+        helper_permissions = get_helper_permissions(request.user, operator)
 
     context = {
         'depot': depot,
@@ -1104,7 +1109,7 @@ def vehicles(request, operator_slug, depot=None, withdrawn=False):
         'allowed_operators': allowed_operators,
         'operator': operator,
         'vehicles': serialized_vehicles,
-        'helper_permissions': get_helper_permissions(request.user, operator),
+        'helper_permissions': helper_permissions,
         'tabs': generate_tabs("vehicles", operator, total_count),
         'regions': operator.region.all(),
         'show_livery': show_livery,
@@ -1929,21 +1934,51 @@ def duties(request, operator_slug):
 
     try:
         operator = MBTOperator.objects.get(operator_slug=operator_slug)
-        duties_queryset = duty.objects.filter(duty_operator=operator, board_type=board_type).prefetch_related('duty_day').order_by('duty_name')
+        duties_queryset = duty.objects.filter(duty_operator=operator, board_type=board_type).prefetch_related('duty_day', 'category').order_by('duty_name')
     except MBTOperator.DoesNotExist:
         return render(request, '404.html', status=404)
 
     userPerms = get_helper_permissions(request.user, operator)
 
-    # Group duties by day name
-    grouped_duties = defaultdict(list)
-    for d in duties_queryset:
-        for day in d.duty_day.all():
-            grouped_duties[day.name].append(d)
+    # Check grouping preference from query param (default to 'category')
+    group_by = request.GET.get('group_by', 'category')
 
-    # Optional: sort by weekday order
-    weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-    grouped_duties_ordered = {day: grouped_duties[day] for day in weekday_order if day in grouped_duties}
+    # Get categories for this operator
+    categories = board_category.objects.filter(
+        operator=operator,
+        board_type=board_type
+    ).prefetch_related('subcategories')
+
+    if group_by == 'category':
+        # Group duties by category
+        grouped_duties = defaultdict(list)
+        uncategorized = []
+        
+        for d in duties_queryset:
+            if d.category:
+                # Use full category path as key
+                if d.category.parent_category:
+                    key = f"{d.category.parent_category.name} > {d.category.name}"
+                else:
+                    key = d.category.name
+                grouped_duties[key].append(d)
+            else:
+                uncategorized.append(d)
+        
+        # Sort categories alphabetically
+        grouped_duties_ordered = dict(sorted(grouped_duties.items()))
+        if uncategorized:
+            grouped_duties_ordered['Uncategorized'] = uncategorized
+    else:
+        # Group duties by day name (default)
+        grouped_duties = defaultdict(list)
+        for d in duties_queryset:
+            for day in d.duty_day.all():
+                grouped_duties[day.name].append(d)
+
+        # Sort by weekday order
+        weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+        grouped_duties_ordered = {day: grouped_duties[day] for day in weekday_order if day in grouped_duties}
 
     breadcrumbs = [
         {'name': 'Home', 'url': '/'},
@@ -1963,6 +1998,9 @@ def duties(request, operator_slug):
         'title': title,
         'titles': titles,
         'add_perm': f"Add {title}",
+        'group_by': group_by,
+        'categories': categories,
+        'board_type': board_type,
     }
     return render(request, 'duties.html', context)
 
@@ -2201,6 +2239,12 @@ def duty_add(request, operator_slug):
         return redirect(f'/operator/{operator_slug}/{board_type}/')
 
     days = dayType.objects.all()
+    
+    # Get categories for this operator and board type
+    categories = board_category.objects.filter(
+        operator=operator,
+        board_type=board_type
+    ).select_related('parent_category')
 
     if request.method == "POST":
         duty_name = request.POST.get('duty_name')
@@ -2208,6 +2252,8 @@ def duty_add(request, operator_slug):
         end_time = request.POST.get('end_time')
         brake_times = request.POST.getlist('brake_times')
         selected_days = request.POST.getlist('duty_day')  # Handle multiple dayType IDs
+        category_id = request.POST.get('category')
+        
         if is_running_board:
             board_type = 'running-boards'
             board_types = 'running-boards'
@@ -2223,11 +2269,17 @@ def duty_add(request, operator_slug):
             "brake_times": formatted_brakes
         }
 
+        # Get category if selected
+        selected_category = None
+        if category_id:
+            selected_category = board_category.objects.filter(id=category_id, operator=operator).first()
+
         duty_instance = duty.objects.create(
             duty_name=duty_name,
             duty_operator=operator,
             duty_details=duty_details,
-            board_type=board_type
+            board_type=board_type,
+            category=selected_category
         )
 
         # Set ManyToManyField values
@@ -2250,11 +2302,13 @@ def duty_add(request, operator_slug):
         context = {
             'operator': operator,
             'days': days,
+            'categories': categories,
             'breadcrumbs': breadcrumbs,
             'tabs': tabs,
             'is_running_board': is_running_board,  # Pass this to your template if needed
             'titles': titles,  # Pass the plural title for the duties/running boards
             'title': title,  # Pass the singular title for the duty/running board
+            'board_type': board_type,
         }
         return render(request, 'add_duty.html', context)
 
@@ -2751,6 +2805,12 @@ def duty_edit(request, operator_slug, duty_id):
         return redirect(f'/operator/{operator_slug}/{board_type}/')
 
     days = dayType.objects.all()
+    
+    # Get categories for this operator and board type
+    categories = board_category.objects.filter(
+        operator=operator,
+        board_type=board_type
+    ).select_related('parent_category')
 
     if request.method == "POST":
         duty_name = request.POST.get('duty_name')
@@ -2758,9 +2818,15 @@ def duty_edit(request, operator_slug, duty_id):
         end_time = request.POST.get('end_time')
         brake_times = request.POST.getlist('brake_times')
         selected_days = request.POST.getlist('duty_day')
+        category_id = request.POST.get('category')
 
         # Format break times
         formatted_brakes = " | ".join(brake_times)
+
+        # Get category if selected
+        selected_category = None
+        if category_id:
+            selected_category = board_category.objects.filter(id=category_id, operator=operator).first()
 
         # Update the duty instance
         duty_instance.duty_name = duty_name
@@ -2769,6 +2835,7 @@ def duty_edit(request, operator_slug, duty_id):
             "logoff_time": end_time,
             "brake_times": formatted_brakes
         }
+        duty_instance.category = selected_category
 
         duty_instance.save()
 
@@ -2794,11 +2861,217 @@ def duty_edit(request, operator_slug, duty_id):
         context = {
             'operator': operator,
             'days': days,
+            'categories': categories,
             'breadcrumbs': breadcrumbs,
             'tabs': tabs,
             'duty_instance': duty_instance,
+            'board_type': board_type,
         }
         return render(request, 'edit_duty.html', context)
+
+@login_required
+def board_categories(request, operator_slug):
+    """View and manage board categories for an operator."""
+    response = feature_enabled(request, "view_boards")
+    if response:
+        return response
+    
+    is_running_board = 'running-boards' in request.resolver_match.route
+    board_type = 'running-boards' if is_running_board else 'duty'
+    title = "Running Board" if is_running_board else "Duty"
+    titles = "Running Boards" if is_running_board else "Duties"
+
+    operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
+    userPerms = get_helper_permissions(request.user, operator)
+
+    # Get top-level categories (no parent) for this operator
+    categories = board_category.objects.filter(
+        operator=operator,
+        board_type=board_type,
+        parent_category__isnull=True
+    ).prefetch_related('subcategories')
+
+    breadcrumbs = [
+        {'name': 'Home', 'url': '/'},
+        {'name': operator.operator_name, 'url': f'/operator/{operator_slug}/'},
+        {'name': titles, 'url': f'/operator/{operator_slug}/{board_type}/'},
+        {'name': 'Categories', 'url': f'/operator/{operator_slug}/{board_type}/categories/'}
+    ]
+
+    tabs = generate_tabs("duties", operator)
+
+    context = {
+        'breadcrumbs': breadcrumbs,
+        'operator': operator,
+        'categories': categories,
+        'tabs': tabs,
+        'user_perms': userPerms,
+        'title': title,
+        'titles': titles,
+        'board_type': board_type,
+    }
+    return render(request, 'board_categories.html', context)
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def board_category_add(request, operator_slug):
+    """Add a new board category."""
+    response = feature_enabled(request, "add_boards")
+    if response:
+        return response
+    
+    is_running_board = 'running-boards' in request.resolver_match.route
+    board_type = 'running-boards' if is_running_board else 'duty'
+    title = "Running Board" if is_running_board else "Duty"
+    titles = "Running Boards" if is_running_board else "Duties"
+
+    operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
+    userPerms = get_helper_permissions(request.user, operator)
+
+    if request.user != operator.owner and 'Add Duties' not in userPerms and not request.user.is_superuser:
+        messages.error(request, "You do not have permission to add categories for this operator.")
+        return redirect(f'/operator/{operator_slug}/{board_type}/categories/')
+
+    # Get existing categories for parent selection
+    existing_categories = board_category.objects.filter(
+        operator=operator,
+        board_type=board_type,
+        parent_category__isnull=True  # Only top-level categories can be parents
+    )
+
+    if request.method == "POST":
+        name = request.POST.get('name')
+        parent_id = request.POST.get('parent_category')
+        
+        parent = None
+        if parent_id:
+            parent = get_object_or_404(board_category, id=parent_id, operator=operator)
+
+        board_category.objects.create(
+            name=name,
+            operator=operator,
+            board_type=board_type,
+            parent_category=parent
+        )
+
+        messages.success(request, "Category added successfully.")
+        return redirect(f'/operator/{operator_slug}/{board_type}/categories/')
+
+    breadcrumbs = [
+        {'name': 'Home', 'url': '/'},
+        {'name': operator.operator_name, 'url': f'/operator/{operator_slug}/'},
+        {'name': titles, 'url': f'/operator/{operator_slug}/{board_type}/'},
+        {'name': 'Categories', 'url': f'/operator/{operator_slug}/{board_type}/categories/'},
+        {'name': 'Add Category', 'url': f'/operator/{operator_slug}/{board_type}/categories/add/'}
+    ]
+
+    tabs = generate_tabs("duties", operator)
+
+    context = {
+        'breadcrumbs': breadcrumbs,
+        'operator': operator,
+        'existing_categories': existing_categories,
+        'tabs': tabs,
+        'user_perms': userPerms,
+        'title': title,
+        'titles': titles,
+        'board_type': board_type,
+    }
+    return render(request, 'board_category_add.html', context)
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def board_category_edit(request, operator_slug, category_id):
+    """Edit an existing board category."""
+    response = feature_enabled(request, "edit_boards")
+    if response:
+        return response
+    
+    is_running_board = 'running-boards' in request.resolver_match.route
+    board_type = 'running-boards' if is_running_board else 'duty'
+    title = "Running Board" if is_running_board else "Duty"
+    titles = "Running Boards" if is_running_board else "Duties"
+
+    operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
+    category_instance = get_object_or_404(board_category, id=category_id, operator=operator)
+    userPerms = get_helper_permissions(request.user, operator)
+
+    if request.user != operator.owner and 'Edit Duties' not in userPerms and not request.user.is_superuser:
+        messages.error(request, "You do not have permission to edit categories for this operator.")
+        return redirect(f'/operator/{operator_slug}/{board_type}/categories/')
+
+    # Get existing categories for parent selection (exclude self and children)
+    existing_categories = board_category.objects.filter(
+        operator=operator,
+        board_type=board_type,
+        parent_category__isnull=True
+    ).exclude(id=category_id)
+
+    if request.method == "POST":
+        name = request.POST.get('name')
+        parent_id = request.POST.get('parent_category')
+        
+        parent = None
+        if parent_id:
+            parent = get_object_or_404(board_category, id=parent_id, operator=operator)
+
+        category_instance.name = name
+        category_instance.parent_category = parent
+        category_instance.save()
+
+        messages.success(request, "Category updated successfully.")
+        return redirect(f'/operator/{operator_slug}/{board_type}/categories/')
+
+    breadcrumbs = [
+        {'name': 'Home', 'url': '/'},
+        {'name': operator.operator_name, 'url': f'/operator/{operator_slug}/'},
+        {'name': titles, 'url': f'/operator/{operator_slug}/{board_type}/'},
+        {'name': 'Categories', 'url': f'/operator/{operator_slug}/{board_type}/categories/'},
+        {'name': f'Edit {category_instance.name}', 'url': f'/operator/{operator_slug}/{board_type}/categories/edit/{category_id}/'}
+    ]
+
+    tabs = generate_tabs("duties", operator)
+
+    context = {
+        'breadcrumbs': breadcrumbs,
+        'operator': operator,
+        'category_instance': category_instance,
+        'existing_categories': existing_categories,
+        'tabs': tabs,
+        'user_perms': userPerms,
+        'title': title,
+        'titles': titles,
+        'board_type': board_type,
+    }
+    return render(request, 'board_category_edit.html', context)
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def board_category_delete(request, operator_slug, category_id):
+    """Delete a board category."""
+    response = feature_enabled(request, "edit_boards")
+    if response:
+        return response
+    
+    is_running_board = 'running-boards' in request.resolver_match.route
+    board_type = 'running-boards' if is_running_board else 'duty'
+
+    operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
+    category_instance = get_object_or_404(board_category, id=category_id, operator=operator)
+    userPerms = get_helper_permissions(request.user, operator)
+
+    if request.user != operator.owner and 'Edit Duties' not in userPerms and not request.user.is_superuser:
+        messages.error(request, "You do not have permission to delete categories for this operator.")
+        return redirect(f'/operator/{operator_slug}/{board_type}/categories/')
+
+    if request.method == "POST":
+        # Clear category from any duties that use it
+        duty.objects.filter(category=category_instance).update(category=None)
+        category_instance.delete()
+        messages.success(request, "Category deleted successfully.")
+        return redirect(f'/operator/{operator_slug}/{board_type}/categories/')
+
+    return redirect(f'/operator/{operator_slug}/{board_type}/categories/')
 
 @login_required
 @require_http_methods(["GET", "POST"])

@@ -1,172 +1,252 @@
 {% extends 'mbtbase.html' %}
 {% load static %}
 
-{% block title %}{{ full_route_num }}{% endblock %}
+{% block title %}Create Timetable - {{ full_route_num }}{% endblock %}
 
 {% block content %}
 
-<h2>Make a timetable for {{ route.route_num }} {{ direction }} to
-  {% if direction == "inbound" %}
-  {{ route.inbound_destination }}
-  {% else %}
-  {{ route.outbound_destination }}
-  {% endif %}
-</h2>
-
-<form method="POST" class="fleet-edit-wrapper">
-  {% csrf_token %}
-  <select name="days[]" id="days" multiple required size="7">
-    {% for day in days %}
-    <option value="{{ day.id }}">{{ day.name }}</option>
-    {% endfor %}
-  </select>
-  <small>Hold <strong>Ctrl</strong> (or <strong>Cmd</strong> on Mac) to select multiple days</small>
-
-  <label for="start_date">Start Date:</label>
-  <input type="date" name="start_date" id="start_date" value="{{ timetable_entry.start_date|date:'Y-m-d' }}"><br><br>
-
-  <label for="end_date">End Date:</label>
-  <input type="date" name="end_date" id="end_date" value="{{ timetable_entry.end_date|date:'Y-m-d' }}">
-
-  <br><br>
-
-  <h3>Auto Fill Options</h3>
-
-  <div>
-    <label>Start Time:</label>
-    <input type="time" id="autofill-start">
-    <label>End Time:</label>
-    <input type="time" id="autofill-end">
-    <label>Interval (mins):</label>
-    <input type="number" id="autofill-interval" min="1" value="15">
-    <button type="button" onclick="autoFillTimes()">Auto Fill First Stop</button>
+<div class="timetable-builder">
+  <!-- Header -->
+  <div class="builder-header">
+    <h1>
+      <span class="route-badge" style="{{ route.colours }}">{{ route.route_num }}</span>
+      Create Timetable
+    </h1>
+    <p class="subtitle">
+      {{ direction|title }} to 
+      {% if direction == "inbound" %}{{ route.inbound_destination }}{% else %}{{ route.outbound_destination }}{% endif %}
+    </p>
   </div>
 
-  <div>
-    <label>Auto Fill Offsets:</label>
-    <input type="number" id="offset-fill" min="1" value="1">
-    <button type="button" onclick="autoFillOffsets()">Auto Fill Offsets</button>
-  </div>
-  <br>
-  {% if user.sub_plan == "pro" %}
-  <div>
-    <button type="button" onclick="autoFillFromStops()">Auto Fill From Stop Data</button>
-    <small>Uses <code>time_s</code> offsets from your routeStop JSON</small>
-  </div>
-  {% endif %}
+  <form method="POST" id="timetable-form">
+    {% csrf_token %}
+    
+    <div class="builder-layout">
+      <!-- Left Panel: Configuration -->
+      <div class="config-panel">
+        
+        <!-- Step 1: Schedule Info -->
+        <div class="config-card">
+          <div class="card-header">
+            <span class="step-number">1</span>
+            <h3>Schedule Details</h3>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <label>Operating Days</label>
+              <div class="days-grid">
+                {% for day in days %}
+                <label class="day-chip">
+                  <input type="checkbox" name="days[]" value="{{ day.id }}">
+                  <span>{{ day.name }}</span>
+                </label>
+                {% endfor %}
+              </div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label for="start_date">Start Date</label>
+                <input type="date" name="start_date" id="start_date" value="{{ timetable_entry.start_date|date:'Y-m-d' }}">
+              </div>
+              <div class="form-group">
+                <label for="end_date">End Date</label>
+                <input type="date" name="end_date" id="end_date" value="{{ timetable_entry.end_date|date:'Y-m-d' }}">
+              </div>
+            </div>
+          </div>
+        </div>
 
-  <br>
+        <!-- Step 2: Generate Departures -->
+        <div class="config-card">
+          <div class="card-header">
+            <span class="step-number">2</span>
+            <h3>Generate Departures</h3>
+          </div>
+          <div class="card-body">
+            <div class="form-row triple">
+              <div class="form-group">
+                <label>First Departure</label>
+                <input type="time" id="autofill-start" value="07:00">
+              </div>
+              <div class="form-group">
+                <label>Last Departure</label>
+                <input type="time" id="autofill-end" value="19:00">
+              </div>
+              <div class="form-group">
+                <label>Every (mins)</label>
+                <input type="number" id="autofill-interval" min="1" value="30">
+              </div>
+            </div>
+            <button type="button" class="btn btn-primary btn-block" onclick="autoFillTimes()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              Generate Departure Times
+            </button>
+            
+            <div class="divider"><span>or enter manually</span></div>
+            
+            <div class="form-group">
+              <label>Manual Departure Times</label>
+              <input type="text" name="departure_times" class="departure-times" placeholder="07:00, 07:30, 08:00, 08:30...">
+              <small>Comma-separated times for the first stop</small>
+            </div>
+          </div>
+        </div>
 
-  <table style="width: 100%;">
-    <thead>
-      <tr>
-        <th>Stop Name</th>
-        <th>Time / Offset</th>
-        <th>Timing Point</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for stop in stops.stops %}
-      <tr data-stopname="{{ stop.stop }}" data-order="{{ forloop.counter0 }}" data-times="{{ stop.time_s }}">
-        <td>
-          {{ stop.stop }}
-          <input type="hidden" name="stop_names" value="{{ stop.stop }}">
-          <input type="hidden" name="stop_id_[{{ forloop.counter0 }}]" value="{{ forloop.counter0 }}">
-        </td>
-        <td>
-          {% if forloop.first %}
-          <input type="text" name="departure_times" class="departure-times" placeholder="09:00, 10:00" required><small>Comma separated times for first stop</small>
-          {% else %}
-          <input type="number" name="offset_minutes" class="offset-minutes" min="0" required placeholder="Mins from last stop"><small>Minutes from previous stop</small>
-          {% endif %}
-        </td>
-        <td>
-          <input type="checkbox" name="timing_points" class="timing-point" id="timing_point_{{ forloop.counter }}"
-            {{ stop.timing_point|yesno:"checked," }}>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  <input type="hidden" name="stop_times_json" id="stop-times-json">
+        <!-- Step 3: Stop Offsets -->
+        <div class="config-card">
+          <div class="card-header">
+            <span class="step-number">3</span>
+            <h3>Journey Times</h3>
+          </div>
+          <div class="card-body">
+            <div class="quick-actions">
+              <div class="form-row">
+                <div class="form-group" style="flex: 1;">
+                  <label>Set All Offsets To</label>
+                  <input type="number" id="offset-fill" min="0" value="2" style="width: 80px;">
+                </div>
+                <button type="button" class="btn btn-secondary" onclick="autoFillOffsets()">Apply to All</button>
+              </div>
+              {% if user.sub_plan == "pro" %}
+              <button type="button" class="btn btn-secondary btn-block" onclick="autoFillFromStops()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                Auto-fill from Stop Data
+              </button>
+              {% endif %}
+            </div>
+            
+            <div class="stops-list">
+              {% for stop in stops.stops %}
+              <div class="stop-item {% if forloop.first %}first-stop{% endif %}" data-stopname="{{ stop.stop }}" data-order="{{ forloop.counter0 }}" data-times="{{ stop.time_s }}">
+                <div class="stop-marker">
+                  <div class="marker-dot {% if stop.timing_point or forloop.first %}timing-point-marker{% endif %}"></div>
+                  {% if not forloop.last %}<div class="marker-line"></div>{% endif %}
+                </div>
+                <div class="stop-info">
+                  <span class="stop-name">{{ stop.stop }}</span>
+                  <input type="hidden" name="stop_names" value="{{ stop.stop }}">
+                  <input type="hidden" name="stop_id_[{{ forloop.counter0 }}]" value="{{ forloop.counter0 }}">
+                </div>
+                <div class="stop-controls">
+                  {% if forloop.first %}
+                  <span class="first-stop-badge">Departure</span>
+                  {% else %}
+                  <div class="offset-input-group">
+                    <span class="offset-prefix">+</span>
+                    <input type="number" name="offset_minutes" class="offset-minutes" min="0" value="0" placeholder="0">
+                    <span class="offset-suffix">min</span>
+                  </div>
+                  {% endif %}
+                </div>
+                <div class="timing-toggle">
+                  <label class="toggle" title="Timing Point">
+                    <input type="checkbox" name="timing_points" class="timing-point" id="timing_point_{{ forloop.counter }}" {{ stop.timing_point|yesno:"checked," }} {% if forloop.first %}checked disabled{% endif %}>
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
 
-  <button type="submit">Save</button>
-</form>
+      <!-- Right Panel: Preview -->
+      <div class="preview-panel">
+        <div class="preview-card">
+          <div class="preview-header">
+            <h3>Timetable Preview</h3>
+            <div class="preview-controls">
+              <label class="toggle-label">
+                <input type="checkbox" id="show-all-stops">
+                <span>Show all stops</span>
+              </label>
+            </div>
+          </div>
+          <div class="preview-body">
+            <div id="timetable-preview" class="preview-timetable">
+              <div class="preview-empty">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                  <line x1="16" y1="2" x2="16" y2="6"/>
+                  <line x1="8" y1="2" x2="8" y2="6"/>
+                  <line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+                <p>Generate departure times to see preview</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <input type="hidden" name="stop_times_json" id="stop-times-json">
+        
+        <button type="submit" class="btn btn-success btn-large btn-block">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Save Timetable
+        </button>
+      </div>
+    </div>
+  </form>
+</div>
 
 <script>
-  function autoFillFromStops() {
-    // Grab all rows with stop data
-    const rows = document.querySelectorAll("tbody tr");
-    let prevOffset = null;
-    let prevTime = null;
+// Store the current timetable data
+let currentTimetableData = {};
 
-    console.log("=== Auto Fill From Stop Data ===");
+function autoFillFromStops() {
+  const rows = document.querySelectorAll(".stop-item");
+  let prevOffset = null;
+  let prevTime = null;
 
-    rows.forEach((row, i) => {
-        const time_s = parseInt(row.dataset.times, 10);
-        const offsetInput = row.querySelector(".offset-minutes");
+  rows.forEach((row, i) => {
+    const time_s = parseInt(row.dataset.times, 10);
+    const offsetInput = row.querySelector(".offset-minutes");
 
-        console.log("\n-----------------------------------------");
-        console.log(`STOP ${i}: ${row.dataset.stopname}`);
-        console.log(`time_s = ${time_s}`);
+    if (i === 0) {
+      prevOffset = 0;
+      prevTime = time_s;
+      return;
+    }
 
-        // FIRST STOP
-        if (i === 0) {
-            console.log("First stop → offset = 0 (no field to write)");
-            prevOffset = 0;
-            prevTime = time_s;
-            return;
-        }
+    const raw = time_s - prevTime;
+    let offset;
 
-        // Raw diff from previous stop
-        const raw = time_s - prevTime;
-        console.log(`raw diff from prev = ${raw} sec`);
+    if (raw >= 30) {
+      offset = Math.round(raw / 60);
+    } else {
+      offset = 0;
+    }
 
-        let offset;
+    if (offset === 0 && prevOffset === 0) {
+      offset = 1;
+    }
 
-        if (raw >= 30) {
-            // More than 30s: convert to minutes
-            offset = Math.round(raw / 60);
-            console.log(`>= 30s → offset = round(${raw}/60) = ${offset}`);
-        } else {
-            // Less than 30s → zero
-            offset = 0;
-            console.log(`< 30s → offset = 0`);
-        }
+    if (offsetInput) offsetInput.value = offset;
 
-        // RULE: no two zeros in a row
-        if (offset === 0 && prevOffset === 0) {
-            console.log("Two-zero rule triggered → converting 0 → 1");
-            offset = 1;
-        }
+    prevOffset = offset;
+    prevTime = time_s;
+  });
 
-        console.log(`FINAL offset = ${offset}`);
-
-        // Write into the table form input
-        offsetInput.value = offset;
-
-        prevOffset = offset;
-        prevTime = time_s;
-    });
-
-    // Regenerate JSON after all updates
-    generateStopTimesJSON();
+  generateStopTimesJSON();
 }
+
 function generateStopTimesJSON() {
-  const rows = document.querySelectorAll('tbody tr');
-  const output = {}; // dict keyed by index
+  const rows = document.querySelectorAll('.stop-item');
+  const timesInput = document.querySelector('.departure-times');
+  const output = {};
   let previousTimes = [];
 
+  // Get first stop times
+  const firstStopTimes = timesInput.value.split(',').map(t => t.trim()).filter(Boolean);
+  
   rows.forEach((row, index) => {
     const stopName = row.dataset.stopname;
     const isTimingPoint = row.querySelector('.timing-point')?.checked ?? false;
 
-    const order = index; // keep row index as order/id
-
     let times = [];
     if (index === 0) {
-      const timesInput = row.querySelector('.departure-times');
-      times = timesInput.value.split(',').map(t => t.trim()).filter(Boolean);
+      times = firstStopTimes;
       previousTimes = times;
     } else {
       const offsetInput = row.querySelector('.offset-minutes');
@@ -183,23 +263,109 @@ function generateStopTimesJSON() {
       previousTimes = times;
     }
 
-    // Use index as key
     output[stopName + '_idx_' + index] = {
       stopname: stopName,
-      timing_point: isTimingPoint || index === 0, // first stop always timing point
+      timing_point: isTimingPoint || index === 0,
       times: times,
-      order: order
+      order: index
     };
   });
 
   document.getElementById('stop-times-json').value = JSON.stringify(output, null, 2);
+  currentTimetableData = output;
+  renderTimetablePreview(output);
+}
+
+function renderTimetablePreview(data) {
+  const container = document.getElementById('timetable-preview');
+  const entries = Object.entries(data).sort((a, b) => a[1].order - b[1].order);
+  const showAll = document.getElementById('show-all-stops')?.checked ?? false;
+
+  if (entries.length === 0 || !entries[0][1].times || entries[0][1].times.length === 0) {
+    container.innerHTML = `
+      <div class="preview-empty">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/>
+          <line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        <p>Generate departure times to see preview</p>
+      </div>`;
+    return;
+  }
+
+  let html = '<div class="preview-table-wrapper"><table class="preview-table"><tbody>';
+
+  entries.forEach(([key, stop]) => {
+    const isTimingPoint = stop.timing_point;
+    if (!showAll && !isTimingPoint) return;
+
+    const rowClass = isTimingPoint ? 'timing-row' : 'minor-row';
+    
+    html += `<tr class="${rowClass}" data-stop-key="${key}">`;
+    html += `<th class="stop-cell">${stop.stopname}</th>`;
+    
+    stop.times.forEach((time, timeIndex) => {
+      html += `<td class="time-cell" data-stop-key="${key}" data-time-index="${timeIndex}">${time}</td>`;
+    });
+    
+    html += '</tr>';
+  });
+
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
+
+  // Make cells editable on click
+  container.querySelectorAll('.time-cell').forEach(cell => {
+    cell.addEventListener('click', handleCellClick);
+  });
+}
+
+function handleCellClick(e) {
+  const cell = e.target;
+  if (cell.querySelector('input')) return;
+
+  const currentValue = cell.textContent.trim();
+  const stopKey = cell.dataset.stopKey;
+  const timeIndex = cell.dataset.timeIndex;
+
+  const input = document.createElement('input');
+  input.type = 'time';
+  input.value = currentValue;
+  input.className = 'inline-time-edit';
+
+  const saveEdit = () => {
+    const newValue = input.value || currentValue;
+    cell.textContent = newValue;
+    
+    if (currentTimetableData[stopKey]) {
+      currentTimetableData[stopKey].times[timeIndex] = newValue;
+      document.getElementById('stop-times-json').value = JSON.stringify(currentTimetableData, null, 2);
+    }
+  };
+
+  input.addEventListener('blur', saveEdit);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      input.blur();
+    }
+    if (e.key === 'Escape') {
+      cell.textContent = currentValue;
+    }
+  });
+
+  cell.textContent = '';
+  cell.appendChild(input);
+  input.focus();
 }
 
 function autoFillTimes() {
   const start = document.getElementById("autofill-start").value;
   const end = document.getElementById("autofill-end").value;
   const interval = parseInt(document.getElementById("autofill-interval").value, 10);
-  const input = document.querySelector('input[name="departure_times"]');
+  const input = document.querySelector('.departure-times');
 
   if (!start || !end || !interval || interval <= 0) {
     alert("Please enter valid start, end times and interval.");
@@ -210,13 +376,8 @@ function autoFillTimes() {
   let [startHour, startMin] = start.split(":").map(Number);
   const [endHour, endMin] = end.split(":").map(Number);
 
-  while (
-    startHour < endHour || 
-    (startHour === endHour && startMin <= endMin)
-  ) {
-    times.push(
-      `${String(startHour).padStart(2, "0")}:${String(startMin).padStart(2, "0")}`
-    );
+  while (startHour < endHour || (startHour === endHour && startMin <= endMin)) {
+    times.push(`${String(startHour).padStart(2, "0")}:${String(startMin).padStart(2, "0")}`);
     startMin += interval;
     if (startMin >= 60) {
       startHour += Math.floor(startMin / 60);
@@ -225,32 +386,36 @@ function autoFillTimes() {
   }
 
   input.value = times.join(", ");
-  generateStopTimesJSON(); // trigger update
+  generateStopTimesJSON();
 }
 
 function autoFillOffsets() {
   const offset = parseInt(document.getElementById("offset-fill").value, 10);
-  if (!offset || offset <= 0) {
+  if (isNaN(offset) || offset < 0) {
     alert("Please enter a valid offset value.");
     return;
   }
 
-  const inputs = document.querySelectorAll('input[name="offset_minutes"]');
-  inputs.forEach((el, i) => {
+  document.querySelectorAll('.offset-minutes').forEach(el => {
     el.value = offset;
   });
 
-  generateStopTimesJSON(); // trigger update
+  generateStopTimesJSON();
 }
 
-document.addEventListener("DOMContentLoaded", function () {
-  // Bind all input elements to update the JSON
+document.addEventListener("DOMContentLoaded", function() {
+  // Bind inputs
   document.querySelectorAll('.departure-times, .offset-minutes, .timing-point').forEach(el => {
     el.addEventListener('input', generateStopTimesJSON);
     el.addEventListener('change', generateStopTimesJSON);
   });
 
-  // Trigger once initially in case something is prefilled
+  // Show all stops toggle
+  document.getElementById('show-all-stops')?.addEventListener('change', () => {
+    renderTimetablePreview(currentTimetableData);
+  });
+
+  // Initial generation
   generateStopTimesJSON();
 });
 </script>
@@ -258,11 +423,578 @@ document.addEventListener("DOMContentLoaded", function () {
 {% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/narrow.css' %}">
-<link rel="stylesheet" href="{% static 'css/select2.css' %}">
 <style>
-  small {
-    margin-bottom: 0;
+/* Timetable Builder Styles */
+.timetable-builder {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.builder-header {
+  margin-bottom: 2rem;
+}
+
+.builder-header h1 {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 0.5rem 0;
+  font-size: 1.75rem;
+}
+
+.route-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.375rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  min-width: 3rem;
+}
+
+.subtitle {
+  color: var(--text-color);
+  opacity: 0.7;
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.stop-cell {
+  background: var(--background-color) !important;
+}
+
+/* Layout */
+.builder-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+/* Config Panel */
+.config-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: calc(50vw - 6rem);
+}
+
+@media (max-width: 1024px) {
+  .builder-layout {
+    grid-template-columns: 1fr;
   }
+
+  .preview-panel,
+  .config-panel {
+    width: calc(100vw - 6rem);
+  }
+}
+
+.config-card {
+  background: var(--background-color);
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: var(--viewed-color);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.card-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.step-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  background: var(--brand-color);
+  color: #fff;
+  border-radius: 50%;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.card-body {
+  padding: 1.25rem;
+}
+
+/* Form Elements */
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-group:last-child {
+  margin-bottom: 0;
+}
+
+.form-group label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: 0.375rem;
+  color: var(--text-color);
+}
+
+.form-group input[type="text"],
+.form-group input[type="date"],
+.form-group input[type="time"],
+.form-group input[type="number"] {
+  width: 100%;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  font-size: 0.9375rem;
+  background: var(--background-color);
+  color: var(--text-color);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--brand-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-color) 15%, transparent);
+}
+
+.form-group small {
+  display: block;
+  margin-top: 0.375rem;
+  font-size: 0.8125rem;
+  color: var(--text-color);
+  opacity: 0.7;
+}
+
+.form-row {
+  display: flex;
+  gap: 1rem;
+}
+
+.form-row .form-group {
+  flex: 1;
+}
+
+.form-row.triple .form-group {
+  flex: 1;
+}
+
+/* Days Grid */
+.days-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.day-chip {
+  cursor: pointer;
+}
+
+.day-chip input {
+  display: none;
+}
+
+.day-chip span {
+  display: inline-block;
+  padding: 0.5rem 0.875rem;
+  background: var(--viewed-color);
+  border: 1px solid var(--border-color);
+  border-radius: 2rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.day-chip input:checked + span {
+  background: var(--brand-color);
+  border-color: var(--brand-color);
+  color: #fff;
+}
+
+.day-chip:hover span {
+  border-color: var(--brand-color);
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-primary {
+  background: var(--brand-color);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: color-mix(in srgb, var(--brand-color) 85%, black);
+}
+
+.btn-secondary {
+  background: var(--viewed-color);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover {
+  background: var(--border-color);
+}
+
+.btn-success {
+  background: var(--brand-color, #10b981);
+  color: #fff;
+}
+
+.btn-success:hover {
+  background: var(--brand-color-darker, #059669);
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.btn-large {
+  padding: 1rem 1.5rem;
+  font-size: 1.0625rem;
+}
+
+/* Divider */
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 1.25rem 0;
+  color: var(--text-color);
+  opacity: 0.6;
+  font-size: 0.8125rem;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-color);
+}
+
+/* Stops List */
+.stops-list {
+  margin-top: 1rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.stop-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+}
+
+.stop-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 1.25rem;
+  flex-shrink: 0;
+}
+
+.marker-dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  background: var(--border-color);
+  border-radius: 50%;
+  border: 2px solid var(--background-color);
+  box-shadow: 0 0 0 2px var(--border-color);
+}
+
+.marker-dot.timing-point-marker {
+  background: var(--brand-color);
+  box-shadow: 0 0 0 2px var(--brand-color);
+}
+
+.marker-line {
+  width: 2px;
+  height: 2rem;
+  background: var(--border-color);
+  margin-top: 0.25rem;
+}
+
+.stop-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.stop-name {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stop-controls {
+  flex-shrink: 0;
+}
+
+.first-stop-badge {
+  display: inline-block;
+  padding: 0.25rem 0.625rem;
+  background: color-mix(in srgb, var(--brand-color) 15%, transparent);
+  color: var(--brand-color);
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.offset-input-group {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: var(--viewed-color);
+  border: 1px solid var(--border-color);
+  border-radius: 0.375rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.offset-prefix,
+.offset-suffix {
+  font-size: 0.8125rem;
+  color: var(--text-color);
+  opacity: 0.7;
+}
+
+.offset-minutes {
+  width: 3rem !important;
+  padding: 0.25rem !important;
+  border: none !important;
+  background: transparent !important;
+  text-align: center;
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+.offset-minutes:focus {
+  box-shadow: none !important;
+}
+
+/* Toggle */
+.timing-toggle {
+  flex-shrink: 0;
+}
+
+.toggle {
+  position: relative;
+  display: inline-block;
+  width: 2.5rem;
+  height: 1.5rem;
+  cursor: pointer;
+}
+
+.toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: var(--border-color);
+  border-radius: 1rem;
+  transition: background 0.2s;
+}
+
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 1.25rem;
+  height: 1.25rem;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+
+.toggle input:checked + .toggle-slider {
+  background: var(--brand-color);
+}
+
+.toggle input:checked + .toggle-slider::before {
+  transform: translateX(1rem);
+}
+
+.toggle input:disabled + .toggle-slider {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Preview Panel */
+.preview-panel {
+  position: sticky;
+  width: calc(50vw - 5rem);
+  top: 1rem;
+}
+
+.preview-card {
+  background: var(--background-color);
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+
+.preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  background: var(--viewed-color);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.preview-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.preview-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.toggle-label input {
+  accent-color: var(--brand-color);
+}
+
+.preview-body {
+  padding: 1rem;
+  max-height: 500px;
+  overflow: auto;
+}
+
+.preview-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  color: var(--text-color);
+  opacity: 0.6;
+  text-align: center;
+}
+
+.preview-empty svg {
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.preview-empty p {
+  margin: 0;
+}
+
+/* Preview Table */
+.preview-table-wrapper {
+  overflow-x: auto;
+}
+
+.preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.preview-table th,
+.preview-table td {
+  padding: 0.625rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+  white-space: nowrap;
+}
+
+.preview-table th {
+  font-weight: 600;
+  background: var(--viewed-color);
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+
+.preview-table .timing-row th {
+  font-weight: 600;
+}
+
+.preview-table .minor-row {
+  color: var(--text-color);
+  opacity: 1;
+  font-size: 0.8125rem;
+}
+
+.preview-table .minor-row th {
+  font-weight: 400;
+  padding-left: 1.5rem;
+}
+
+.time-cell {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.time-cell:hover {
+  background: var(--viewed-color);
+}
+
+.inline-time-edit {
+  width: 5rem;
+  padding: 0.25rem;
+  border: 1px solid var(--brand-color);
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+}
+
+/* Quick Actions */
+.quick-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.quick-actions .form-row {
+  align-items: flex-end;
+}
 </style>
 {% endblock %}

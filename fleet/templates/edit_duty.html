@@ -15,6 +15,19 @@
     <label for="duty_name">Duty Name:</label>
     <input type="text" name="duty_name" placeholder="Duty Name" required value="{{ duty_instance.duty_name|default_if_none:'' }}">
 
+    <label for="category">Category (optional):</label>
+    <select name="category" id="category">
+      <option value="">-- No Category --</option>
+      {% for cat in categories %}
+        {% if cat.parent_category %}
+          <option value="{{ cat.id }}" {% if duty_instance.category.id == cat.id %}selected{% endif %}>{{ cat.parent_category.name }} &gt; {{ cat.name }}</option>
+        {% else %}
+          <option value="{{ cat.id }}" {% if duty_instance.category.id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+        {% endif %}
+      {% endfor %}
+    </select>
+    <small><a href="/operator/{{ operator.operator_slug }}/{{ board_type }}/categories/">Manage categories</a></small>
+
     <label for="start_time">Start Time:</label>
     <input type="time" name="start_time" id="start_time" required value="{{ duty_instance.duty_details.logon_time }}">
 

@@ -23,6 +23,16 @@ urlpatterns = [
     path('<str:operator_slug>/tickets/delete/<int:ticket_id>/', operator_ticket_delete, name='delete_operator_ticket'),
     path('<str:operator_slug>/tickets/<str:zone_name>/', operator_tickets_details, name='operator_tickets_details'),
 
+    # Board Categories
+    path('<str:operator_slug>/duties/categories/', board_categories, name='board-categories-duty'),
+    path('<str:operator_slug>/duties/categories/add/', board_category_add, name='add-board-category-duty'),
+    path('<str:operator_slug>/duties/categories/edit/<int:category_id>/', board_category_edit, name='edit-board-category-duty'),
+    path('<str:operator_slug>/duties/categories/delete/<int:category_id>/', board_category_delete, name='delete-board-category-duty'),
+    path('<str:operator_slug>/running-boards/categories/', board_categories, name='board-categories-running-board'),
+    path('<str:operator_slug>/running-boards/categories/add/', board_category_add, name='add-board-category-running-board'),
+    path('<str:operator_slug>/running-boards/categories/edit/<int:category_id>/', board_category_edit, name='edit-board-category-running-board'),
+    path('<str:operator_slug>/running-boards/categories/delete/<int:category_id>/', board_category_delete, name='delete-board-category-running-board'),
+
     # Duties
     path('<str:operator_slug>/duties/', duties, name='operator-duties'),
     path('<str:operator_slug>/duties/add/', duty_add, name='add-duty'),
