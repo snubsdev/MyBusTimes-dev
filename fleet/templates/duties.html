@@ -3,7 +3,6 @@
 {% load custom_tags %}
 
 {% block extra_css %}
-<link rel="stylesheet" type="text/css" href="{% static 'css/narrow.css' %}">
 <style>
 /* Page Layout */
 .duties-page {
@@ -161,13 +160,6 @@
     border-radius: 0.5rem;
     text-decoration: none;
     color: var(--text-color);
-    transition: all 0.15s;
-}
-
-.duty-card:hover {
-    border-color: var(--brand-color);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    transform: translateY(-1px);
 }
 
 .duty-icon {

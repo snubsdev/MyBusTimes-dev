@@ -102,12 +102,21 @@
           <div class="card-body">
             <div class="quick-actions">
               <div class="form-row">
-                <div class="form-group" style="flex: 1;">
-                  <label>Set All Offsets To</label>
+                <div class="form-group" style="flex: 1;margin-bottom: -37px;">
+                  <label>Set All Travel To</label>
                   <input type="number" id="offset-fill" min="0" value="2" style="width: 80px;">
+                  <small>minutes</small>
                 </div>
-                <button type="button" class="btn btn-secondary" onclick="autoFillOffsets()">Apply to All</button>
+                <button type="button" style="margin-top: 25px;" class="btn btn-secondary" onclick="autoFillOffsets()">Apply</button>
               </div>
+              <div class="form-row">
+                <div class="form-group" style="flex: 1;margin-bottom: -37px;margin-top: 15px;">
+                  <label>Set All Dwell To</label>
+                  <input type="number" id="dwell-fill" min="0" value="30" style="width: 80px;">
+                  <small>seconds</small>
+                </div>
+                <button type="button" style="margin-top: 25px;" class="btn btn-secondary" onclick="autoFillDwell()">Apply</button>
+              </div><br><br><br>
               {% if user.sub_plan == "pro" %}
               <button type="button" class="btn btn-secondary btn-block" onclick="autoFillFromStops()">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
@@ -123,27 +132,50 @@
                   <div class="marker-dot {% if stop.timing_point or forloop.first %}timing-point-marker{% endif %}"></div>
                   {% if not forloop.last %}<div class="marker-line"></div>{% endif %}
                 </div>
-                <div class="stop-info">
-                  <span class="stop-name">{{ stop.stop }}</span>
-                  <input type="hidden" name="stop_names" value="{{ stop.stop }}">
-                  <input type="hidden" name="stop_id_[{{ forloop.counter0 }}]" value="{{ forloop.counter0 }}">
-                </div>
-                <div class="stop-controls">
-                  {% if forloop.first %}
-                  <span class="first-stop-badge">Departure</span>
+                <div class="stop-content">
+                  <div class="stop-header">
+                    <span class="stop-name">{{ stop.stop }}</span>
+                    <input type="hidden" name="stop_names" value="{{ stop.stop }}">
+                    <input type="hidden" name="stop_id_[{{ forloop.counter0 }}]" value="{{ forloop.counter0 }}">
+                    {% if forloop.first %}
+                    <span class="first-stop-badge">Departure</span>
+                    {% endif %}
+                  </div>
+                  {% if not forloop.first %}
+                  <div class="stop-settings">
+                    <div class="setting-item">
+                      <label>Travel</label>
+                      <div class="input-with-unit">
+                        <input type="number" name="offset_minutes" class="offset-minutes" min="0" value="0" placeholder="0">
+                        <span>min</span>
+                      </div>
+                    </div>
+                    <div class="setting-item">
+                      <label>Dwell</label>
+                      <div class="input-with-unit">
+                        <input type="number" name="dwell_seconds" class="dwell-seconds" min="0" value="0" placeholder="0">
+                        <span>sec</span>
+                      </div>
+                    </div>
+                    <div class="setting-item timing-setting">
+                      <label>
+                        <input type="checkbox" name="timing_points" class="timing-point" id="timing_point_{{ forloop.counter }}" {{ stop.timing_point|yesno:"checked," }}>
+                        <span class="checkmark"></span>
+                        Timing Point
+                      </label>
+                    </div>
+                  </div>
                   {% else %}
-                  <div class="offset-input-group">
-                    <span class="offset-prefix">+</span>
-                    <input type="number" name="offset_minutes" class="offset-minutes" min="0" value="0" placeholder="0">
-                    <span class="offset-suffix">min</span>
+                  <div class="stop-settings first-stop-settings">
+                    <div class="setting-item timing-setting">
+                      <label>
+                        <input type="checkbox" name="timing_points" class="timing-point" id="timing_point_{{ forloop.counter }}" checked disabled>
+                        <span class="checkmark"></span>
+                        Timing Point
+                      </label>
+                    </div>
                   </div>
                   {% endif %}
-                </div>
-                <div class="timing-toggle">
-                  <label class="toggle" title="Timing Point">
-                    <input type="checkbox" name="timing_points" class="timing-point" id="timing_point_{{ forloop.counter }}" {{ stop.timing_point|yesno:"checked," }} {% if forloop.first %}checked disabled{% endif %}>
-                    <span class="toggle-slider"></span>
-                  </label>
                 </div>
               </div>
               {% endfor %}
@@ -250,14 +282,18 @@ function generateStopTimesJSON() {
       previousTimes = times;
     } else {
       const offsetInput = row.querySelector('.offset-minutes');
+      const dwellInput = row.querySelector('.dwell-seconds');
       if (!offsetInput) return;
 
-      const offset = parseInt(offsetInput.value || '0', 10);
+      const offsetMins = parseInt(offsetInput.value || '0', 10);
+      const dwellSecs = parseInt(dwellInput?.value || '0', 10);
+      const totalOffsetMins = offsetMins + (dwellSecs / 60);
+      
       times = previousTimes.map(timeStr => {
         let [h, m] = timeStr.split(":").map(Number);
-        let totalMins = h * 60 + m + offset;
+        let totalMins = h * 60 + m + totalOffsetMins;
         let newH = Math.floor(totalMins / 60) % 24;
-        let newM = totalMins % 60;
+        let newM = Math.round(totalMins % 60);
         return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
       });
       previousTimes = times;
@@ -403,9 +439,23 @@ function autoFillOffsets() {
   generateStopTimesJSON();
 }
 
+function autoFillDwell() {
+  const dwell = parseInt(document.getElementById("dwell-fill").value, 10);
+  if (isNaN(dwell) || dwell < 0) {
+    alert("Please enter a valid dwell time.");
+    return;
+  }
+
+  document.querySelectorAll('.dwell-seconds').forEach(el => {
+    el.value = dwell;
+  });
+
+  generateStopTimesJSON();
+}
+
 document.addEventListener("DOMContentLoaded", function() {
   // Bind inputs
-  document.querySelectorAll('.departure-times, .offset-minutes, .timing-point').forEach(el => {
+  document.querySelectorAll('.departure-times, .offset-minutes, .dwell-seconds, .timing-point').forEach(el => {
     el.addEventListener('input', generateStopTimesJSON);
     el.addEventListener('change', generateStopTimesJSON);
   });
@@ -429,6 +479,7 @@ document.addEventListener("DOMContentLoaded", function() {
   max-width: 1400px;
   margin: 0 auto;
   padding: 1rem;
+  overflow-x: hidden;
 }
 
 .builder-header {
@@ -478,7 +529,7 @@ document.addEventListener("DOMContentLoaded", function() {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  width: calc(50vw - 6rem);
+  min-width: 0;
 }
 
 @media (max-width: 1024px) {
@@ -488,7 +539,307 @@ document.addEventListener("DOMContentLoaded", function() {
 
   .preview-panel,
   .config-panel {
-    width: calc(100vw - 6rem);
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .preview-panel {
+    position: relative;
+    top: 0;
+  }
+
+  .card-body {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 720px) {
+  .timetable-builder {
+    padding: 0.5rem;
+  }
+
+  .builder-layout {
+    gap: 1rem;
+  }
+
+  .card-body {
+    padding: 0.75rem;
+  }
+
+  .stops-list {
+    margin-left: -0.75rem;
+    margin-right: -0.75rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .timetable-builder {
+    padding: 0.5rem;
+  }
+
+  .builder-header h1 {
+    font-size: 1.25rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .route-badge {
+    font-size: 1rem;
+    padding: 0.2rem 0.5rem;
+    min-width: 2.5rem;
+  }
+
+  .subtitle {
+    font-size: 0.9rem;
+  }
+
+  .card-header {
+    padding: 0.75rem 1rem;
+  }
+
+  .card-body {
+    padding: 0.875rem;
+  }
+
+  .form-row {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .form-row .form-group {
+    margin-bottom: 0.75rem;
+  }
+
+  .form-row.triple {
+    flex-direction: column;
+  }
+
+  .form-row.triple .form-group {
+    margin-bottom: 0.75rem;
+  }
+
+  .days-grid {
+    gap: 0.375rem;
+  }
+
+  .day-chip span {
+    padding: 0.375rem 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  .btn {
+    padding: 0.5rem 0.875rem;
+    font-size: 0.8125rem;
+  }
+
+  .btn-large {
+    padding: 0.75rem 1rem;
+    font-size: 0.9375rem;
+  }
+
+  .btn svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .stop-item {
+    gap: 0.5rem;
+    padding: 0.625rem 0;
+  }
+
+  .stop-header {
+    flex-wrap: wrap;
+  }
+
+  .stop-name {
+    font-size: 0.8125rem;
+    flex-basis: 100%;
+    margin-bottom: 0.125rem;
+  }
+
+  .first-stop-badge {
+    font-size: 0.65rem;
+    padding: 0.15rem 0.4rem;
+  }
+
+  .stop-settings {
+    gap: 0.5rem;
+  }
+
+  .setting-item > label {
+    font-size: 0.7rem;
+  }
+
+  .input-with-unit {
+    padding: 0.2rem 0.375rem;
+  }
+
+  .input-with-unit input {
+    width: 2rem !important;
+    font-size: 0.8rem;
+  }
+
+  .input-with-unit span {
+    font-size: 0.65rem;
+  }
+
+  .timing-setting label {
+    font-size: 0.75rem;
+  }
+
+  .timing-setting input[type="checkbox"] {
+    width: 0.875rem;
+    height: 0.875rem;
+  }
+
+  .marker-dot {
+    width: 0.625rem;
+    height: 0.625rem;
+  }
+
+  .stops-list {
+    max-height: 300px;
+  }
+
+  .preview-body {
+    padding: 0.5rem;
+    max-height: 300px;
+  }
+
+  .preview-table th,
+  .preview-table td {
+    padding: 0.375rem 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  .preview-table .minor-row th {
+    padding-left: 0.75rem;
+  }
+
+  .inline-time-edit {
+    width: 4rem;
+    font-size: 0.75rem;
+  }
+
+  .preview-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+  }
+
+  .preview-header h3 {
+    font-size: 0.9rem;
+  }
+
+  .toggle-label {
+    font-size: 0.75rem;
+  }
+
+  .quick-actions .form-row {
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 0.5rem;
+  }
+
+  .quick-actions .form-row .form-group {
+    margin-bottom: 0;
+    flex: 1;
+  }
+
+  .quick-actions .btn-secondary {
+    white-space: nowrap;
+    padding: 0.5rem 0.75rem;
+  }
+
+  .step-number {
+    width: 1.5rem;
+    height: 1.5rem;
+    font-size: 0.75rem;
+  }
+
+  .card-header h3 {
+    font-size: 0.875rem;
+  }
+
+  .divider {
+    margin: 0.875rem 0;
+    font-size: 0.7rem;
+  }
+
+  .form-group label {
+    font-size: 0.75rem;
+  }
+
+  .form-group input[type="text"],
+  .form-group input[type="date"],
+  .form-group input[type="time"],
+  .form-group input[type="number"] {
+    padding: 0.5rem 0.625rem;
+    font-size: 0.8125rem;
+  }
+
+  .form-group small {
+    font-size: 0.7rem;
+  }
+
+  .preview-empty {
+    padding: 2rem 0.75rem;
+  }
+
+  .preview-empty svg {
+    width: 36px;
+    height: 36px;
+  }
+
+  .preview-empty p {
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .day-chip span {
+    padding: 0.3rem 0.4rem;
+    font-size: 0.7rem;
+  }
+
+  .btn {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.75rem;
+  }
+
+  .quick-actions .form-row {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .quick-actions .form-row .form-group {
+    width: 100%;
+  }
+
+  .quick-actions .btn-secondary {
+    width: 100%;
+  }
+
+  .stop-name {
+    font-size: 0.75rem;
+  }
+
+  .stop-settings {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.375rem;
+  }
+
+  .setting-item {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .timing-setting {
+    margin-top: 0.125rem;
   }
 }
 
@@ -497,6 +848,7 @@ document.addEventListener("DOMContentLoaded", function() {
   border: 1px solid var(--border-color);
   border-radius: 0.75rem;
   overflow: hidden;
+  max-width: 100%;
 }
 
 .card-header {
@@ -529,6 +881,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
 .card-body {
   padding: 1.25rem;
+  overflow-x: auto;
 }
 
 /* Form Elements */
@@ -701,13 +1054,15 @@ document.addEventListener("DOMContentLoaded", function() {
   margin-top: 1rem;
   max-height: 400px;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .stop-item {
   display: flex;
-  align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 0;
+  max-width: 100%;
+  align-items: flex-start;
 }
 
 .stop-marker {
@@ -716,6 +1071,7 @@ document.addEventListener("DOMContentLoaded", function() {
   align-items: center;
   width: 1.25rem;
   flex-shrink: 0;
+  padding-top: 0.25rem;
 }
 
 .marker-dot {
@@ -725,6 +1081,7 @@ document.addEventListener("DOMContentLoaded", function() {
   border-radius: 50%;
   border: 2px solid var(--background-color);
   box-shadow: 0 0 0 2px var(--border-color);
+  flex-shrink: 0;
 }
 
 .marker-dot.timing-point-marker {
@@ -734,14 +1091,22 @@ document.addEventListener("DOMContentLoaded", function() {
 
 .marker-line {
   width: 2px;
-  height: 2rem;
+  flex: 1;
+  min-height: 2rem;
   background: var(--border-color);
   margin-top: 0.25rem;
 }
 
-.stop-info {
+.stop-content {
   flex: 1;
   min-width: 0;
+}
+
+.stop-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
 }
 
 .stop-name {
@@ -750,10 +1115,8 @@ document.addEventListener("DOMContentLoaded", function() {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.stop-controls {
-  flex-shrink: 0;
+  flex: 1;
+  min-width: 0;
 }
 
 .first-stop-badge {
@@ -766,96 +1129,93 @@ document.addEventListener("DOMContentLoaded", function() {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.025em;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.offset-input-group {
+.stop-settings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.first-stop-settings {
+  opacity: 0.6;
+}
+
+.setting-item {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.375rem;
+}
+
+.setting-item > label {
+  font-size: 0.75rem;
+  color: var(--text-color);
+  opacity: 0.7;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.input-with-unit {
+  display: flex;
+  align-items: center;
   background: var(--viewed-color);
   border: 1px solid var(--border-color);
   border-radius: 0.375rem;
   padding: 0.25rem 0.5rem;
+  gap: 0.25rem;
 }
 
-.offset-prefix,
-.offset-suffix {
-  font-size: 0.8125rem;
-  color: var(--text-color);
-  opacity: 0.7;
-}
-
-.offset-minutes {
-  width: 3rem !important;
-  padding: 0.25rem !important;
+.input-with-unit input {
+  width: 2.5rem !important;
+  padding: 0.125rem !important;
   border: none !important;
   background: transparent !important;
   text-align: center;
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   font-weight: 500;
 }
 
-.offset-minutes:focus {
+.input-with-unit input:focus {
   box-shadow: none !important;
+  outline: none;
 }
 
-/* Toggle */
-.timing-toggle {
-  flex-shrink: 0;
+.input-with-unit span {
+  font-size: 0.75rem;
+  color: var(--text-color);
+  opacity: 0.6;
 }
 
-.toggle {
-  position: relative;
-  display: inline-block;
-  width: 2.5rem;
-  height: 1.5rem;
+.timing-setting label {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  user-select: none;
+  margin: 0 !important;
+  opacity: 1 !important;
+}
+
+.timing-setting input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--brand-color);
   cursor: pointer;
 }
 
-.toggle input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.toggle-slider {
-  position: absolute;
-  inset: 0;
-  background: var(--border-color);
-  border-radius: 1rem;
-  transition: background 0.2s;
-}
-
-.toggle-slider::before {
-  content: '';
-  position: absolute;
-  left: 2px;
-  top: 2px;
-  width: 1.25rem;
-  height: 1.25rem;
-  background: #fff;
-  border-radius: 50%;
-  transition: transform 0.2s;
-}
-
-.toggle input:checked + .toggle-slider {
-  background: var(--brand-color);
-}
-
-.toggle input:checked + .toggle-slider::before {
-  transform: translateX(1rem);
-}
-
-.toggle input:disabled + .toggle-slider {
-  opacity: 0.5;
-  cursor: not-allowed;
+.timing-setting .checkmark {
+  display: none;
 }
 
 /* Preview Panel */
 .preview-panel {
   position: sticky;
-  width: calc(50vw - 5rem);
   top: 1rem;
+  min-width: 0;
 }
 
 .preview-card {
@@ -864,6 +1224,7 @@ document.addEventListener("DOMContentLoaded", function() {
   border-radius: 0.75rem;
   margin-bottom: 1rem;
   overflow: hidden;
+  max-width: 100%;
 }
 
 .preview-header {

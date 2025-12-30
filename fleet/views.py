@@ -907,8 +907,10 @@ def trackable_status(request, operator_slug, route_id):
     return render(request, 'route_status.html', context)
 
 def vehicles(request, operator_slug, depot=None, withdrawn=False):
+    """Fast-loading vehicle list - renders shell immediately, data loaded via API."""
     operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
 
+    # Handle POST for buying vehicles
     if request.user.is_authenticated and request.method == "POST":
         vehicle_id = request.POST.get("vehicle_id")
         operator_id = request.POST.get("operator_id")
@@ -917,27 +919,19 @@ def vehicles(request, operator_slug, depot=None, withdrawn=False):
         current_operator = vehicle.operator
         new_operator = get_object_or_404(MBTOperator, id=operator_id)
 
-        # Check if user is allowed to buy for that operator
         user_perms = get_helper_permissions(request.user, new_operator)
         is_allowed = request.user == new_operator.owner or "Buy Buses" in user_perms or "owner" in user_perms
 
         if is_allowed:
-            now = timezone.now()
-            last_purchase = request.user.last_bus_purchase
-            count = request.user.buses_brought_count
-
-            # Perform ownership transfer
             vehicle.operator = new_operator
             vehicle.for_sale = False
-            vehicle.save()
+            vehicle.save(update_fields=['operator', 'for_sale'])
 
-            current_operator.vehicles_for_sale = current_operator.vehicles_for_sale - 1
-            if current_operator.vehicles_for_sale < 0:
-                current_operator.vehicles_for_sale = 0
+            current_operator.vehicles_for_sale = max(0, current_operator.vehicles_for_sale - 1)
             current_operator.save(update_fields=['vehicles_for_sale'])
 
-            request.user.buses_brought_count = count + 1
-            request.user.last_bus_purchase = now
+            request.user.buses_brought_count += 1
+            request.user.last_bus_purchase = timezone.now()
             request.user.save(update_fields=['buses_brought_count', 'last_bus_purchase'])
 
             messages.success(request, f"You successfully purchased {vehicle.fleet_number} for {new_operator.operator_slug}.")
@@ -946,7 +940,7 @@ def vehicles(request, operator_slug, depot=None, withdrawn=False):
 
         return redirect("vehicles", operator_slug=operator_slug)
 
-    # Cache operator details check
+    # Fast path: just get essential data for the shell
     operator_details = operator.operator_details or {}
     sales_operator = operator_details.get("type") == "Sales Company"
 
@@ -954,176 +948,163 @@ def vehicles(request, operator_slug, depot=None, withdrawn=False):
         if request.user.banned_from.filter(name='buying_buses').exists():
             sales_operator = False
 
-    withdrawn = request.GET.get('withdrawn')
+    withdrawn = request.GET.get('withdrawn', '').lower() == 'true'
     depot = request.GET.get('depot')
-    show_withdrawn = withdrawn and withdrawn.lower() == 'true'
 
-    # Base queryset with optimized filtering
-    qs = fleet.objects.filter(
-        Q(operator=operator) | Q(loan_operator=operator)
-    )
-
+    # Quick count query only
+    qs = fleet.objects.filter(Q(operator=operator) | Q(loan_operator=operator))
     if not withdrawn:
         qs = qs.filter(in_service=True)
     if depot:
         qs = qs.filter(depot=depot)
-
-    # Get count before pagination (use cached count if available)
     total_count = qs.count()
 
-    # Optimized field selection - only load what's needed
-    qs = qs.select_related(
-        'livery', 'vehicleType', 'operator', 'loan_operator'
-    ).only(
-        'id', 'fleet_number', 'fleet_number_sort', 'reg', 'prev_reg', 'colour',
-        'branding', 'depot', 'name', 'features', 'last_tracked_date', 'for_sale',
-        'type_details', 'open_top', 'in_service',
-        'livery__name', 'livery__left_css', 'livery__stroke_colour', 'livery__text_colour',
-        'vehicleType__type_name',
-        'loan_operator__operator_slug',
-        'operator__operator_slug', 'operator__operator_code'
-    ).order_by('fleet_number_sort')
-
-    # Pagination
-    paginator = Paginator(qs, 1000)
-    page = request.GET.get('page')
-    page_obj = paginator.get_page(page)
-
-    # Use .values() for faster serialization - single query
-    serialized_vehicles = list(page_obj.object_list.values(
-        'id', 'fleet_number', 'fleet_number_sort', 'reg', 'prev_reg', 'colour',
-        'branding', 'depot', 'name', 'features', 'last_tracked_date', 'for_sale',
-        'type_details', 'open_top', 'in_service',
-        'livery__name', 'livery__left_css', 'livery__stroke_colour', 'livery__text_colour',
-        'vehicleType__type_name',
-        'loan_operator__operator_slug',
-        'operator__operator_slug', 'operator__operator_code'
-    ))
-
-    vehicle_ids = [v['id'] for v in serialized_vehicles]
-
-    # Get latest trips per vehicle - simple and efficient approach
-    latest_trips = {}
-    for trip in (
-        Trip.objects
-        .filter(trip_vehicle_id__in=vehicle_ids, trip_missed=False, trip_start_at__lte=timezone.now())
-        .select_related('trip_route')
-        .only('trip_id', 'trip_vehicle_id', 'trip_start_at', 'trip_route_num', 'trip_route__route_num')
-        .order_by('trip_vehicle_id', '-trip_start_at')
-    ):
-        if trip.trip_vehicle_id not in latest_trips:
-            latest_trips[trip.trip_vehicle_id] = trip
-
-    # Cache current time for date formatting
-    now_local = timezone.localtime(timezone.now())
-    now_date = now_local.date()
-    now_year = now_local.year
-
-    def format_last_trip_display(trip_date):
-        local = timezone.localtime(trip_date)
-        
-        if local.date() == now_date:
-            return local.strftime('%H:%M')
-        
-        date_str = local.strftime('%d %b %Y') if local.year != now_year else local.strftime('%d %b')
-        return date_str.lstrip('0')
-
-    # Initialize show flags
-    show_livery = show_branding = show_prev_reg = False
-    show_name = show_depot = show_features = False
+    helper_permissions = get_helper_permissions(request.user, operator)
     
-    operator_slug_val = operator.operator_slug
-
-    for item in serialized_vehicles:
-        # Add trip data
-        trip = latest_trips.get(item['id'])
-        if trip:
-            item['last_trip_route'] = str(trip.trip_route.route_num) if trip.trip_route else str(trip.trip_route_num)
-            item['last_trip_display'] = format_last_trip_display(trip.trip_start_at)
-            item['last_trip_date'] = trip.trip_start_at.strftime('%Y-%m-%d')
-        else:
-            item['last_trip_route'] = None
-            item['last_trip_display'] = None
-            item['last_trip_date'] = None
-
-        # Check loan status
-        home_operator_slug = item['operator__operator_slug']
-        loan_operator_slug = item.get('loan_operator__operator_slug')
-        item['onloan'] = bool(
-            loan_operator_slug and 
-            home_operator_slug == operator_slug_val and 
-            loan_operator_slug != operator_slug_val
-        )
-
-        # Build Flickr link
-        reg = item.get('reg') or ''
-        reg_cut = reg.replace(' ', '')
-        prev_reg = item.get('prev_reg') or ''
-        
-        if prev_reg:
-            prev_reg_cut = prev_reg.replace(' ', '')
-            item['flickr_link'] = f'https://www.flickr.com/search/?text="{reg}"%20or%20{reg_cut}%20or%20"{prev_reg}"%20or%20{prev_reg_cut}&sort=date-taken-desc'
-        else:
-            item['flickr_link'] = f'https://www.flickr.com/search/?text="{reg}"%20or%20{reg_cut}&sort=date-taken-desc'
-
-        # Update show flags in same loop
-        if not show_livery and (item.get('livery__name') or item.get('colour')):
-            show_livery = True
-        if not show_branding and item.get('branding') and item.get('livery__name'):
-            show_branding = True
-        if not show_prev_reg and prev_reg:
-            show_prev_reg = True
-        if not show_name and item.get('name'):
-            show_name = True
-        if not show_depot and item.get('depot'):
-            show_depot = True
-        if not show_features and item.get('features'):
-            show_features = True
-
-    # Get allowed operators for buy feature (only if needed)
+    # Get allowed operators for buy feature
     allowed_operators = []
-    helper_permissions = []
-    
-    if request.user.is_authenticated:
-        helper_permissions = get_helper_permissions(request.user, operator)
-        
-        if sales_operator:
-            helper_operator_ids = helper.objects.filter(
-                helper=request.user,
-                perms__perm_name="Edit Buses"
-            ).values_list("operator_id", flat=True)
+    if request.user.is_authenticated and sales_operator:
+        helper_operator_ids = helper.objects.filter(
+            helper=request.user,
+            perms__perm_name="Edit Buses"
+        ).values_list("operator_id", flat=True)
+        allowed_operators = list(MBTOperator.objects.filter(
+            Q(id__in=helper_operator_ids) | Q(owner=request.user)
+        ).values('id', 'operator_name').distinct().order_by('operator_name'))
 
-            allowed_operators = MBTOperator.objects.filter(
-                Q(id__in=helper_operator_ids) | Q(owner=request.user)
-            ).only('id', 'operator_name').distinct().order_by('operator_name')
-    else:
-        helper_permissions = get_helper_permissions(request.user, operator)
+    op_slug = operator.operator_slug
 
     context = {
         'depot': depot,
         'breadcrumbs': [
             {'name': 'Home', 'url': '/'},
-            {'name': operator.operator_name, 'url': f'/operator/{operator.operator_slug}/'},
-            {'name': 'Vehicles', 'url': f'/operator/{operator.operator_slug}/vehicles/'}
+            {'name': operator.operator_name, 'url': f'/operator/{op_slug}/'},
+            {'name': 'Vehicles', 'url': f'/operator/{op_slug}/vehicles/'}
         ],
         'allowed_operators': allowed_operators,
         'operator': operator,
-        'vehicles': serialized_vehicles,
         'helper_permissions': helper_permissions,
         'tabs': generate_tabs("vehicles", operator, total_count),
-        'regions': operator.region.all(),
+        'sales_operator': sales_operator,
+        'total_count': total_count,
+    }
+    return render(request, 'vehicles.html', context)
+
+
+def vehicles_api(request, operator_slug):
+    """API endpoint for vehicle data - called via AJAX after page load."""
+    operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
+    
+    withdrawn = request.GET.get('withdrawn', '').lower() == 'true'
+    depot = request.GET.get('depot')
+    page = request.GET.get('page', 1)
+
+    # Base queryset
+    qs = fleet.objects.filter(Q(operator=operator) | Q(loan_operator=operator))
+    if not withdrawn:
+        qs = qs.filter(in_service=True)
+    if depot:
+        qs = qs.filter(depot=depot)
+
+    total_count = qs.count()
+
+    # Define fields
+    vehicle_fields = (
+        'id', 'fleet_number', 'fleet_number_sort', 'reg', 'prev_reg', 'colour',
+        'branding', 'depot', 'name', 'features', 'last_tracked_date', 'for_sale',
+        'type_details', 'open_top', 'in_service',
+        'livery__name', 'livery__left_css', 'livery__stroke_colour', 'livery__text_colour',
+        'vehicleType__type_name',
+        'loan_operator__operator_slug',
+        'operator__operator_slug', 'operator__operator_code'
+    )
+
+    # Paginate
+    paginator = Paginator(qs.order_by('fleet_number_sort').values(*vehicle_fields), 1000)
+    page_obj = paginator.get_page(page)
+    vehicles = list(page_obj.object_list)
+
+    # Get latest trips efficiently
+    latest_trips = {}
+    if vehicles:
+        vehicle_ids = [v['id'] for v in vehicles]
+        for trip in (
+            Trip.objects
+            .filter(trip_vehicle_id__in=vehicle_ids, trip_missed=False, trip_start_at__lte=timezone.now())
+            .select_related('trip_route')
+            .only('trip_id', 'trip_vehicle_id', 'trip_start_at', 'trip_route_num', 'trip_route__route_num')
+            .order_by('trip_vehicle_id', '-trip_start_at')
+        ):
+            if trip.trip_vehicle_id not in latest_trips:
+                latest_trips[trip.trip_vehicle_id] = trip
+
+    # Process vehicles
+    now_local = timezone.localtime(timezone.now())
+    now_date = now_local.date()
+    now_year = now_local.year
+    operator_slug_val = operator.operator_slug
+    flickr_base = 'https://www.flickr.com/search/?text='
+    flickr_suffix = '&sort=date-taken-desc'
+
+    show_livery = show_branding = show_prev_reg = False
+    show_name = show_depot = show_features = False
+
+    for item in vehicles:
+        # Trip data
+        trip = latest_trips.get(item['id'])
+        if trip:
+            item['last_trip_route'] = trip.trip_route.route_num if trip.trip_route else trip.trip_route_num
+            local_time = timezone.localtime(trip.trip_start_at)
+            if local_time.date() == now_date:
+                item['last_trip_display'] = local_time.strftime('%H:%M')
+            else:
+                fmt = '%d %b %Y' if local_time.year != now_year else '%d %b'
+                item['last_trip_display'] = local_time.strftime(fmt).lstrip('0')
+            item['last_trip_date'] = trip.trip_start_at.strftime('%Y-%m-%d')
+        else:
+            item['last_trip_route'] = item['last_trip_display'] = item['last_trip_date'] = None
+
+        # Loan status
+        loan_slug = item.get('loan_operator__operator_slug')
+        item['onloan'] = bool(loan_slug and item['operator__operator_slug'] == operator_slug_val and loan_slug != operator_slug_val)
+
+        # Flickr link
+        reg = item.get('reg') or ''
+        reg_cut = reg.replace(' ', '') if reg else ''
+        prev_reg = item.get('prev_reg') or ''
+        if prev_reg:
+            item['flickr_link'] = f'{flickr_base}"{reg}"%20or%20{reg_cut}%20or%20"{prev_reg}"%20or%20{prev_reg.replace(" ", "")}{flickr_suffix}'
+        elif reg:
+            item['flickr_link'] = f'{flickr_base}"{reg}"%20or%20{reg_cut}{flickr_suffix}'
+        else:
+            item['flickr_link'] = ''
+
+        # Show flags
+        show_livery = show_livery or bool(item.get('livery__name') or item.get('colour'))
+        show_branding = show_branding or bool(item.get('branding') and item.get('livery__name'))
+        show_prev_reg = show_prev_reg or bool(prev_reg)
+        show_name = show_name or bool(item.get('name'))
+        show_depot = show_depot or bool(item.get('depot'))
+        show_features = show_features or bool(item.get('features'))
+
+    return JsonResponse({
+        'vehicles': vehicles,
         'show_livery': show_livery,
         'show_branding': show_branding,
         'show_prev_reg': show_prev_reg,
         'show_name': show_name,
         'show_depot': show_depot,
         'show_features': show_features,
-        'sales_operator': sales_operator,
-        'page_obj': page_obj,
-        'is_paginated': page_obj.has_other_pages(),
+        'pagination': {
+            'current_page': page_obj.number,
+            'total_pages': paginator.num_pages,
+            'has_previous': page_obj.has_previous(),
+            'has_next': page_obj.has_next(),
+            'previous_page': page_obj.previous_page_number() if page_obj.has_previous() else None,
+            'next_page': page_obj.next_page_number() if page_obj.has_next() else None,
+        },
         'total_count': total_count,
-    }
-    return render(request, 'vehicles.html', context)
+    })
 
 
 def vehicle_detail(request, operator_slug, vehicle_id):
