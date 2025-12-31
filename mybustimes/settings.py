@@ -114,7 +114,6 @@ INSTALLED_APPS = [
     'a',
     'simple_history',
     'words',
-
     'djangocms_simple_admin_style',
     'django.contrib.sites',
     'cms',

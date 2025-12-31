@@ -35,18 +35,24 @@ def send_file(request):
                 from io import BytesIO
                 from django.core.files.base import ContentFile
 
-                img = Image.open(uploaded_file)
-                if img.mode in ("RGBA", "P"):
-                    img = img.convert("RGB")
+                img = None
+                try:
+                    img = Image.open(uploaded_file)
+                    if img.mode in ("RGBA", "P"):
+                        img = img.convert("RGB")
 
-                max_size = (1080, 1080)
-                img.thumbnail(max_size, Image.Resampling.LANCZOS)
+                    max_size = (1080, 1080)
+                    img.thumbnail(max_size, Image.Resampling.LANCZOS)
 
-                buffer = BytesIO()
-                img.save(buffer, format="JPEG", quality=70)
-                buffer.seek(0)
+                    buffer = BytesIO()
+                    img.save(buffer, format="JPEG", quality=70)
+                    buffer.seek(0)
 
-                image_file = ContentFile(buffer.read(), name=uploaded_file.name.rsplit('.', 1)[0] + ".jpg")
+                    image_file = ContentFile(buffer.read(), name=uploaded_file.name.rsplit('.', 1)[0] + ".jpg")
+                    buffer.close()
+                finally:
+                    if img is not None:
+                        img.close()
             else:
                 file_field = uploaded_file
 

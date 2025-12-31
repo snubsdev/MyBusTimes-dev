@@ -10,6 +10,7 @@ from django.contrib.auth.decorators import login_required
 from fleet.views import operator
 from .forms import AdForm, LiveryForm, VehicleForm
 from .models import CustomModel
+from tickets.models import Ticket
 from main.models import CustomUser, badge, ad, featureToggle, BannedIps, MBTTeam
 from fleet.models import liverie, fleet, vehicleType, MBTOperator
 import requests
@@ -287,6 +288,325 @@ def user_activity_view(request):
         "historical_models": historical_models,
         "page_obj": page_obj,
     })
+
+@login_required(login_url='/admin/login/')
+def live_activity_view(request):
+    if not has_permission(request.user, 'admin_dash'):
+        return redirect('/admin/permission-denied/')
+
+    cutoff = timezone.now() - timedelta(minutes=15)
+    active_users_qs = User.objects.filter(last_active__gte=cutoff, is_active=True).order_by('-last_active')
+    active_users = list(active_users_qs[:500])  # limit to avoid huge pages
+    # attach masked_last_ip to each user for safe display in template
+    for u in active_users:
+        last_ip = getattr(u, 'last_ip', None)
+        if last_ip:
+            try:
+                parts = last_ip.split('.')
+                if len(parts) == 4:
+                    masked = f"{parts[0]}.{parts[1]}.xxx.xxx"
+                else:
+                    masked = last_ip
+            except Exception:
+                masked = last_ip
+        else:
+            masked = None
+        setattr(u, 'masked_last_ip', masked)
+    active_count = active_users_qs.count()
+
+    recent_signups = User.objects.filter(date_joined__gte=timezone.now() - timedelta(hours=24)).order_by('-date_joined')[:100]
+
+    # Active chats with member counts
+    chat_member_counts = (
+        Chat.objects
+        .annotate(member_count=Count('chatmember'))
+        .filter(member_count__gt=0)
+        .order_by('-member_count')[:100]
+    )
+
+    return render(request, 'live_activity.html', {
+        'active_users': active_users,
+        'active_count': active_count,
+        'recent_signups': recent_signups,
+        'active_chats': chat_member_counts,
+        'cutoff': cutoff,
+    })
+
+@login_required(login_url='/admin/login/')
+def live_activity_api(request):
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'permission_denied'}, status=403)
+
+    cutoff = timezone.now() - timedelta(minutes=15)
+    # Build base queryset and prefetch related fields to avoid per-user queries
+    base_qs = (
+        User.objects.filter(last_active__gte=cutoff, is_active=True)
+        .select_related('mbt_team')
+        .prefetch_related('badges')
+        .order_by('-last_active')
+    )
+
+    # slice then evaluate once
+    users_list = list(base_qs[:500])
+    active_count = base_qs.count()
+
+    recent_signups_qs = User.objects.filter(date_joined__gte=timezone.now() - timedelta(hours=24)).order_by('-date_joined')[:100]
+    open_tickets_qs = Ticket.objects.filter(status='open').order_by('-created_at')[:100]
+
+    # Batch fetch banned IPs for the set of last_ip values to avoid N queries
+    last_ips = {u.last_ip for u in users_list if getattr(u, 'last_ip', None)}
+    banned_qs = BannedIps.objects.filter(ip_address__in=last_ips).select_related('related_user') if last_ips else []
+    ip_to_bans = {}
+    for b in banned_qs:
+        ip_to_bans.setdefault(b.ip_address, []).append(b)
+
+    active_users = []
+    for u in users_list:
+        last_ip = getattr(u, 'last_ip', None)
+        bans_for_ip = ip_to_bans.get(last_ip, []) if last_ip else []
+        ip_bans_list = [
+            {
+                'ip_address': b.ip_address,
+                'reason': getattr(b, 'reason', None),
+                'related_user_id': getattr(b, 'related_user_id', None),
+                'banned_at': getattr(b, 'banned_at', None).isoformat() if getattr(b, 'banned_at', None) else None,
+            }
+            for b in bans_for_ip
+        ]
+
+        ip_bans_exist = bool(bans_for_ip)
+        ip_bans_for_user = any((getattr(b, 'related_user_id', None) == u.id) for b in bans_for_ip)
+        ip_flag = ip_bans_exist and (not getattr(u, 'banned', False) or not ip_bans_for_user)
+
+        # compute masked IP once
+        if last_ip:
+            try:
+                parts = last_ip.split('.')
+                masked_ip = f"{parts[0]}.{parts[1]}.xxx.xxx" if len(parts) == 4 else last_ip
+            except Exception:
+                masked_ip = last_ip
+        else:
+            masked_ip = None
+
+        # badges are prefetched
+        badges = [getattr(b, 'badge_name', None) for b in u.badges.all()] if hasattr(u, 'badges') else []
+
+        active_users.append({
+            'id': u.id,
+            'username': u.username,
+            'email': u.email,
+            'last_active': u.last_active.isoformat() if u.last_active else None,
+            'last_ip': last_ip,
+            'masked_last_ip': masked_ip,
+            'is_staff': u.is_staff,
+            'is_active': u.is_active,
+            'is_superuser': u.is_superuser,
+            'banned': getattr(u, 'banned', False),
+            'badges': badges,
+            'team': (u.mbt_team.name if getattr(u, 'mbt_team', None) else None),
+            'ip_flag': ip_flag,
+            'ip_bans': ip_bans_list,
+        })
+
+    recent_signups = [
+        {'id': s.id, 'username': s.username, 'date_joined': s.date_joined.isoformat()}
+        for s in recent_signups_qs
+    ]
+
+    open_tickets = [
+        {
+            'id': t.id,
+            'title': getattr(t, 'title', f"Ticket #{t.id}"),
+            'user': (t.user.username if t.user else t.sender_email) if hasattr(t, 'user') else None,
+            'created_at': t.created_at.isoformat() if t.created_at else None,
+            'priority': getattr(t, 'priority', None),
+        }
+        for t in open_tickets_qs
+    ]
+
+    return JsonResponse({
+        'cutoff': cutoff.isoformat(),
+        'active_count': active_count,
+        'active_users': active_users,
+        'recent_signups': recent_signups,
+        'open_tickets': open_tickets,
+    })
+
+
+from datetime import datetime
+from main.models import BannedIps, StripeSubscription 
+
+@login_required(login_url='/admin/login/')
+def user_actions_view(request, user_id):
+    if not request.user.is_staff:
+        return redirect('/admin/login/')
+
+    target = get_object_or_404(User, id=user_id)
+
+    # Data for UI
+    badges = target.badges.all()
+    tickets = Ticket.objects.filter(user=target).order_by('-created_at')
+    stripe_sub = None
+    try:
+        stripe_sub = StripeSubscription.objects.filter(user=target).last()
+    except Exception:
+        stripe_sub = None
+    # Banned IPs related to this user (prepare masked IPs for display)
+    raw_banned_ips = BannedIps.objects.filter(related_user=target).order_by('-banned_at')
+    banned_ips = []
+    for b in raw_banned_ips:
+        ip_addr = getattr(b, 'ip_address', None)
+        masked = None
+        if ip_addr:
+            try:
+                parts = ip_addr.split('.')
+                if len(parts) == 4:
+                    masked = f"{parts[0]}.{parts[1]}.xxx.xxx"
+                else:
+                    masked = ip_addr
+            except Exception:
+                masked = ip_addr
+        banned_ips.append({
+            'ip_address': masked,  # Only expose masked version
+            'masked_ip': masked,
+            'reason': getattr(b, 'reason', None),
+            'banned_at': getattr(b, 'banned_at', None),
+            'related_user_id': getattr(b, 'related_user_id', None),
+        })
+
+    # Try to fetch up to 20 recent forum messages from common model names.
+    # Account for forum apps that store author as a username string (Post) or a FK (user).
+    forum_messages = []
+    for candidate in ("Post", "ForumPost", "Comment", "Message", "ThreadMessage"):
+        try:
+            Model = apps.get_model("forum", candidate)
+        except LookupError:
+            continue
+
+        # prefer a user FK
+        field_names = {f.name for f in Model._meta.get_fields()}
+        qs = None
+        if 'user' in field_names:
+            qs = Model.objects.filter(user=target)
+        elif 'author' in field_names:
+            # many forum Post models store author as username string
+            qs = Model.objects.filter(author=target.username)
+        elif 'created_by' in field_names:
+            # fallback: sometimes created_by stores username
+            qs = Model.objects.filter(created_by=target.username)
+        else:
+            continue
+
+        try:
+            raw_msgs = list(qs.order_by("-created_at")[:20])
+        except Exception:
+            continue
+
+        # Map model instances -> plain dicts so template won't crash on missing attributes
+        def _msg_dict(m):
+            # body candidates
+            body = getattr(m, "content", None) or getattr(m, "body", None) or getattr(m, "text", None) or ""
+            title = getattr(m, "title", None) or getattr(m, "subject", None) or None
+            thread = getattr(m, "thread", None)
+            thread_title = getattr(thread, "title", None) if thread else None
+            # fallback title if still empty
+            if not title:
+                title = (body[:80] + "…") if body else "Message"
+
+            # Provide both 'title' and 'subject' keys and a 'thread' mapping so templates
+            # that reference m.subject or m.thread.title won't crash.
+            thread_obj = {"title": thread_title} if thread_title else None
+
+            return {
+                "title": title,
+                "subject": title,
+                "created_at": getattr(m, "created_at", None),
+                "thread_title": thread_title,
+                "thread": thread_obj,
+                "body": body,
+                "excerpt": (body[:200] + "…") if body and len(body) > 200 else body,
+            }
+
+        forum_messages = [_msg_dict(m) for m in raw_msgs]
+        break
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        # toggle active/inactive
+        if action == "toggle_active":
+            target.is_active = not target.is_active
+            target.save()
+            return redirect('admin_dash:user_actions', user_id=user_id)
+
+        # Normal account ban (sets user.banned and banned_date/reason)
+        if action == "ban_user":
+            reason = request.POST.get("ban_reason", "").strip() or None
+            until = request.POST.get("ban_until")
+            try:
+                if until:
+                    until_dt = timezone.make_aware(datetime.fromisoformat(until))
+                else:
+                    until_dt = None
+            except Exception:
+                until_dt = None
+            target.banned = True
+            target.banned_reason = reason
+            target.banned_date = until_dt
+            target.save()
+            return redirect('admin_dash:user_actions', user_id=user_id)
+
+        # IP ban: add last_ip to BannedIps and set user as banned with far future date
+        if action == "ip_ban":
+            reason = request.POST.get("ban_reason", "").strip() or None
+            last_ip = getattr(target, "last_ip", None)
+            if last_ip:
+                try:
+                    BannedIps.objects.create(
+                        ip_address=last_ip,
+                        reason=reason,
+                        related_user=target
+                    )
+                except Exception:
+                    # ignore duplicate / validation errors
+                    pass
+            # mark user banned until 9999-12-31
+            far_future = timezone.make_aware(datetime(9999, 12, 31, 0, 0, 0))
+            target.banned = True
+            target.banned_reason = reason
+            target.banned_date = far_future
+            target.save()
+            return redirect(f"/admin/user/{user_id}/actions/")
+        
+    print("badges:", badges)
+    print("tickets:", tickets)
+    print("stripe_sub:", stripe_sub)
+    print("forum_messages:", forum_messages)
+
+    admin_change_url = f"/api-admin/{target._meta.app_label}/{target._meta.model_name}/{target.pk}/change/"
+    # Prepare a masked IP for display (avoid template-side method calls)
+    last_ip = getattr(target, 'last_ip', None)
+    if last_ip:
+        try:
+            parts = last_ip.split('.')
+            if len(parts) == 4:
+                masked_last_ip = f"{parts[0]}.{parts[1]}.xxx.xxx"
+            else:
+                masked_last_ip = last_ip
+        except Exception:
+            masked_last_ip = last_ip
+    else:
+        masked_last_ip = None
+    return render(request, "user_actions.html", {
+        "target": target,
+        "admin_change_url": admin_change_url,
+        "badges": badges,
+        "tickets": tickets,
+        "stripe_sub": stripe_sub,
+        "forum_messages": forum_messages,
+        "banned_ips": banned_ips,
+        "masked_last_ip": masked_last_ip,
+    })
+
 
 def ban_user(request, user_id):
     if not has_permission(request.user, 'user_ban'):

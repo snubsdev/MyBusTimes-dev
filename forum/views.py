@@ -324,36 +324,42 @@ def thread_detail(request, thread_id):
 
                     if post.image:
                         # Open the image
-                        img = Image.open(post.image)
+                        img = None
+                        img_byte_arr = None
+                        try:
+                            img = Image.open(post.image)
 
-                        if img.mode == 'RGBA':
-                            img = img.convert('RGB')
+                            if img.mode == 'RGBA':
+                                img = img.convert('RGB')
 
-                        # Resize or compress image here
-                        # Example: resize image to max width/height of 1024px
-                        max_size = (1024, 1024)
-                        img.thumbnail(max_size, Image.Resampling.LANCZOS)
+                            # Resize or compress image here
+                            # Example: resize image to max width/height of 1024px
+                            max_size = (1024, 1024)
+                            img.thumbnail(max_size, Image.Resampling.LANCZOS)
 
-                        # Save to BytesIO as JPEG with quality compression
-                        img_byte_arr = io.BytesIO()
-                        if img.mode == "P":
-                            img = img.convert("RGB")
+                            # Save to BytesIO as JPEG with quality compression
+                            img_byte_arr = io.BytesIO()
+                            if img.mode == "P":
+                                img = img.convert("RGB")
 
-                        img.save(img_byte_arr, format='JPEG', quality=85)
+                            img.save(img_byte_arr, format='JPEG', quality=85)
 
-                        img_byte_arr.seek(0)
-
-                        # Check size and further reduce quality if needed
-                        while img_byte_arr.getbuffer().nbytes > 10 * 1024 * 1024:  # 10MB
-                            img_byte_arr.truncate(0)
                             img_byte_arr.seek(0)
-                            quality = max(10, int(img.info.get('quality', 85) * 0.8))
-                            img.save(img_byte_arr, format='JPEG', quality=quality)
-                            img_byte_arr.seek(0)
-                            if quality == 10:
-                                break
 
-                        files['image'] = (post.image.name, img_byte_arr, 'image/jpeg')
+                            # Check size and further reduce quality if needed
+                            while img_byte_arr.getbuffer().nbytes > 10 * 1024 * 1024:  # 10MB
+                                img_byte_arr.truncate(0)
+                                img_byte_arr.seek(0)
+                                quality = max(10, int(img.info.get('quality', 85) * 0.8))
+                                img.save(img_byte_arr, format='JPEG', quality=quality)
+                                img_byte_arr.seek(0)
+                                if quality == 10:
+                                    break
+
+                            files['image'] = (post.image.name, img_byte_arr, 'image/jpeg')
+                        finally:
+                            if img is not None:
+                                img.close()
 
                     response = requests.post(
                         f"{settings.DISCORD_BOT_API_URL}/send-message",

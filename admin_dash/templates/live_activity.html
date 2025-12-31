@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Live Activity — Admin</title>
+  <style>
+    :root{--bg:#f6f8fa;--card:#fff;--muted:#6b7280;--accent:#0f62fe;--success:#10b981}
+    body{font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:#111;margin:0;padding:24px}
+    .container{max-width:1200px;margin:0 auto}
+    header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}
+    h1{font-size:20px;margin:0}
+    .subtitle{color:var(--muted);font-size:13px}
+    .controls{display:flex;gap:8px;align-items:center}
+    .btn{background:var(--accent);color:#fff;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600}
+    .btn.ghost{background:transparent;color:var(--accent);border:1px solid rgba(15,98,254,.12)}
+    .stats{display:flex;gap:12px;margin:18px 0 24px;flex-wrap:wrap}
+    .card{background:var(--card);padding:14px;border-radius:12px;box-shadow:0 1px 2px rgba(16,24,40,.04);min-width:160px;flex:1}
+    .card h3{margin:0;font-size:13px;color:var(--muted)}
+    .card .big{font-size:28px;margin-top:6px;font-weight:700}
+    .search-row{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+    .search-row input{flex:1;padding:10px;border-radius:10px;border:1px solid #e6e9ee;background:#fff}
+    table{width:100%;border-collapse:collapse;background:var(--card);border-radius:8px;overflow:hidden}
+    thead th{background:#f3f6fb;text-align:left;padding:10px;font-size:13px;color:var(--muted);border-bottom:1px solid #eef2f6}
+    tbody tr{border-bottom:1px solid #f1f5f9;cursor:pointer}
+    tbody td{padding:10px;font-size:14px}
+    tbody tr:hover{background:#fbfdff}
+    .badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#eef2ff;color:var(--accent);font-weight:600;font-size:12px}
+    .staff{background:#e6ffef;color:var(--success)}
+    .banned{background:#ffeef0;color:#bf1650}
+    .muted{color:var(--muted);font-size:13px}
+    .cols{display:grid;grid-template-columns:2fr 1fr;gap:14px}
+    @media(max-width:900px){.cols{grid-template-columns:1fr}.stats{flex-direction:column}}
+    .small{font-size:12px;color:var(--muted)}
+    .count-pill{font-weight:700;font-size:16px}
+    .table-wrap{overflow:auto;border-radius:8px}
+    .meta-line{font-size:13px;color:var(--muted)}
+    .countdown{font-weight:600;color:var(--muted)}
+    .ticket-item{padding:8px;border-radius:8px;border:1px solid #edf2f7;margin-bottom:8px;background:#fff}
+    .clickable-row{cursor:pointer}
+    .warning{background:#fef3c7;color:#92400e}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>Live Activity</h1>
+        <div class="subtitle">Realtime overview of currently active users, recent signups and open tickets</div>
+      </div>
+      <div class="controls">
+        <div class="small meta-line">Cutoff: {{ cutoff }}</div>
+        <button id="refreshBtn" class="btn">Refresh</button>
+        <div class="small countdown" id="countdown">Auto refresh in 5s</div>
+      </div>
+    </header>
+
+    <section class="stats" aria-hidden="false">
+      <div class="card">
+        <h3>Active users (last 15 min)</h3>
+        <div class="big">{{ active_count }}</div>
+        <div class="small">Showing up to 500 users — click a row to manage a user</div>
+      </div>
+      <div class="card">
+        <h3>Recent signups (24h)</h3>
+        <div class="big">{{ recent_signups|length }}</div>
+        <div class="small">New accounts in last 24 hours</div>
+      </div>
+      <div class="card">
+        <h3>Open tickets</h3>
+        <div class="big">{{ open_tickets|length }}</div>
+        <div class="small">Top open tickets (click to open)</div>
+      </div>
+    </section>
+
+    <div class="cols">
+      <div>
+        <div class="search-row">
+          <input id="userFilter" placeholder="Filter active users by username or IP..." />
+          <button id="clearFilter" class="btn ghost">Clear</button>
+        </div>
+        <div class="search-row" style="gap:12px;margin-bottom:18px;align-items:center">
+          <label class="small muted" style="margin-right:6px">Filter by flags:</label>
+          <label class="small"><input type="checkbox" id="filterStaff" /> Staff</label>
+          <label class="small"><input type="checkbox" id="filterBanned" /> Banned</label>
+          <label class="small"><input type="checkbox" id="filterIpFlag" /> IP match</label>
+          <label class="small"><input type="checkbox" id="filterInactive" /> Inactive</label>
+          <button id="clearFlags" class="btn ghost" style="margin-left:6px">Clear flags</button>
+        </div>
+
+        <div class="table-wrap" role="region" aria-label="Active users">
+          <table id="usersTable">
+            <thead>
+              <tr>
+                <th>Username</th>
+                <th>Last active</th>
+                <th>Last IP</th>
+                <th>Flags</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for u in active_users %}
+              <tr data-user-id="{{ u.id }}" class="clickable-row">
+                <td><strong>{{ u.username }}</strong><div class="small muted">{{ u.email }}</div></td>
+                <td>{{ u.last_active }}</td>
+                <td>
+                  {% if u.masked_last_ip %}
+                    {{ u.masked_last_ip }}
+                  {% elif u.last_ip %}
+                    {{ u.last_ip }}
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+                <td>
+                  {% if u.is_staff %}<span class="badge staff">STAFF</span>{% endif %}
+                  {% if u.banned %}<span class="badge banned">BANNED</span>{% endif %}
+                  {% if u.ip_flag %}<span class="badge warning">IP MATCH</span>{% endif %}
+                  {% if not u.is_active %}<span class="badge" style="background:#ffeef0;color:#bf1650">INACTIVE</span>{% endif %}
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="4" class="muted">No active users</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <div class="card" style="margin-bottom:12px">
+          <h3>Recent signups</h3>
+          <div class="small">Last 24 hours</div>
+          <ol style="margin:12px 0;padding-left:20px">
+            {% for s in recent_signups %}
+              <li><strong>{{ s.username }}</strong> <span class="small">— {{ s.date_joined }}</span></li>
+            {% empty %}
+              <li class="muted">No recent signups</li>
+            {% endfor %}
+          </ol>
+        </div>
+
+        <div class="card">
+          <h3>Open tickets</h3>
+          <div id="ticketsList" style="margin-top:8px">
+            {% for t in open_tickets %}
+              <div class="ticket-item" data-ticket-id="{{ t.id }}">
+                <div><strong>{{ t.title }}</strong></div>
+                <div class="small">#{% if t.user %}{{ t.user }}{% else %}{{ t.sender_email|default:"—" }}{% endif %} — {{ t.created_at }}</div>
+              </div>
+            {% empty %}
+              <div class="muted">No open tickets</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer style="margin-top:18px" class="small muted">Page generated at server time. Use the Refresh button to reload immediately.</footer>
+  </div>
+
+  <script>
+    (function(){
+      const refreshBtn = document.getElementById('refreshBtn');
+      const countdownEl = document.getElementById('countdown');
+      const userFilter = document.getElementById('userFilter');
+      const clearFilter = document.getElementById('clearFilter');
+      const filterStaff = document.getElementById('filterStaff');
+      const filterBanned = document.getElementById('filterBanned');
+      const filterIpFlag = document.getElementById('filterIpFlag');
+      const filterInactive = document.getElementById('filterInactive');
+      const clearFlags = document.getElementById('clearFlags');
+      const usersTbody = document.getElementById('usersTable').tBodies[0];
+      const ticketsList = document.getElementById('ticketsList');
+      let secs = 5;
+
+      async function fetchAndRender(){
+        try{
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+          const res = await fetch('/admin/live-activity/api/', { 
+            credentials: 'same-origin',
+            signal: controller.signal 
+          });
+          clearTimeout(timeoutId);
+          if(!res.ok) throw new Error('Fetch failed');
+          const data = await res.json();
+          renderData(data);
+          secs = 5;
+        }catch(e){
+          console.error(e);
+          countdownEl.textContent = 'Update failed - retrying...';
+          countdownEl.style.color = '#bf1650';
+          secs = 5; // retry after 5s
+        }
+      }
+
+      function renderData(data){
+        document.querySelector('.meta-line').textContent = 'Cutoff: ' + new Date(data.cutoff).toLocaleString();
+        document.querySelectorAll('.stats .card .big')[0].textContent = data.active_count;
+        document.querySelectorAll('.stats .card .big')[1].textContent = data.recent_signups.length;
+        document.querySelectorAll('.stats .card .big')[2].textContent = data.open_tickets.length;
+
+        // rebuild users table
+        usersTbody.innerHTML = '';
+        data.active_users.forEach(u=>{
+          const tr = document.createElement('tr');
+          tr.className = 'clickable-row';
+          tr.setAttribute('data-user-id', u.id);
+          // set data attrs for filtering
+          tr.setAttribute('data-is-staff', u.is_staff ? '1' : '0');
+          tr.setAttribute('data-banned', u.banned ? '1' : '0');
+          tr.setAttribute('data-ip-flag', u.ip_flag ? '1' : '0');
+          tr.setAttribute('data-is-active', u.is_active ? '1' : '0');
+
+          const flags = []
+          if(u.is_staff) flags.push('<span class="badge staff">STAFF</span>')
+          if(u.banned) flags.push('<span class="badge banned">BANNED</span>')
+          if(u.ip_flag) flags.push('<span class="badge warning">IP MATCH</span>')
+          if(!u.is_active) flags.push('<span class="badge" style="background:#ffeef0;color:#bf1650">INACTIVE</span>')
+
+          tr.innerHTML = `<td><strong>${escapeHtml(u.username)}</strong><div class="small mute">${escapeHtml(u.email || '')}</div></td>
+                          <td>${u.last_active ? new Date(u.last_active).toLocaleString() : '—'}</td>
+                          <td>${escapeHtml(u.masked_last_ip || u.last_ip || '—')}</td>
+                          <td>${flags.join('')}</td>`;
+          usersTbody.appendChild(tr);
+        });
+        if(data.active_users.length === 0){
+          const tr = document.createElement('tr'); tr.innerHTML = '<td colspan="4" class="muted">No active users</td>'; usersTbody.appendChild(tr);
+        }
+
+        // open tickets
+        ticketsList.innerHTML = '';
+        data.open_tickets.forEach(t=>{
+          const div = document.createElement('div');
+          div.className = 'ticket-item';
+          div.setAttribute('data-ticket-id', t.id);
+          div.innerHTML = `<div><strong>${escapeHtml(t.title)}</strong></div><div class="small">${escapeHtml(t.user || '—')} — ${new Date(t.created_at).toLocaleString()}</div>`;
+          ticketsList.appendChild(div);
+        });
+        if(data.open_tickets.length===0){ ticketsList.innerHTML = '<div class="muted">No open tickets</div>' }
+
+        attachRowHandlers();
+        filterRows(); // re-run filter
+      }
+
+      function tick(){
+        secs--;
+        countdownEl.textContent = 'Next update in ' + secs + 's';
+        if(secs<=0){ fetchAndRender(); }
+      }
+      let timer = setInterval(tick,1000);
+
+      refreshBtn.addEventListener('click', ()=>{ fetchAndRender(); });
+
+      clearFilter.addEventListener('click', ()=>{
+        userFilter.value=''; filterRows();
+      });
+
+      // flag controls
+      if(filterStaff) filterStaff.addEventListener('change', filterRows);
+      if(filterBanned) filterBanned.addEventListener('change', filterRows);
+      if(filterIpFlag) filterIpFlag.addEventListener('change', filterRows);
+      if(filterInactive) filterInactive.addEventListener('change', filterRows);
+      if(clearFlags) clearFlags.addEventListener('click', (e)=>{ e.preventDefault(); if(filterStaff) filterStaff.checked=false; if(filterBanned) filterBanned.checked=false; if(filterIpFlag) filterIpFlag.checked=false; if(filterInactive) filterInactive.checked=false; filterRows(); });
+
+      userFilter.addEventListener('input', filterRows);
+
+      function filterRows(){
+        const q = (userFilter.value || '').toLowerCase().trim();
+        const requireStaff = filterStaff && filterStaff.checked;
+        const requireBanned = filterBanned && filterBanned.checked;
+        const requireIpFlag = filterIpFlag && filterIpFlag.checked;
+        const requireInactive = filterInactive && filterInactive.checked;
+        for(const row of usersTbody.rows){
+          const username = (row.cells[0].innerText || '').toLowerCase();
+          const ip = (row.cells[2].innerText || '').toLowerCase();
+          // basic text match
+          const textMatch = (!q || username.includes(q) || ip.includes(q));
+          if(!textMatch){ row.style.display = 'none'; continue; }
+
+          // flags filtering: if a flag checkbox is checked, the row must have that flag set
+          if(requireStaff && row.getAttribute('data-is-staff') !== '1'){ row.style.display = 'none'; continue; }
+          if(requireBanned && row.getAttribute('data-banned') !== '1'){ row.style.display = 'none'; continue; }
+          if(requireIpFlag && row.getAttribute('data-ip-flag') !== '1'){ row.style.display = 'none'; continue; }
+          if(requireInactive && row.getAttribute('data-is-active') === '1'){ row.style.display = 'none'; continue; }
+
+          row.style.display = '';
+        }
+      }
+
+      function attachRowHandlers(){
+        // user rows -> go to user actions
+        for(const row of document.querySelectorAll('[data-user-id]')){
+          row.addEventListener('click', ()=>{
+            const uid = row.getAttribute('data-user-id');
+            if(!uid) return;
+            window.location.href = `/admin/user/${uid}/actions/`;
+          });
+        }
+        // ticket items -> go to ticket page
+        for(const t of document.querySelectorAll('[data-ticket-id]')){
+          t.addEventListener('click', ()=>{
+            const tid = t.getAttribute('data-ticket-id');
+            if(!tid) return;
+            window.location.href = `/tickets/${tid}/`;
+          });
+        }
+      }
+
+      function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+      // initial fetch after page load (page has initial HTML for immediate display)
+      setTimeout(fetchAndRender, 500);
+      attachRowHandlers();
+      // ensure filtering applies to initial server-rendered rows
+      filterRows();
+    })();
+  </script>
+</body>
+</html>

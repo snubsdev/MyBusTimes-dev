@@ -1,11 +1,29 @@
 import json
 import re
+import logging
+import time
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from .models import fleet, fleetChange
 from django.utils.timezone import now
+import threading
 
+logger = logging.getLogger(__name__)
+
+# Store old fleet instances with timestamps for cleanup
+# Format: {pk: (fleet_instance, timestamp)}
 _old_fleets = {}
+_OLD_FLEETS_TTL = 60  # seconds - entries older than this are pruned
+_OLD_FLEETS_LOCK = threading.Lock()
+
+
+def _cleanup_stale_entries():
+    """Remove entries older than TTL to prevent unbounded growth."""
+    with _OLD_FLEETS_LOCK:
+        cutoff = time.time() - _OLD_FLEETS_TTL
+        stale_keys = [k for k, (_, ts) in _old_fleets.items() if ts < cutoff]
+        for k in stale_keys:
+            _old_fleets.pop(k, None)
 
 def normalize_fleet_number(fleet_number):
     """
@@ -23,21 +41,30 @@ def store_old_fleet(sender, instance, **kwargs):
     # Always normalize fleet_number before saving (whether creating or updating)
     instance.fleet_number_sort = normalize_fleet_number(instance.fleet_number)
 
+    # Periodically clean up stale entries to prevent unbounded growth
+    _cleanup_stale_entries()
+
     # Only store old instance if updating (i.e., already exists)
     if instance.pk:
         try:
-            _old_fleets[instance.pk] = fleet.objects.get(pk=instance.pk)
+            old = fleet.objects.get(pk=instance.pk)
         except fleet.DoesNotExist:
             pass
+
+        if old is not None:
+            with _OLD_FLEETS_LOCK:
+                _old_fleets[instance.pk] = (old, time.time())
 
 @receiver(post_save, sender=fleet)
 def track_fleet_changes(sender, instance, created, **kwargs):
     if created:
         return  # Skip logging for new items
 
-    old_instance = _old_fleets.pop(instance.pk, None)
-    if not old_instance:
+    with _OLD_FLEETS_LOCK:
+        entry = _old_fleets.pop(instance.pk, None)
+    if not entry:
         return
+    old_instance, _ = entry  # Unpack tuple (instance, timestamp)
 
     changes = []
 
