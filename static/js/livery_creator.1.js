@@ -502,4 +502,110 @@ $(document).ready(function () {
 
       updateCells();
     });
+
+  // Validation helpers: ensure colours are valid and meet constraints
+  function isValidColor(str) {
+    if (!str) return false;
+    const s = str.trim();
+    const hex3 = /^#([0-9A-Fa-f]{3})$/;
+    const hex6 = /^#([0-9A-Fa-f]{6})$/;
+    const rgb = /^rgba?\(\s*(?:\d{1,3})\s*,\s*(?:\d{1,3})\s*,\s*(?:\d{1,3})(?:\s*,\s*(?:0|0?\.\d+|1(?:\.0+)?))?\s*\)$/;
+    return hex3.test(s) || hex6.test(s) || rgb.test(s);
+  }
+
+  function normalizeHex(h) {
+    if (!h) return h;
+    let s = h.toLowerCase();
+    if (/^#([0-9a-f]){3}$/.test(s)) {
+      return (
+        "#" + s[1] + s[1] + s[2] + s[2] + s[3] + s[3]
+      );
+    }
+    return s;
+  }
+
+  function normalizeColorString(s) {
+    if (!s) return s;
+    const str = s.trim();
+    if (str.startsWith("#")) return normalizeHex(str);
+    const m = str.match(/rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*(0|0?\.\d+|1(?:\.0+)?))?\s*\)/);
+    if (m) {
+      const r = Math.max(0, Math.min(255, parseInt(m[1], 10)));
+      const g = Math.max(0, Math.min(255, parseInt(m[2], 10)));
+      const b = Math.max(0, Math.min(255, parseInt(m[3], 10)));
+      const a = typeof m[4] !== "undefined" ? m[4] : null;
+      if (a !== null && a !== undefined && a !== "" && parseFloat(a) < 1) {
+        return `rgba(${r},${g},${b},${parseFloat(a)})`;
+      }
+      return `rgb(${r},${g},${b})`;
+    }
+    return str.toLowerCase();
+  }
+
+  function extractAllColors(gradient) {
+    const hexPattern = /#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})\b/g;
+    const rgbPattern = /rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}(?:\s*,\s*(?:0|0?\.\d+|1(?:\.0+)?))?\s*\)/g;
+    const colors = [];
+    let m;
+    while ((m = hexPattern.exec(gradient || "")) !== null) {
+      colors.push(normalizeHex(m[0]));
+    }
+    while ((m = rgbPattern.exec(gradient || "")) !== null) {
+      colors.push(normalizeColorString(m[0]));
+    }
+    return colors;
+  }
+
+  // Form submit validation
+  document.getElementById("livery-creator-form").addEventListener("submit", function (e) {
+    const text = document.getElementById("text-colour").value.trim();
+    const stroke = document.getElementById("text-stroke-colour").value.trim();
+    const blob = document.getElementById("livery-colour").value.trim();
+
+    const leftCss = document.getElementById("livery-css-left").value || document.getElementById("left").style.background || "";
+    const rightCss = document.getElementById("livery-css-right").value || document.getElementById("right").style.background || "";
+
+    const errors = [];
+
+    if (!isValidColor(text)) {
+      errors.push("Text colour must be a valid hex or rgb colour.");
+    }
+
+    if (stroke !== "none" && !isValidColor(stroke)) {
+      errors.push("Text stroke must be 'none' or a valid hex or rgb colour.");
+    }
+
+    if (!isValidColor(blob)) {
+      errors.push("Livery blob must be a valid hex or rgb colour.");
+    }
+
+    // If stroke is not 'none', ensure text and stroke are not identical
+    if (stroke !== "none" && isValidColor(text) && isValidColor(stroke)) {
+      const nt = normalizeColorString(text);
+      const ns = normalizeColorString(stroke);
+      if (nt === ns) {
+        errors.push("Text colour and stroke colour must not be the same.");
+      }
+    }
+
+    // Blob must be one of colours used in left or right CSS
+    const palette = [...extractAllColors(leftCss), ...extractAllColors(rightCss)].map((c) => (c || "").toLowerCase());
+    const normBlob = normalizeColorString(blob).toLowerCase();
+    if (palette.length === 0) {
+      // if no colours detected in complex values, also accept simple input colours
+      const simpleInputColours = (document.getElementById("colour").value || "").split(",").map(s => s.trim()).filter(Boolean).map(normalizeColorString);
+      if (!simpleInputColours.map(c=>c.toLowerCase()).includes(normBlob)) {
+        errors.push("Livery blob must match one of the colours from the left/right definitions.");
+      }
+    } else if (!palette.includes(normBlob)) {
+      errors.push("Livery blob must match one of the colours from the left/right definitions.");
+    }
+
+    if (errors.length > 0) {
+      e.preventDefault();
+      alert(errors.join("\n"));
+      return false;
+    }
+    return true;
+  });
 });
