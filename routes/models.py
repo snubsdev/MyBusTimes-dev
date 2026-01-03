@@ -24,7 +24,13 @@ class routeType(models.Model):
 
     def __str__(self):
         return self.name
+
+def default_route_operators_id():
+    from routes.models import MBTOperator
+    return MBTOperator.objects.get(route_operators="BT").id
+
 class route(models.Model):
+    route_operators = models.ForeignKey(MBTOperator, on_delete=models.SET(default_route_operators_id), blank=True, null=False, related_name='route_operators', db_index=True)
     id = models.AutoField(primary_key=True)
     hidden = models.BooleanField(default=False)
     route_num = models.CharField(max_length=255, blank=True, null=True)
@@ -136,25 +142,15 @@ class routeStop(models.Model):
 class board_category(models.Model):
     name = models.CharField(max_length=100)
     parent_category = models.ForeignKey('self', on_delete=models.CASCADE, blank=True, null=True, related_name='subcategories')
-    operator = models.ForeignKey(MBTOperator, on_delete=models.CASCADE, related_name='board_categories', blank=True, null=True)
-    board_type = models.CharField(max_length=20, choices=[
-        ('duty', 'Duty'),
-        ('running-boards', 'Running Board'),
-    ], default='duty')
 
     history = HistoricalRecords()
 
     def __str__(self):
-        if self.parent_category:
-            return f"{self.parent_category.name} > {self.name}"
         return self.name
-    
-    class Meta:
-        verbose_name_plural = "Board Categories"
 
 class duty(models.Model):
     duty_name = models.CharField(max_length=100)
-    category = models.ForeignKey(board_category, on_delete=models.SET_NULL, blank=True, null=True, related_name='duties')
+    catagory = models.CharField(max_length=50, blank=True, null=True)
     duty_operator = models.ForeignKey(MBTOperator, on_delete=models.CASCADE, related_name='duties', blank=True, null=True)
     duty_day = models.ManyToManyField(dayType, related_name='duty_types')
     duty_details = models.JSONField(blank=True, null=True)
@@ -196,3 +192,4 @@ class transitAuthoritiesColour(models.Model):
 
     class Meta:
         verbose_name_plural = "Transit Authorities Colours"
+
