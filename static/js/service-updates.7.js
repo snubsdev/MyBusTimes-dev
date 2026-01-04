@@ -95,7 +95,7 @@ Promise.race([fetchData, timeout])
 
     const spacer = document.getElementById("spacer");
     if (banner.style.display === "block") {
-      spacer.style.height = "50px";
+      spacer.style.height = "10px";
       spacer.style.display = "block";
     } else {
       spacer.style.height = "0px";
