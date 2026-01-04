@@ -33,13 +33,13 @@ class ResetProMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        response = self.get_response(request)
-
         user = request.user
         if user.is_authenticated and user.sub_plan and user.ad_free_until and user.ad_free_until < timezone.now():
             user.sub_plan = 'free'
             user.ad_free_until = None
             user.save(update_fields=["sub_plan", "ad_free_until"])
+
+        response = self.get_response(request)
 
         return response
 
