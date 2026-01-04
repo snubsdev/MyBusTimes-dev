@@ -90,19 +90,6 @@ class BanType(models.Model):
     def __str__(self):
         return self.name
     
-class ActiveSubscription(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='active_subscriptions')
-    stripe_subscription_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
-    start_date = models.DateTimeField()
-    end_date = models.DateTimeField(null=True, blank=True)
-    plan = models.CharField(max_length=100)
-    is_trial = models.BooleanField(default=False)
-
-    history = HistoricalRecords()
-
-    def __str__(self):
-        return f"{self.user.username} - {self.stripe_subscription_id}"
-    
 class CustomUser(AbstractUser):
     #mbt_admin_perms = models.ManyToManyField('MBTAdminPermission', related_name='users_with_perm', blank=True, help_text="Administrative permissions for MyBusTimes")
     oidc_sub = models.CharField(max_length=255, unique=True, null=True, blank=True)
@@ -159,6 +146,19 @@ class CustomUser(AbstractUser):
         return self.username
     
 User = get_user_model()
+
+class ActiveSubscription(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='active_subscriptions')
+    stripe_subscription_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
+    start_date = models.DateTimeField()
+    end_date = models.DateTimeField(null=True, blank=True)
+    plan = models.CharField(max_length=100, choices=User.PLAN_CHOICES)
+    is_trial = models.BooleanField(default=False)
+
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return f"{self.user.username} - {self.stripe_subscription_id}"
 
 class StripeSubscription(models.Model):
     # When subscription starts and ends

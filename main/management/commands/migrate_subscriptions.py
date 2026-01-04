@@ -15,25 +15,31 @@ class Command(BaseCommand):
             help='Show what would be created without actually creating records',
         )
 
-    def get_plan_history(self, user):
-        """Get the user's subscription plan history from Simple History"""
+    def get_plan_periods(self, user):
+        """
+        Get distinct plan periods from user history.
+        Returns list of (plan, start_date, end_date) tuples.
+        """
         history = user.history.all().order_by('history_date')
-        plans = []
+        periods = []
+        current_plan = None
+        current_start = None
+        
         for record in history:
-            if record.sub_plan and record.sub_plan not in [p[0] for p in plans]:
-                plans.append((record.sub_plan, record.history_date))
-        return plans
-
-    def had_basic_before_pro(self, user):
-        """Check if user had basic plan before pro plan"""
-        history = user.history.all().order_by('history_date')
-        had_basic = False
-        for record in history:
-            if record.sub_plan == 'basic':
-                had_basic = True
-            elif record.sub_plan == 'pro' and had_basic:
-                return True
-        return False
+            plan = record.sub_plan
+            if plan and plan != 'free' and plan != current_plan:
+                # End previous period if exists
+                if current_plan and current_start:
+                    periods.append((current_plan, current_start, record.history_date))
+                # Start new period
+                current_plan = plan
+                current_start = record.history_date
+        
+        # Add final period (still active)
+        if current_plan and current_start:
+            periods.append((current_plan, current_start, None))  # None = ongoing
+        
+        return periods
 
     def handle(self, *args, **options):
         dry_run = options['dry_run']
@@ -61,63 +67,81 @@ class Command(BaseCommand):
 
             # Get any StripeSubscription for this user
             stripe_sub = StripeSubscription.objects.filter(user=user).order_by('-id').first()
+            stripe_sub_id = stripe_sub.subscription_id if stripe_sub else None
+
+            # Get plan periods from history
+            plan_periods = self.get_plan_periods(user)
             
-            # Determine subscription details
-            stripe_sub_id = None
-            start_date = timezone.now()
-            end_date = user.ad_free_until
-            plan = user.sub_plan if user.sub_plan != 'free' else 'basic'
-            is_trial = False
-
-            # Check history for plan progression (basic -> pro)
-            had_basic = self.had_basic_before_pro(user)
-            if had_basic and plan == 'pro':
-                self.stdout.write(f'    📊 {user.username} upgraded from basic to pro')
-
-            if stripe_sub:
-                stripe_sub_id = stripe_sub.subscription_id
-                # Convert DateField to datetime
-                if stripe_sub.start_date:
-                    start_date = timezone.make_aware(
-                        datetime.combine(stripe_sub.start_date, time.min)
+            if plan_periods:
+                # Create ActiveSubscription for each plan period
+                self.stdout.write(f'  📊 {user.username} has {len(plan_periods)} plan period(s)')
+                
+                for i, (plan, start_date, end_date) in enumerate(plan_periods):
+                    is_last = (i == len(plan_periods) - 1)
+                    
+                    # Only attach stripe_sub_id to the current/last subscription
+                    sub_stripe_id = stripe_sub_id if is_last else None
+                    
+                    # Use ad_free_until as end_date for the last period if not set
+                    if is_last and end_date is None:
+                        end_date = user.ad_free_until
+                    
+                    self.stdout.write(
+                        f'    {"[DRY]" if dry_run else "✓"} {plan}: '
+                        f'{start_date.strftime("%Y-%m-%d")} to {end_date.strftime("%Y-%m-%d") if end_date else "ongoing"}'
+                        f'{" (stripe: " + sub_stripe_id + ")" if sub_stripe_id else ""}'
                     )
-                if stripe_sub.end_date:
-                    end_date = timezone.make_aware(
-                        datetime.combine(stripe_sub.end_date, time.min)
-                    )
+                    
+                    if not dry_run:
+                        ActiveSubscription.objects.create(
+                            user=user,
+                            stripe_subscription_id=sub_stripe_id,
+                            start_date=start_date,
+                            end_date=end_date,
+                            plan=plan,
+                            is_trial=False  # Not a trial if they paid
+                        )
+                    
+                    created_count += 1
+            else:
+                # No history, create single subscription based on current state
+                start_date = timezone.now()
+                end_date = user.ad_free_until
+                plan = user.sub_plan if user.sub_plan != 'free' else 'basic'
+                
+                # Only way to get trial is had_pro_trial flag
+                is_trial = user.had_pro_trial and not stripe_sub
+                
+                if stripe_sub:
+                    # Convert DateField to datetime
+                    if stripe_sub.start_date:
+                        start_date = timezone.make_aware(
+                            datetime.combine(stripe_sub.start_date, time.min)
+                        )
+                    if stripe_sub.end_date:
+                        end_date = timezone.make_aware(
+                            datetime.combine(stripe_sub.end_date, time.min)
+                        )
+                elif user.join_date:
+                    # Use user's join_date as start if no stripe data
+                    start_date = user.join_date
 
-            # Check if this is a trial:
-            # 1. No stripe subscription but has ad_free_until and had_pro_trial flag
-            # 2. OR subscription duration is 7 days or less (trial max is 1 week)
-            if not stripe_sub and user.ad_free_until and user.had_pro_trial:
-                is_trial = True
-            elif start_date and end_date:
-                # Check if duration is <= 7 days (trial)
-                if isinstance(end_date, datetime):
-                    duration = end_date - start_date
-                    if duration <= timedelta(days=7):
-                        is_trial = True
-
-            # Use user's join_date as start if no better option
-            if not stripe_sub and user.join_date:
-                start_date = user.join_date
-
-            self.stdout.write(
-                f'  {"[DRY]" if dry_run else "✓"} {user.username}: '
-                f'plan={plan}, end={end_date}, stripe_id={stripe_sub_id}, trial={is_trial}'
-            )
-
-            if not dry_run:
-                ActiveSubscription.objects.create(
-                    user=user,
-                    stripe_subscription_id=stripe_sub_id,
-                    start_date=start_date,
-                    end_date=end_date,
-                    plan=plan,
-                    is_trial=is_trial
+                self.stdout.write(
+                    f'  {"[DRY]" if dry_run else "✓"} {user.username}: '
+                    f'plan={plan}, end={end_date}, stripe_id={stripe_sub_id}, trial={is_trial}'
                 )
-            
-            created_count += 1
+
+                if not dry_run:
+                    ActiveSubscription.objects.create(
+                        user=user,
+                        stripe_subscription_id=stripe_sub_id,
+                        start_date=start_date,
+                        end_date=end_date,
+                        plan=plan,
+                        is_trial=is_trial
+                    )
+                
+                created_count += 1
 
         self.stdout.write('\n' + '=' * 50)
         self.stdout.write(self.style.SUCCESS(f'Created: {created_count} ActiveSubscription records'))

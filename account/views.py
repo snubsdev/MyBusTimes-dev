@@ -498,13 +498,16 @@ class stripe_webhook(APIView):
 
         # Create ActiveSubscription record
         if subscription_id and plan_level:
-            ActiveSubscription.objects.create(
-                user=user,
+            effective_plan = plan_level or user.sub_plan or "basic"
+            ActiveSubscription.objects.get_or_create(
                 stripe_subscription_id=subscription_id,
-                start_date=timezone.now(),
-                end_date=user.ad_free_until,
-                plan=plan_level,
-                is_trial=False
+                defaults={
+                    "user": user,
+                    "start_date": timezone.now(),
+                    "end_date": user.ad_free_until,
+                    "plan": effective_plan,
+                    "is_trial": False,
+                }
             )
             print("✔ Created ActiveSubscription record")
 
@@ -578,7 +581,7 @@ class stripe_webhook(APIView):
             print("✔ Updated StripeSubscription end_date")
 
             # Create new ActiveSubscription record for this payment period
-            ActiveSubscription.objects.create(
+            ActiveSubscription.objects.get_or_create(
                 user=user,
                 stripe_subscription_id=subscription_id,
                 start_date=timezone.now(),
@@ -599,7 +602,7 @@ def create_checkout_session(request):
         product_type = request.data.get("product_type").replace("_free_trial", "")
 
         user = request.user
-        current_ad_free = user.ad_free_until or timezone.now()
+        current_ad_free = max(user.ad_free_until, timezone.now()) if user.ad_free_until else timezone.now()
         new_ad_free_until = current_ad_free + datetime.timedelta(days=days)
 
         user.sub_plan = product_type
