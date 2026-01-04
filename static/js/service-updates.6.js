@@ -93,7 +93,15 @@ Promise.race([fetchData, timeout])
       buttom.style.display = "none";
     }
 
-    
+    const spacer = document.getElementById("spacer");
+    if (banner.style.display === "block") {
+      spacer.style.height = "50px";
+      spacer.style.display = "block";
+    } else {
+      spacer.style.height = "0px";
+      spacer.style.display = "block";
+    }
+
   })
   .catch((error) => {
     console.error("Error fetching service updates:", error);
