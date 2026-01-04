@@ -12,6 +12,7 @@ from django_ratelimit.decorators import ratelimit
 
 urlpatterns = [
     path("timetable/<int:route_id>/<str:direction>/", get_timetable, name="timetable-api"),
+    path("route/<int:route_id>/timetable-trips/", ratelimit(key='ip', method='GET', rate='10/s')(get_timetable_trips), name="timetable-trips-api"),
     path('check-string/', ratelimit(key='ip', method='GET', rate='5/s')(check_string_view), name='check_string_api'),
     path('online-members/', ratelimit(key='ip', method='GET', rate='5/s')(online_members), name='online-members'),
     path('liveries/', ratelimit(key='ip', method='GET', rate='10/s')(liveriesListView.as_view()), name='liveries-list'),
@@ -27,6 +28,8 @@ urlpatterns = [
     path('user-search/', ratelimit(key='ip', method='GET', rate='10/s')(user_search_api), name='user-search-api'),
 
     path("valhalla/route/", valhalla_proxy, name="valhalla_proxy"),
+    
+    path("operator/<str:operator_slug>/create-duty/", ratelimit(key='ip', method='POST', rate='30/m')(create_duty_from_timetable_api), name="create-duty-api"),
 
     path("simplify-gradient/", ratelimit(key='ip', method='GET', rate='10/s')(simplify_gradient), name="simplify_gradient"),
 

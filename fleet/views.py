@@ -2228,12 +2228,7 @@ def duty_add(request, operator_slug):
     ).select_related('parent_category')
 
     if request.method == "POST":
-        duty_name = request.POST.get('duty_name')
-        start_time = request.POST.get('start_time')
-        end_time = request.POST.get('end_time')
-        brake_times = request.POST.getlist('brake_times')
-        selected_days = request.POST.getlist('duty_day')  # Handle multiple dayType IDs
-        category_id = request.POST.get('category')
+        action = request.POST.get('action', 'manual')
         
         if is_running_board:
             board_type = 'running-boards'
@@ -2242,33 +2237,235 @@ def duty_add(request, operator_slug):
             board_type = 'duty'
             board_types = 'duties'
 
-        formatted_brakes = " | ".join(brake_times)
+        if action == 'generate':
+            # Handle generate from timetable
+            route_id = request.POST.get('route_id')
+            pattern = request.POST.get('pattern', 'XX/01')
+            direction = request.POST.get('direction', 'both')
+            gen_days = request.POST.get('gen_days', '')
+            gen_category_id = request.POST.get('gen_category', '')
+            
+            if not route_id:
+                messages.error(request, "Please select a route.")
+                return redirect(f'/operator/{operator_slug}/{board_type}/add/')
+            
+            selected_route = get_object_or_404(route, id=route_id)
+            
+            # Get category if selected
+            selected_category = None
+            if gen_category_id:
+                try:
+                    selected_category = board_category.objects.get(id=gen_category_id, operator=operator)
+                except board_category.DoesNotExist:
+                    pass
+            
+            # Get timetable entries for this route
+            timetables = timetableEntry.objects.filter(route=selected_route)
+            
+            # Collect all trips with location info for vehicle blocking
+            all_trips = []
+            for tt in timetables:
+                stop_times = tt.stop_times
+                if not stop_times:
+                    continue
+                
+                # Parse if it's a string
+                if isinstance(stop_times, str):
+                    try:
+                        stop_times = json.loads(stop_times)
+                    except (json.JSONDecodeError, TypeError):
+                        continue
+                
+                if not isinstance(stop_times, dict):
+                    continue
+                    
+                # Get sorted stops by order
+                sorted_stops = sorted(stop_times.items(), key=lambda x: x[1].get('order', 0) if isinstance(x[1], dict) else 0)
+                if len(sorted_stops) < 2:
+                    continue
+                    
+                first_stop_data = sorted_stops[0][1]
+                last_stop_data = sorted_stops[-1][1]
+                
+                if not isinstance(first_stop_data, dict) or not isinstance(last_stop_data, dict):
+                    continue
+                
+                first_stop_name = first_stop_data.get('stopname', 'Start')
+                last_stop_name = last_stop_data.get('stopname', 'End')
+                first_times = first_stop_data.get('times', [])
+                last_times = last_stop_data.get('times', [])
+                is_inbound = tt.inbound
+                
+                # Skip if direction filter doesn't match
+                if direction == 'inbound' and not is_inbound:
+                    continue
+                if direction == 'outbound' and is_inbound:
+                    continue
+                
+                for i, start_time in enumerate(first_times):
+                    if not start_time:
+                        continue
+                    end_time = last_times[i] if i < len(last_times) else None
+                    if not end_time:
+                        continue
+                    
+                    # Convert times to minutes for comparison
+                    try:
+                        start_parts = start_time.split(':')
+                        end_parts = end_time.split(':')
+                        start_mins = int(start_parts[0]) * 60 + int(start_parts[1])
+                        end_mins = int(end_parts[0]) * 60 + int(end_parts[1])
+                    except:
+                        continue
+                    
+                    # Use logical location: outbound ends at 'far', inbound ends at 'home'
+                    if is_inbound:
+                        start_loc = 'far'
+                        end_loc = 'home'
+                    else:
+                        start_loc = 'home'
+                        end_loc = 'far'
+                    
+                    all_trips.append({
+                        'start_time': start_time,
+                        'end_time': end_time,
+                        'start_location': start_loc,
+                        'end_location': end_loc,
+                        'start_stop': first_stop_name,
+                        'end_stop': last_stop_name,
+                        'direction': 'inbound' if is_inbound else 'outbound',
+                        'start_minutes': start_mins,
+                        'end_minutes': end_mins
+                    })
+            
+            # Sort all trips by start time
+            all_trips.sort(key=lambda x: x['start_minutes'])
+            
+            if not all_trips:
+                messages.error(request, "No trips found in the timetable for this route/direction.")
+                return redirect(f'/operator/{operator_slug}/{board_type}/add/')
+            
+            # Vehicle blocking algorithm - assign trips to vehicles
+            vehicles = []  # List of vehicle blocks
+            
+            for trip in all_trips:
+                # Find a vehicle that can do this trip
+                best_vehicle = None
+                best_wait_time = float('inf')
+                
+                for v in vehicles:
+                    # Check if vehicle is available and at the right location
+                    if v['end_minutes'] <= trip['start_minutes']:
+                        if v['end_location'] == trip['start_location']:
+                            wait_time = trip['start_minutes'] - v['end_minutes']
+                            if wait_time < best_wait_time:
+                                best_vehicle = v
+                                best_wait_time = wait_time
+                
+                if best_vehicle:
+                    # Assign trip to existing vehicle
+                    best_vehicle['trips'].append(trip)
+                    best_vehicle['end_minutes'] = trip['end_minutes']
+                    best_vehicle['end_location'] = trip['end_location']
+                else:
+                    # Need a new vehicle
+                    vehicles.append({
+                        'trips': [trip],
+                        'end_minutes': trip['end_minutes'],
+                        'end_location': trip['end_location']
+                    })
+            
+            # Parse selected days
+            selected_days = [int(d) for d in gen_days.split(',') if d]
+            
+            if not selected_days:
+                messages.error(request, "Please select at least one day.")
+                return redirect(f'/operator/{operator_slug}/{board_type}/add/')
+            
+            # Create duties - one per vehicle block
+            created_count = 0
+            for i, vehicle in enumerate(vehicles):
+                if not vehicle['trips']:
+                    continue
+                    
+                board_num = str(i + 1).zfill(2)
+                duty_name = pattern.replace('XX', board_num)
+                
+                first_trip = vehicle['trips'][0]
+                last_trip = vehicle['trips'][-1]
+                
+                duty_details = {
+                    "logon_time": first_trip['start_time'],
+                    "logoff_time": last_trip['end_time'],
+                    "brake_times": "",
+                    "trip_count": len(vehicle['trips'])
+                }
+                
+                duty_instance = duty.objects.create(
+                    duty_name=duty_name,
+                    duty_operator=operator,
+                    duty_details=duty_details,
+                    board_type=board_type,
+                    category=selected_category
+                )
+                
+                duty_instance.duty_day.set(selected_days)
+                
+                # Create dutyTrip records for each trip in this vehicle block
+                for trip in vehicle['trips']:
+                    dutyTrip.objects.create(
+                        duty=duty_instance,
+                        route=selected_route.route_num,
+                        route_link=selected_route,
+                        start_time=trip['start_time'],
+                        end_time=trip['end_time'],
+                        start_at=trip.get('start_stop', ''),
+                        end_at=trip.get('end_stop', ''),
+                        inbound=(trip['direction'] == 'inbound')
+                    )
+                
+                created_count += 1
+            
+            trips_created = len(all_trips)
+            messages.success(request, f"Successfully created {created_count} {titles.lower()} with {trips_created} trips from timetable.")
+            return redirect(f'/operator/{operator_slug}/{board_type}/')
+        
+        else:
+            # Handle manual add
+            duty_name = request.POST.get('duty_name')
+            start_time = request.POST.get('start_time')
+            end_time = request.POST.get('end_time')
+            brake_times = request.POST.getlist('brake_times')
+            selected_days = request.POST.getlist('duty_day')  # Handle multiple dayType IDs
+            category_id = request.POST.get('category')
 
-        duty_details = {
-            "logon_time": start_time,
-            "logoff_time": end_time,
-            "brake_times": formatted_brakes
-        }
+            formatted_brakes = " | ".join(brake_times)
 
-        # Get category if selected
-        selected_category = None
-        if category_id:
-            selected_category = board_category.objects.filter(id=category_id, operator=operator).first()
+            duty_details = {
+                "logon_time": start_time,
+                "logoff_time": end_time,
+                "brake_times": formatted_brakes
+            }
 
-        duty_instance = duty.objects.create(
-            duty_name=duty_name,
-            duty_operator=operator,
-            duty_details=duty_details,
-            board_type=board_type,
-            category=selected_category
-        )
+            # Get category if selected
+            selected_category = None
+            if category_id:
+                selected_category = board_category.objects.filter(id=category_id, operator=operator).first()
 
-        # Set ManyToManyField values
-        if selected_days:
-            duty_instance.duty_day.set(selected_days)
+            duty_instance = duty.objects.create(
+                duty_name=duty_name,
+                duty_operator=operator,
+                duty_details=duty_details,
+                board_type=board_type,
+                category=selected_category
+            )
 
-        messages.success(request, f"{title} added successfully.")
-        return redirect(f'/operator/{operator_slug}/{board_types}/add/trips/{duty_instance.id}/')
+            # Set ManyToManyField values
+            if selected_days:
+                duty_instance.duty_day.set(selected_days)
+
+            messages.success(request, f"{title} added successfully.")
+            return redirect(f'/operator/{operator_slug}/{board_types}/add/trips/{duty_instance.id}/')
 
     else:
         breadcrumbs = [
@@ -2280,6 +2477,22 @@ def duty_add(request, operator_slug):
 
         tabs = generate_tabs("duties", operator)
 
+        # Get routes for this operator for the generator
+        operator_routes = route.objects.filter(route_operators=operator).values(
+            'id', 'route_num', 'inbound_destination', 'outbound_destination', 'route_details'
+        )
+        
+        routes_json = json.dumps([
+            {
+                'id': r['id'],
+                'route_num': r['route_num'] or '',
+                'inbound_destination': r['inbound_destination'] or '',
+                'outbound_destination': r['outbound_destination'] or '',
+                'colours': r['route_details'].get('colours', '') if r['route_details'] else ''
+            }
+            for r in operator_routes
+        ])
+
         context = {
             'operator': operator,
             'days': days,
@@ -2290,6 +2503,7 @@ def duty_add(request, operator_slug):
             'titles': titles,  # Pass the plural title for the duties/running boards
             'title': title,  # Pass the singular title for the duty/running board
             'board_type': board_type,
+            'routes_json': routes_json,
         }
         return render(request, 'add_duty.html', context)
 
@@ -2415,6 +2629,275 @@ def duty_add_trip(request, operator_slug, duty_id):
         }
         return render(request, 'add_duty_trip.html', context)
     
+
+def get_timetable_trips(request, route_id):
+    """
+    Return a list of vehicle blocks (duties) calculated from timetable entries.
+    Each block represents one vehicle's work for the day, chaining inbound/outbound trips.
+    
+    Parameters:
+        request: Django HttpRequest with optional GET parameter `direction` (inbound/outbound/both).
+        route_id (int): Primary key of the route to query.
+    
+    Returns:
+        JSON response with array of vehicle blocks, each containing trips and overall times.
+    """
+    direction = request.GET.get('direction', 'both')
+    
+    r = route.objects.filter(pk=route_id).first()
+    if not r:
+        return JsonResponse({"error": "Route not found", "trips": []}, status=400)
+    
+    # Get all timetable entries for this route
+    all_trips = []
+    
+    timetables = timetableEntry.objects.filter(route=r)
+    
+    for tt in timetables:
+        stop_times = tt.stop_times
+        if not stop_times:
+            continue
+        
+        # Parse if it's a string
+        if isinstance(stop_times, str):
+            try:
+                stop_times = json.loads(stop_times)
+            except (json.JSONDecodeError, TypeError):
+                continue
+        
+        if not isinstance(stop_times, dict):
+            continue
+        
+        # Sort stops by order
+        sorted_stops = sorted(stop_times.items(), key=lambda x: x[1].get('order', 0) if isinstance(x[1], dict) else 0)
+        if len(sorted_stops) < 2:
+            continue
+        
+        first_stop_data = sorted_stops[0][1]
+        last_stop_data = sorted_stops[-1][1]
+        
+        if not isinstance(first_stop_data, dict) or not isinstance(last_stop_data, dict):
+            continue
+        
+        first_stop_name = first_stop_data.get('stopname', 'Start')
+        last_stop_name = last_stop_data.get('stopname', 'End')
+        first_times = first_stop_data.get('times', [])
+        last_times = last_stop_data.get('times', [])
+        
+        is_inbound = tt.inbound
+        
+        # Skip if direction filter doesn't match
+        if direction == 'inbound' and not is_inbound:
+            continue
+        if direction == 'outbound' and is_inbound:
+            continue
+        
+        for i, start_time in enumerate(first_times):
+            if not start_time:
+                continue
+            end_time = last_times[i] if i < len(last_times) else None
+            if not end_time:
+                continue
+            
+            # Use logical location: outbound ends at 'far', inbound ends at 'home'
+            # This allows proper chaining regardless of actual stop names
+            if is_inbound:
+                start_loc = 'far'
+                end_loc = 'home'
+            else:
+                start_loc = 'home'
+                end_loc = 'far'
+            
+            all_trips.append({
+                'start_time': start_time,
+                'end_time': end_time,
+                'start_location': start_loc,
+                'end_location': end_loc,
+                'start_stop': first_stop_name,
+                'end_stop': last_stop_name,
+                'direction': 'inbound' if is_inbound else 'outbound',
+                'start_minutes': time_to_minutes(start_time),
+                'end_minutes': time_to_minutes(end_time)
+            })
+    
+    # Sort all trips by start time
+    all_trips.sort(key=lambda x: x['start_minutes'])
+    
+    # Vehicle blocking algorithm - assign trips to vehicles
+    vehicles = []  # List of vehicle blocks, each is {'trips': [], 'end_minutes': int, 'end_location': str}
+    
+    # For single-direction mode, we need to account for deadhead time back to start
+    # Estimate based on trip duration (roughly same time to get back)
+    single_direction_mode = direction in ['inbound', 'outbound']
+    
+    for trip in all_trips:
+        # Find a vehicle that can do this trip
+        # Must have finished previous trip and be at the right location (or have time to deadhead back)
+        best_vehicle = None
+        best_wait_time = float('inf')
+        
+        for v in vehicles:
+            if single_direction_mode:
+                # In single direction mode, estimate deadhead time as the trip duration
+                # Vehicle needs time to get back to start point
+                last_trip = v['trips'][-1] if v['trips'] else None
+                if last_trip:
+                    trip_duration = last_trip['end_minutes'] - last_trip['start_minutes']
+                    deadhead_time = trip_duration  # Assume similar time to deadhead back
+                    available_time = v['end_minutes'] + deadhead_time
+                else:
+                    available_time = v['end_minutes']
+                
+                # Check if vehicle can make it back in time for the next trip
+                if available_time <= trip['start_minutes']:
+                    wait_time = trip['start_minutes'] - v['end_minutes']
+                    if wait_time < best_wait_time:
+                        best_vehicle = v
+                        best_wait_time = wait_time
+            else:
+                # In both directions mode, check location matching
+                if v['end_minutes'] <= trip['start_minutes']:
+                    if v['end_location'] == trip['start_location']:
+                        wait_time = trip['start_minutes'] - v['end_minutes']
+                        if wait_time < best_wait_time:
+                            best_vehicle = v
+                            best_wait_time = wait_time
+        
+        if best_vehicle:
+            # Assign trip to existing vehicle
+            best_vehicle['trips'].append(trip)
+            best_vehicle['end_minutes'] = trip['end_minutes']
+            best_vehicle['end_location'] = trip['end_location']
+        else:
+            # Need a new vehicle
+            vehicles.append({
+                'trips': [trip],
+                'end_minutes': trip['end_minutes'],
+                'end_location': trip['end_location']
+            })
+    
+    # Format response - each vehicle becomes a duty/board
+    result = []
+    for i, v in enumerate(vehicles):
+        if v['trips']:
+            first_trip = v['trips'][0]
+            last_trip = v['trips'][-1]
+            result.append({
+                'vehicle_num': i + 1,
+                'start_time': first_trip['start_time'],
+                'end_time': last_trip['end_time'],
+                'trip_count': len(v['trips']),
+                'trips': v['trips']
+            })
+    
+    # Sort by first trip start time
+    result.sort(key=lambda x: time_to_minutes(x['start_time']))
+    
+    return JsonResponse({"trips": result, "vehicle_count": len(result)})
+
+
+def time_to_minutes(time_str):
+    """Convert HH:MM to minutes since midnight."""
+    try:
+        parts = time_str.split(':')
+        return int(parts[0]) * 60 + int(parts[1])
+    except:
+        return 0
+
+
+@login_required
+@require_http_methods(["POST"])
+def create_duty_from_timetable_api(request, operator_slug):
+    """
+    API endpoint to create a single duty with its trips from timetable data.
+    Called via AJAX to avoid timeouts when creating many duties.
+    """
+    try:
+        operator = MBTOperator.objects.get(operator_slug=operator_slug)
+    except MBTOperator.DoesNotExist:
+        return JsonResponse({"success": False, "error": "Operator not found"}, status=404)
+    
+    # Check permissions
+    user = request.user
+    is_owner = operator.owner == user
+    is_helper = helper.objects.filter(operator=operator, helper=user).exists()
+    if not (is_owner or is_helper or user.is_superuser):
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+    
+    # Parse request data
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+    
+    duty_name = data.get('duty_name')
+    board_type = data.get('board_type', 'duty')
+    route_id = data.get('route_id')
+    category_id = data.get('category_id')
+    days = data.get('days', [])
+    trips = data.get('trips', [])
+    start_time = data.get('start_time')
+    end_time = data.get('end_time')
+    
+    if not duty_name or not route_id or not days:
+        return JsonResponse({"success": False, "error": "Missing required fields"}, status=400)
+    
+    # Get the route
+    try:
+        selected_route = route.objects.get(id=route_id)
+    except route.DoesNotExist:
+        return JsonResponse({"success": False, "error": "Route not found"}, status=404)
+    
+    # Get category if specified
+    selected_category = None
+    if category_id:
+        try:
+            selected_category = board_category.objects.get(id=category_id, operator=operator)
+        except board_category.DoesNotExist:
+            pass
+    
+    # Build duty details
+    duty_details = {
+        "logon_time": start_time,
+        "logoff_time": end_time,
+        "brake_times": "",
+        "trip_count": len(trips)
+    }
+    
+    # Create the duty
+    duty_instance = duty.objects.create(
+        duty_name=duty_name,
+        duty_operator=operator,
+        duty_details=duty_details,
+        board_type=board_type,
+        category=selected_category
+    )
+    
+    # Set days
+    duty_instance.duty_day.set(days)
+    
+    # Create trips
+    trips_created = 0
+    for trip in trips:
+        dutyTrip.objects.create(
+            duty=duty_instance,
+            route=selected_route.route_num,
+            route_link=selected_route,
+            start_time=trip.get('start_time'),
+            end_time=trip.get('end_time'),
+            start_at=trip.get('start_stop', ''),
+            end_at=trip.get('end_stop', ''),
+            inbound=(trip.get('direction') == 'inbound')
+        )
+        trips_created += 1
+    
+    return JsonResponse({
+        "success": True,
+        "duty_id": duty_instance.id,
+        "duty_name": duty_name,
+        "trips_created": trips_created,
+        "message": f"Created {duty_name} with {trips_created} trips"
+    })
 
     
 def get_timetable(request, route_id, direction):
