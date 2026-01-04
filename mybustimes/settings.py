@@ -185,6 +185,7 @@ MIDDLEWARE.extend([
     'django.middleware.locale.LocaleMiddleware',
     'cms.middleware.language.LanguageCookieMiddleware',
     "main.middleware.StaffOnlyDocsMiddleware",
+    "mybustimes.middleware.rest_last_active.ResetProMiddleware",
 ])
 
 CORS_ALLOW_ALL_ORIGINS = True
