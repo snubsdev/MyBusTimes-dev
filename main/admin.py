@@ -47,6 +47,14 @@ class StripeSubscriptionAdmin(SimpleHistoryAdmin):
     search_fields = ('user__username',)
     autocomplete_fields = ('user',)    
 
+@admin.register(ActiveSubscription)
+class ActiveSubscriptionAdmin(SimpleHistoryAdmin):
+    list_display = ('user', 'plan', 'start_date', 'end_date', 'is_trial', 'stripe_subscription_id')
+    search_fields = ('user__username', 'stripe_subscription_id', 'plan')
+    list_filter = ('plan', 'is_trial', 'start_date', 'end_date')
+    autocomplete_fields = ('user',)
+    ordering = ('-start_date',)
+
 @admin.register(BanType)
 class BanTypeAdmin(SimpleHistoryAdmin):
     list_display = ('name',)

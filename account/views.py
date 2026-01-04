@@ -38,7 +38,7 @@ from dateutil.relativedelta import relativedelta
 # Local imports
 from .forms import CustomUserCreationForm, AccountSettingsForm
 from fleet.models import group, MBTOperator, fleetChange, helper, liverie
-from main.models import CustomUser, UserKeys, badge, StripeSubscription
+from main.models import CustomUser, UserKeys, badge, StripeSubscription, ActiveSubscription
 from a.models import AffiliateLink, Link
 from main.models import featureToggle
 import requests
@@ -495,6 +495,19 @@ class stripe_webhook(APIView):
                 print("⚠ Could not parse months metadata:", str(e))
 
         user.save(update_fields=["sub_plan", "ad_free_until", "stripe_subscription_id"])
+
+        # Create ActiveSubscription record
+        if subscription_id and plan_level:
+            ActiveSubscription.objects.create(
+                user=user,
+                stripe_subscription_id=subscription_id,
+                start_date=timezone.now(),
+                end_date=user.ad_free_until,
+                plan=plan_level,
+                is_trial=False
+            )
+            print("✔ Created ActiveSubscription record")
+
         print("✔ Completed checkout.session.completed")
         return Response(status=200)
 
@@ -564,6 +577,17 @@ class stripe_webhook(APIView):
             )
             print("✔ Updated StripeSubscription end_date")
 
+            # Create new ActiveSubscription record for this payment period
+            ActiveSubscription.objects.create(
+                user=user,
+                stripe_subscription_id=subscription_id,
+                start_date=timezone.now(),
+                end_date=ad_free_until,
+                plan=plan_level or user.sub_plan or "basic",
+                is_trial=False
+            )
+            print("✔ Created ActiveSubscription record for invoice payment")
+
         return Response(status=200)
     
 @api_view(["POST"])
@@ -575,12 +599,25 @@ def create_checkout_session(request):
         product_type = request.data.get("product_type").replace("_free_trial", "")
 
         user = request.user
+        current_ad_free = user.ad_free_until or timezone.now()
+        new_ad_free_until = current_ad_free + datetime.timedelta(days=days)
 
         user.sub_plan = product_type
         user.had_pro_trial = True
-        user.ad_free_until = timezone.now() + datetime.timedelta(days=days)
+        user.ad_free_until = new_ad_free_until
 
         user.save(update_fields=["sub_plan", "had_pro_trial", "ad_free_until"])
+
+        # Create ActiveSubscription record for the free trial
+        ActiveSubscription.objects.create(
+            user=user,
+            stripe_subscription_id=None,
+            start_date=timezone.now(),
+            end_date=new_ad_free_until,
+            plan=product_type,
+            is_trial=True
+        )
+        print("✔ Created ActiveSubscription for free trial")
 
         return redirect('/u/subscribe/success/')
     

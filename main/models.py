@@ -89,6 +89,20 @@ class BanType(models.Model):
 
     def __str__(self):
         return self.name
+    
+class ActiveSubscription(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='active_subscriptions')
+    stripe_subscription_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
+    start_date = models.DateTimeField()
+    end_date = models.DateTimeField(null=True, blank=True)
+    plan = models.CharField(max_length=100)
+    is_trial = models.BooleanField(default=False)
+
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return f"{self.user.username} - {self.stripe_subscription_id}"
+    
 class CustomUser(AbstractUser):
     #mbt_admin_perms = models.ManyToManyField('MBTAdminPermission', related_name='users_with_perm', blank=True, help_text="Administrative permissions for MyBusTimes")
     oidc_sub = models.CharField(max_length=255, unique=True, null=True, blank=True)
@@ -102,7 +116,7 @@ class CustomUser(AbstractUser):
     reg_background = models.BooleanField(default=True)
     last_login_ip = models.GenericIPAddressField(blank=True, null=True)
     last_ip = models.GenericIPAddressField(blank=True, null=True)
-    last_active = models.DateTimeField(blank=True, null=True)
+    last_active = models.DateTimeField(blank=True, null=True, )
     banned = models.BooleanField(default=False)
 
     banned_from = models.ManyToManyField(BanType, blank=True, related_name='banned_users', help_text="Types of bans applied to the user")
@@ -139,7 +153,7 @@ class CustomUser(AbstractUser):
     def is_ad_free(self):
         return self.ad_free_until and self.ad_free_until > timezone.now()
     
-    history = HistoricalRecords()
+    history = HistoricalRecords(excluded_fields=['last_active'])
 
     def __str__(self):
         return self.username
