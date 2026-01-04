@@ -55,7 +55,7 @@ Promise.race([fetchData, timeout])
         }
         banner.style.display = "block";
         buttom.style.display = "block";
-        main.style.margin = "110px auto";
+        main.style.margin = "6em auto";
       }
     } else {
       banner.textContent = "";
@@ -92,6 +92,8 @@ Promise.race([fetchData, timeout])
       banner.style.color = "#fff";
       buttom.style.display = "none";
     }
+
+    
   })
   .catch((error) => {
     console.error("Error fetching service updates:", error);
