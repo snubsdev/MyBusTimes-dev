@@ -83,12 +83,15 @@
   const savedView = JSON.parse(localStorage.getItem('mbt_map_view') || 'null');
   let tilesJSON = 'https://tiles.snubs.dev/styles/light/style.json';
 
+  
   {% if themeDark == 'True' %}
-    tilesJSON = 'https://tiles.snubs.dev/styles/dark/style.json';
+    const style = 'dark';
   {% else %}
-    tilesJSON = 'https://tiles.snubs.dev/styles/light/style.json';
+    const style = 'light';
   {% endif %}
 
+
+  tilesJSON = `https://tiles.snubs.dev/${style}/dark/style.json`;
 
   const map = new maplibregl.Map({
     container: 'map',
