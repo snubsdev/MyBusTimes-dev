@@ -55,7 +55,7 @@ Promise.race([fetchData, timeout])
         }
         banner.style.display = "block";
         buttom.style.display = "block";
-        main.style.margin = "6em auto";
+        main.style.margin = "110px auto";
       }
     } else {
       banner.textContent = "";

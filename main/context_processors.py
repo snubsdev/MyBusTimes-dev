@@ -1,10 +1,11 @@
 from datetime import datetime
-from main.models import theme, ad, google_ad, featureToggle, BannedIps
+from main.models import theme, ad, google_ad, featureToggle, BannedIps, ActiveSubscription
 from django.utils import timezone
 from datetime import timedelta
 from django.contrib.auth import get_user_model
 from mybustimes import settings
 from django.shortcuts import render
+from django.db.models import Q
 import json
 
 User = get_user_model()
@@ -171,9 +172,16 @@ def theme_settings(request):
         media_path = settings.MEDIA_URL + a['ad_img']  # "/media/images/Poly_Bus.webp"
         a['ad_img'] = request.build_absolute_uri(media_path)
 
-    
+    # Check if user has active subscription (ad-free)
+    has_active_sub = False
+    if user.is_authenticated:
+        has_active_sub = ActiveSubscription.objects.filter(
+            user=user
+        ).filter(
+            Q(end_date__isnull=True) | Q(end_date__gt=timezone.now())
+        ).exists()
 
-    if user.is_authenticated and user.ad_free_until and user.ad_free_until > timezone.now() or ads_enabled == False:  
+    if has_active_sub or ads_enabled == False:  
         ads_enabled = False
         google_ads_enabled = False
         mbt_ads_enabled = False
