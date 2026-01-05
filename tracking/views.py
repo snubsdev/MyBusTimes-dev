@@ -286,23 +286,20 @@ class current_vehicle_trips(generics.ListAPIView):
         return queryset
     
 from django.db.models import Q, Prefetch
+from tracking.utils import get_progress
 
-class VehicleDetailSerializer(serializers.Serializer):
-    """Optimized vehicle serializer - expects a fleet object directly."""
-    url = serializers.SerializerMethodField()
-    name = serializers.SerializerMethodField()
-    features = serializers.SerializerMethodField()
-    livery = serializers.SerializerMethodField()
-    colour = serializers.SerializerMethodField()
-    text_colour = serializers.SerializerMethodField()
-    white_text = serializers.SerializerMethodField()
-    left_css = serializers.SerializerMethodField()
-    right_css = serializers.SerializerMethodField()
-    stroke_colour = serializers.SerializerMethodField()
-    custom_features = serializers.SerializerMethodField()
 
+class EstimatedPositionSerializer(serializers.Serializer):
+    """Optimized position serializer - all serialization inlined to minimize overhead."""
+    
     def to_representation(self, obj):
-        # Pre-compute all livery values once to avoid repeated attribute access
+        ct = obj.current_trip
+        trip_route = ct.trip_route if ct else None
+        
+        # Get progress if trip exists
+        progress = get_progress(ct) if ct else None
+        
+        # --- Inline vehicle serialization ---
         livery = obj.livery
         has_livery = livery is not None
         
@@ -312,21 +309,20 @@ class VehicleDetailSerializer(serializers.Serializer):
         livery_right = livery.right_css if has_livery else ""
         livery_stroke = livery.stroke_colour if has_livery else ""
         
-        # Use obj.colour override if set
         left_css = obj.colour if obj.colour else livery_left
         right_css = obj.colour if obj.colour else livery_right
         
-        # Build name
-        name = f"{obj.fleet_number} - {obj.reg}" if obj.fleet_number else (obj.reg or "Unknown Vehicle")
+        vehicle_name = f"{obj.fleet_number} - {obj.reg}" if obj.fleet_number else (obj.reg or "Unknown Vehicle")
         
-        # Build features string
         features = ""
         if obj.features:
             features = "<br>".join(obj.features) if isinstance(obj.features, list) else str(obj.features)
         
-        return {
-            "url": f"/operator/{obj.operator.operator_slug}/vehicles/{obj.id}/",
-            "name": name,
+        operator_slug = obj.operator.operator_slug
+        
+        vehicle_data = {
+            "url": f"/operator/{operator_slug}/vehicles/{obj.id}/",
+            "name": vehicle_name,
             "features": features,
             "livery": {
                 "id": livery.id if has_livery else None,
@@ -343,52 +339,26 @@ class VehicleDetailSerializer(serializers.Serializer):
             "left_css": left_css,
             "right_css": right_css,
             "stroke_colour": livery_stroke,
-            "custom_features": obj.advanced_details if obj.advanced_details else None,
+            "custom_features": obj.advanced_details or None,
         }
-
-class ServiceDetailSerializer(serializers.Serializer):
-    """Optimized service serializer - uses prefetched operator."""
-    
-    def to_representation(self, route_obj):
-        if not route_obj:
-            return {"url": None, "line_name": "Unknown Service"}
         
-        # Use prefetched operators if available
-        operators = getattr(route_obj, '_prefetched_operators', None)
-        if operators is None:
-            # Fallback - this should be avoided with proper prefetching
-            op = route_obj.route_operators.first()
+        # --- Inline service serialization ---
+        if trip_route:
+            operators = getattr(trip_route, '_prefetched_operators', None)
+            if operators is None:
+                op = trip_route.route_operators.first()
+            else:
+                op = operators[0] if operators else None
+            
+            service_data = {
+                "url": f"/operator/{op.operator_slug}/route/{trip_route.id}/" if op else None,
+                "line_name": trip_route.route_num or "Unknown Service"
+            }
         else:
-            op = operators[0] if operators else None
-        
-        url = f"/operator/{op.operator_slug}/route/{route_obj.id}/" if op else None
+            service_data = {"url": None, "line_name": "Unknown Service"}
         
         return {
-            "url": url,
-            "line_name": route_obj.route_num or "Unknown Service"
-        }
-
-class EstimatedPositionSerializer(serializers.Serializer):
-    """Optimized position serializer - minimizes method calls."""
-    
-    def to_representation(self, obj):
-        ct = obj.current_trip
-        trip_route = ct.trip_route if ct else None
-        
-        # Get progress if trip exists
-        progress = None
-        if ct:
-            from tracking.utils import get_progress
-            progress = get_progress(ct)
-        
-        # Serialize vehicle inline for speed
-        vehicle_data = VehicleDetailSerializer().to_representation(obj)
-        
-        # Serialize service inline
-        service_data = ServiceDetailSerializer().to_representation(trip_route)
-        
-        return {
-            "trip_id": ct.trip_id if ct and hasattr(ct, "trip_id") else None,
+            "trip_id": ct.trip_id if ct else None,
             "vehicle": vehicle_data,
             "service_id": trip_route.id if trip_route else None,
             "service": service_data,
@@ -399,6 +369,7 @@ class EstimatedPositionSerializer(serializers.Serializer):
             "heading": obj.sim_heading,
             "updated_at": obj.updated_at,
         }
+
 
 class trackingAPIView(generics.ListAPIView):
     serializer_class = EstimatedPositionSerializer

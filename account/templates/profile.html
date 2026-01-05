@@ -90,7 +90,7 @@
     </div>
 </div>
 
-{% if user == profile_user %}
+{% if user == profile_user or user.is_staff %}
 <style>
     .sub-status p {
         margin: 0;

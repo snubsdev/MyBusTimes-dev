@@ -212,7 +212,7 @@ def theme_settings(request):
 
     banned = user_has_banned_ip or user_account_banned
 
-    if user.is_superuser or user.is_staff:
+    if user.is_authenticated and (user.is_superuser or user.is_staff):
         admin = True
     else:
         admin = False
@@ -232,7 +232,7 @@ def theme_settings(request):
     STRIPE_BILLING_PORTAL_URL = settings.STRIPE_BILLING_PORTAL_URL
 
     return {
-        'has_pro': 'true' if ActiveSubscription.objects.filter(
+        'has_pro': 'true' if user.is_authenticated and ActiveSubscription.objects.filter(
             user=user
         ).filter(
             Q(end_date__isnull=True) | Q(end_date__gt=timezone.now())
