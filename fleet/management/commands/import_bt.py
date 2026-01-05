@@ -36,21 +36,23 @@ class Command(BaseCommand):
 		if not type_name:
 			return None
 		
-		try:
-			return vehicleType.objects.get(type_name=type_name)
-		except vehicleType.DoesNotExist:
-			# Create new type from BusTimes data
-			new_type = vehicleType.objects.create(
-				type_name=type_name,
-				active=True,
-				hidden=False,
-				double_decker=bt_type.get('double_decker', False),
-				type=bt_type.get('style', 'Bus') or 'Bus',
-				fuel=bt_type.get('fuel', 'Diesel').capitalize() if bt_type.get('fuel') else 'Diesel',
-				added_by=owner,
-			)
-			self.stdout.write(self.style.SUCCESS(f"    Created new vehicle type: {type_name} (ID: {new_type.id})"))
-			return new_type
+		# Use filter().first() to handle potential duplicates
+		existing_type = vehicleType.objects.filter(type_name=type_name).first()
+		if existing_type:
+			return existing_type
+		
+		# Create new type from BusTimes data
+		new_type = vehicleType.objects.create(
+			type_name=type_name,
+			active=True,
+			hidden=False,
+			double_decker=bt_type.get('double_decker', False),
+			type=bt_type.get('style', 'Bus') or 'Bus',
+			fuel=bt_type.get('fuel', 'Diesel').capitalize() if bt_type.get('fuel') else 'Diesel',
+			added_by=owner,
+		)
+		self.stdout.write(self.style.SUCCESS(f"    Created new vehicle type: {type_name} (ID: {new_type.id})"))
+		return new_type
 
 	def get_or_create_mbt_livery(self, bt_livery, owner):
 		"""Match BusTimes livery to MBT livery by CSS, or create if not found"""
