@@ -2120,7 +2120,7 @@ def generate_pdf(request, operator_slug, duty_id):
         p.drawString(vertical_split_x + 10, 785, f"Start Time: {start_time} - End Time: {end_time}")
 
         p.setFont("Helvetica-Bold", 12)
-        p.drawString(vertical_split_x + 10, 765, "Brake Times:")
+        p.drawString(vertical_split_x + 10, 765, "Break Times:")
         p.setFont("Helvetica", 12)
         p.drawString(vertical_split_x + 10, 752, formatted_brake_time)
 
