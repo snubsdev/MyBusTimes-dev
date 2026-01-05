@@ -86,6 +86,12 @@
         <option value="{{ map.id }}" {% if map.id == currentMap %}selected{% endif %}>{{ map.name }}</option>
         {% endfor %}
     </select>
+
+    <label for="show_livery_border">
+        <input type="checkbox" name="show_livery_border" {% if operator.show_livery_border %}checked{% endif %}>
+        Show Livery Border
+    </label>
+
     <button style="min-width: 150px;" class="btn delete-btn" type="button"
         onclick='window.location.href="{% url 'reset_operator' operator.operator_slug %}"'>Reset Fleet</button>
 

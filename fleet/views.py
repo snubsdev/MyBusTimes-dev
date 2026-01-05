@@ -3671,7 +3671,7 @@ def operator_edit(request, operator_slug):
         region_ids = request.POST.getlist('operator_region')
         operator.region.set(region_ids)
 
-
+        operator.show_livery_border = request.POST.get('show_livery_border') == 'on'
 
         if request.POST.get('group', None) == "":
             group_instance = None

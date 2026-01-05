@@ -134,6 +134,7 @@ class MBTOperator(models.Model):
     operator_details = models.JSONField(default=default_operator_details, blank=True, null=True)
     private = models.BooleanField(default=False)
     public = models.BooleanField(default=False)
+    show_livery_border = models.BooleanField(default=False)
     show_trip_id = models.BooleanField(default=True)
 
     vehicles_for_sale = models.IntegerField(default=0)
