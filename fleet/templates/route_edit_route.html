@@ -272,7 +272,7 @@
     <span class="mode-text" id="modeText">Click on the map to add a stop</span>
     <button class="mode-cancel" id="modeCancel">Cancel</button>
   </div>
-  {% if user.sub_plan == "pro" %}
+  {% if has_pro == "true" %}
   <div class="master-snap-toggle">
     <input type="checkbox" id="masterSnapToggle" checked>
     <label for="masterSnapToggle">Snap route to roads</label>
@@ -289,7 +289,7 @@
               Edit Names Only
             </button>
           </th>
-          {% if user.sub_plan == "pro" %}
+          {% if has_pro == "true" %}
           <th style="font-size: 11px;">Time</th>
           <th style="font-size: 11px;" title="Snap segment to road">Snap</th>
           {% endif %}
@@ -319,7 +319,7 @@
 
 <script>
   const savedView = JSON.parse(localStorage.getItem('mbt_map_view') || 'null');
-  let hasPro = {% if user.sub_plan == "pro" %}true{% else %}false{% endif %};
+  let hasPro = {% if has_pro == "true" %}true{% else %}false{% endif %};
   let tilesJSON = 'https://tiles.snubs.dev/styles/light/style.json';
   {% if themeDark == 'True' %}
     tilesJSON = 'https://tiles.snubs.dev/styles/dark/style.json';

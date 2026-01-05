@@ -276,7 +276,37 @@ def user_profile(request, username):
     if profile_user.last_active and profile_user.last_active > timezone.now() - timedelta(minutes=5):
         online = True
 
+    sub_status = {}
+
+    # Filter to only currently active subscriptions
+    user_active_subs = ActiveSubscription.objects.filter(
+        user=profile_user,
+        end_date__gt=timezone.now()
+    ).order_by('-end_date')
+
+    sub_count = user_active_subs.count()
+    
+    if sub_count > 1:
+        counter = 0
+        for sub in user_active_subs:
+            counter += 1
+            sub_status[f"sub_{counter}"] = {
+                'plan': sub.plan,
+                'until': sub.end_date.strftime("%Y-%m-%d"),
+                'is_trial': sub.is_trial
+            }
+    elif sub_count == 1:
+        sub = user_active_subs.first()
+        sub_status["sub_1"] = {
+            'plan': sub.plan,
+            'until': sub.end_date.strftime("%Y-%m-%d"),
+            'is_trial': sub.is_trial
+        }
+    else:
+        sub_status["sub_1"] = {'plan': 'free', 'until': 'N/A', 'is_trial': False}
+
     context = {
+        'sub_status': sub_status,
         'breadcrumbs': breadcrumbs,
         'profile_user': profile_user,
         'operators': operators,

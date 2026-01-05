@@ -117,7 +117,7 @@
                 </div>
                 <button type="button" style="margin-top: 25px;" class="btn btn-secondary" onclick="autoFillDwell()">Apply</button>
               </div><br><br><br>
-              {% if user.sub_plan == "pro" %}
+              {% if has_pro == "true" %}
               <button type="button" class="btn btn-secondary btn-block" onclick="autoFillFromStops()">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
                 Auto-fill from Stop Data

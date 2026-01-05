@@ -232,6 +232,11 @@ def theme_settings(request):
     STRIPE_BILLING_PORTAL_URL = settings.STRIPE_BILLING_PORTAL_URL
 
     return {
+        'has_pro': 'true' if ActiveSubscription.objects.filter(
+            user=user
+        ).filter(
+            Q(end_date__isnull=True) | Q(end_date__gt=timezone.now())
+        ).exists() else 'false',
         'banned': banned,
         'unban_date_time': user.banned_date if user.is_authenticated and user.banned_date else None,
         'ban_reason': user.banned_reason if user.is_authenticated else None,

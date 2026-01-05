@@ -97,8 +97,17 @@
     }
 </style>
 <div class="sub-status">
-    <p>Plan: {{ profile_user.sub_plan }}</p>
-    <p>Expires: {{ profile_user.ad_free_until }}</p>
+    {{ sub_status|json_script:"sub_status_data" }}
+    {% for sub in sub_status.values %}
+        <p>Plan: {{ sub.plan }}</p>
+        <p>Expires: {{ sub.until }}</p>
+        {% if sub.is_trial %}
+            <p>Free Trial</p>
+        {% endif %}
+        {% if not forloop.last %}
+            <br>
+        {% endif %}
+    {% endfor %}
 </div>
 {% endif %}
 
