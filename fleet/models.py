@@ -213,7 +213,14 @@ class helper(models.Model):
 def default_operator_id():
     # returns the operator instance or ID to set
     from .models import MBTOperator
-    return MBTOperator.objects.get(operator_code="UC")
+    try:
+        return MBTOperator.objects.get(operator_code="UC")
+    except MBTOperator.DoesNotExist:
+        # Create the default "Unknown Company" operator if it doesn't exist
+        return MBTOperator.objects.get_or_create(
+            operator_code="UC",
+            defaults={"operator_name": "Unknown Company"}
+        )[0]
 
 class fleet(models.Model):
     id = models.AutoField(primary_key=True, db_index=True)
