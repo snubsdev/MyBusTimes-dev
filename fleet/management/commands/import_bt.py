@@ -66,18 +66,20 @@ class Command(BaseCommand):
 		if not livery_name:
 			return None
 		
-		# Try to match by exact CSS first
+		# Try to match by exact CSS first (most reliable match)
+		if bt_left or bt_right:
+			exact_css_match = liverie.objects.filter(left_css=bt_left, right_css=bt_right).first()
+			if exact_css_match:
+				return exact_css_match
+		
+		# If no CSS match, try matching by name with CSS verification
 		liveries = liverie.objects.filter(name__icontains=livery_name)
 		
 		for liv in liveries:
 			if bt_left == liv.left_css and bt_right == liv.right_css:
 				return liv
 		
-		# If no exact CSS match, return first result with same name
-		if liveries.exists():
-			return liveries.first()
-		
-		# Create new livery from BusTimes data
+		# No matching livery found, create new one from BusTimes data
 		new_livery = liverie.objects.create(
 			name=livery_name,
 			colour=bt_livery.get('colour', '#FFFFFF') or '#FFFFFF',
