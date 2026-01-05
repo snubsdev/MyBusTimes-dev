@@ -526,9 +526,10 @@ class stripe_webhook(APIView):
 
         user.save(update_fields=["sub_plan", "ad_free_until", "stripe_subscription_id"])
 
-        # Create ActiveSubscription record
-        if subscription_id and plan_level:
-            effective_plan = plan_level or user.sub_plan or "basic"
+        # Create ActiveSubscription record (works for both subscriptions and one-off payments)
+        effective_plan = plan_level or user.sub_plan or "basic"
+        if subscription_id:
+            # For recurring subscriptions, use get_or_create with subscription_id
             ActiveSubscription.objects.get_or_create(
                 stripe_subscription_id=subscription_id,
                 defaults={
@@ -539,7 +540,18 @@ class stripe_webhook(APIView):
                     "is_trial": False,
                 }
             )
-            print("✔ Created ActiveSubscription record")
+            print("✔ Created ActiveSubscription record for subscription")
+        elif plan_level and user.ad_free_until:
+            # For one-off payments, create without subscription_id
+            ActiveSubscription.objects.create(
+                user=user,
+                stripe_subscription_id=None,
+                start_date=timezone.now(),
+                end_date=user.ad_free_until,
+                plan=effective_plan,
+                is_trial=False,
+            )
+            print("✔ Created ActiveSubscription record for one-off payment")
 
         print("✔ Completed checkout.session.completed")
         return Response(status=200)
