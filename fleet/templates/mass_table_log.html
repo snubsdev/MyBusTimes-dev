@@ -217,36 +217,23 @@
 }
 
 .board-dropdown {
-  position: fixed;
-  max-height: 300px;
-  overflow: hidden;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 250px;
+  overflow-y: auto;
   background: var(--viewed-color);
   border: 1px solid var(--border-color);
-  border-radius: 0.375rem;
-  z-index: 1000;
+  border-top: none;
+  border-radius: 0 0 0.375rem 0.375rem;
+  z-index: 100;
   display: none;
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  min-width: 200px;
 }
 
 .board-dropdown.open {
   display: block;
-}
-
-.board-dropdown .dropdown-filter {
-  width: 100%;
-  padding: 0.5rem 0.75rem;
-  border: none;
-  border-bottom: 1px solid var(--border-color);
-  font-size: 0.875rem;
-  background: var(--background-color);
-  color: var(--text-color);
-  outline: none;
-}
-
-.board-options-container {
-  max-height: 250px;
-  overflow-y: auto;
 }
 
 .board-option-group-label {
@@ -671,10 +658,29 @@
 
         <div class="board-search-wrapper" data-vehicle="{{ v.id }}">
           <input type="hidden" name="assignments[{{ v.id }}][board_id]" class="board-id" data-vehicle="{{ v.id }}" value="">
-          <input type="text" class="board-search-input" placeholder="Select board..." readonly data-vehicle="{{ v.id }}">
+          <input type="text" class="board-search-input" placeholder="Select board..." readonly>
           <span class="board-search-icon">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
           </span>
+          <div class="board-dropdown">
+            <div class="board-option-group duty-group">
+              <div class="board-option-group-label">Duties</div>
+              {% for d in duties %}
+              <div class="board-option" data-id="{{ d.id }}" data-type="duty" data-name="{{ d.duty_name }}">
+                <span class="board-name">{{ d.duty_name }}</span>
+              </div>
+              {% endfor %}
+            </div>
+            <div class="board-option-group running-group">
+              <div class="board-option-group-label">Running Boards</div>
+              {% for rb in running_boards %}
+              <div class="board-option" data-id="{{ rb.id }}" data-type="running" data-name="{{ rb.duty_name }}">
+                <span class="board-name">{{ rb.duty_name }}</span>
+              </div>
+              {% endfor %}
+            </div>
+            <div class="no-results" style="display: none;">No matching boards found</div>
+          </div>
         </div>
       </div>
       {% empty %}
@@ -699,30 +705,6 @@
 
 <!-- Progress Modal -->
 <div class="progress-overlay" id="progress-container">
-
-<!-- Shared Board Dropdown (single instance for all vehicles) -->
-<div class="board-dropdown" id="shared-dropdown">
-  <input type="text" class="dropdown-filter" placeholder="Type to filter..." autocomplete="off">
-  <div class="board-options-container">
-    <div class="board-option-group duty-group">
-      <div class="board-option-group-label">Duties</div>
-      {% for d in duties %}
-      <div class="board-option" data-id="{{ d.id }}" data-type="duty" data-name="{{ d.duty_name }}">
-        <span class="board-name">{{ d.duty_name }}</span>
-      </div>
-      {% endfor %}
-    </div>
-    <div class="board-option-group running-group">
-      <div class="board-option-group-label">Running Boards</div>
-      {% for rb in running_boards %}
-      <div class="board-option" data-id="{{ rb.id }}" data-type="running" data-name="{{ rb.duty_name }}">
-        <span class="board-name">{{ rb.duty_name }}</span>
-      </div>
-      {% endfor %}
-    </div>
-    <div class="no-results" style="display: none;">No matching boards found</div>
-  </div>
-</div>
   <div class="progress-modal">
     <div class="progress-header">
       <h3>
@@ -770,177 +752,138 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     // -------------------------------
-    // Shared Dropdown Logic
+    // Searchable Board Dropdown (matching trip pages style)
     // -------------------------------
-    const sharedDropdown = document.getElementById('shared-dropdown');
-    const dropdownFilter = sharedDropdown.querySelector('.dropdown-filter');
-    const boardOptions = sharedDropdown.querySelectorAll('.board-option');
-    const noResults = sharedDropdown.querySelector('.no-results');
-    let activeVehicleId = null;
-    let usedBoards = new Set();
-
-    function positionDropdown(inputEl) {
-        const rect = inputEl.getBoundingClientRect();
-        const spaceBelow = window.innerHeight - rect.bottom;
-        const dropdownHeight = 300;
-        
-        sharedDropdown.style.width = rect.width + 'px';
-        sharedDropdown.style.left = rect.left + 'px';
-        
-        if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
-            sharedDropdown.style.top = (rect.top - dropdownHeight) + 'px';
-        } else {
-            sharedDropdown.style.top = rect.bottom + 'px';
-        }
-    }
-
-    function openDropdown(vehicleId) {
-        activeVehicleId = vehicleId;
-        const wrapper = document.querySelector(`.board-search-wrapper[data-vehicle="${vehicleId}"]`);
-        const searchInput = wrapper.querySelector('.board-search-input');
-        const hiddenInput = wrapper.querySelector('.board-id');
-        const typeSelect = document.querySelector(`.board-type[data-vehicle="${vehicleId}"]`);
-        const selectedType = typeSelect ? typeSelect.value : '';
-        
-        positionDropdown(searchInput);
-        dropdownFilter.value = '';
-        filterOptions('', selectedType, hiddenInput.value);
-        sharedDropdown.classList.add('open');
-        
-        // Focus the filter input
-        setTimeout(() => dropdownFilter.focus(), 10);
-    }
-
-    function closeDropdown() {
-        sharedDropdown.classList.remove('open');
-        activeVehicleId = null;
-    }
-
-    function filterOptions(query, selectedType, currentBoardId) {
-        const q = query.toLowerCase();
-        let hasVisible = false;
-        
-        boardOptions.forEach(opt => {
-            const name = opt.dataset.name.toLowerCase();
-            const type = opt.dataset.type;
-            const id = opt.dataset.id;
-            const matchesSearch = name.includes(q);
-            const matchesType = !selectedType || type === selectedType;
-            const isUsed = usedBoards.has(id) && id !== currentBoardId;
-            
-            opt.classList.toggle('used', isUsed);
-            
-            if (matchesSearch && matchesType) {
-                opt.classList.remove('hidden');
-                hasVisible = true;
-            } else {
-                opt.classList.add('hidden');
-            }
-        });
-        
-        // Show/hide group labels
-        sharedDropdown.querySelectorAll('.board-option-group').forEach(group => {
-            const visibleOpts = group.querySelectorAll('.board-option:not(.hidden)');
-            group.style.display = visibleOpts.length ? '' : 'none';
-        });
-        
-        noResults.style.display = hasVisible ? 'none' : '';
-    }
-
-    // Filter input handler
-    dropdownFilter.addEventListener('input', (e) => {
-        if (!activeVehicleId) return;
-        const wrapper = document.querySelector(`.board-search-wrapper[data-vehicle="${activeVehicleId}"]`);
-        const hiddenInput = wrapper.querySelector('.board-id');
-        const typeSelect = document.querySelector(`.board-type[data-vehicle="${activeVehicleId}"]`);
-        filterOptions(e.target.value, typeSelect?.value || '', hiddenInput.value);
-    });
-
-    // Prevent dropdown close when clicking filter
-    dropdownFilter.addEventListener('mousedown', (e) => e.stopPropagation());
-
-    // Option click handler
-    boardOptions.forEach(opt => {
-        opt.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (opt.classList.contains('used') || !activeVehicleId) return;
-            
-            const id = opt.dataset.id;
-            const name = opt.dataset.name;
-            const type = opt.dataset.type;
-            
-            const wrapper = document.querySelector(`.board-search-wrapper[data-vehicle="${activeVehicleId}"]`);
-            const hiddenInput = wrapper.querySelector('.board-id');
+    function initBoardDropdowns() {
+        document.querySelectorAll('.board-search-wrapper').forEach(wrapper => {
             const searchInput = wrapper.querySelector('.board-search-input');
-            const typeSelect = document.querySelector(`.board-type[data-vehicle="${activeVehicleId}"]`);
+            const dropdown = wrapper.querySelector('.board-dropdown');
+            const hiddenInput = wrapper.querySelector('.board-id');
+            const options = wrapper.querySelectorAll('.board-option');
+            const noResults = wrapper.querySelector('.no-results');
+            const vehicleId = wrapper.dataset.vehicle;
             
-            // Update values
-            hiddenInput.value = id;
-            hiddenInput.dataset.boardName = name;
-            hiddenInput.dataset.boardType = type;
-            saveElement(hiddenInput);
+            // Open dropdown on click
+            searchInput.addEventListener('click', () => {
+                searchInput.removeAttribute('readonly');
+                searchInput.select();
+                filterOptions('');
+                dropdown.classList.add('open');
+            });
             
-            searchInput.value = name;
-            searchInput.dataset.boardId = id;
+            // Filter on input
+            searchInput.addEventListener('input', (e) => {
+                filterOptions(e.target.value);
+                dropdown.classList.add('open');
+            });
             
-            if (typeSelect && typeSelect.value !== type) {
-                typeSelect.value = type;
-                saveElement(typeSelect);
+            // Close on blur
+            searchInput.addEventListener('blur', () => {
+                setTimeout(() => {
+                    dropdown.classList.remove('open');
+                    searchInput.setAttribute('readonly', '');
+                }, 200);
+            });
+            
+            function filterOptions(query) {
+                const typeSelect = document.querySelector(`.board-type[data-vehicle="${vehicleId}"]`);
+                const selectedType = typeSelect ? typeSelect.value : '';
+                const q = query.toLowerCase();
+                let hasVisible = false;
+                
+                options.forEach(opt => {
+                    const name = opt.dataset.name.toLowerCase();
+                    const type = opt.dataset.type;
+                    const matchesSearch = name.includes(q);
+                    const matchesType = !selectedType || type === selectedType;
+                    
+                    if (matchesSearch && matchesType && !opt.classList.contains('used')) {
+                        opt.classList.remove('hidden');
+                        hasVisible = true;
+                    } else {
+                        opt.classList.add('hidden');
+                    }
+                });
+                
+                // Show/hide group labels based on visible options
+                wrapper.querySelectorAll('.board-option-group').forEach(group => {
+                    const visibleOpts = group.querySelectorAll('.board-option:not(.hidden)');
+                    group.style.display = visibleOpts.length ? '' : 'none';
+                });
+                
+                noResults.style.display = hasVisible ? 'none' : '';
             }
             
-            closeDropdown();
-            updateUsedBoards();
-            updateRowStyling();
-            updateAssignmentCount();
-        });
-    });
-
-    // Click handlers for search inputs
-    document.querySelectorAll('.board-search-input').forEach(input => {
-        input.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const vehicleId = input.dataset.vehicle;
-            if (activeVehicleId === vehicleId && sharedDropdown.classList.contains('open')) {
-                closeDropdown();
-            } else {
-                openDropdown(vehicleId);
+            // Select option
+            options.forEach(opt => {
+                opt.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (opt.classList.contains('used')) return;
+                    
+                    const id = opt.dataset.id;
+                    const name = opt.dataset.name;
+                    const type = opt.dataset.type;
+                    
+                    // Update hidden input
+                    hiddenInput.value = id;
+                    hiddenInput.dataset.boardName = name;
+                    hiddenInput.dataset.boardType = type;
+                    saveElement(hiddenInput);
+                    
+                    // Update search input display
+                    searchInput.value = name;
+                    searchInput.dataset.boardId = id;
+                    
+                    // Update type select to match
+                    const typeSelect = document.querySelector(`.board-type[data-vehicle="${vehicleId}"]`);
+                    if (typeSelect && typeSelect.value !== type) {
+                        typeSelect.value = type;
+                        saveElement(typeSelect);
+                    }
+                    
+                    // Mark as selected
+                    options.forEach(o => o.classList.remove('selected'));
+                    opt.classList.add('selected');
+                    
+                    dropdown.classList.remove('open');
+                    updateUsedBoards();
+                    updateRowStyling();
+                    updateAssignmentCount();
+                });
+            });
+            
+            // Load saved value
+            const savedId = localStorage.getItem(getKey(hiddenInput));
+            if (savedId) {
+                hiddenInput.value = savedId;
+                const savedOpt = wrapper.querySelector(`.board-option[data-id="${savedId}"]`);
+                if (savedOpt) {
+                    searchInput.value = savedOpt.dataset.name;
+                    searchInput.dataset.boardId = savedId;
+                    savedOpt.classList.add('selected');
+                }
             }
         });
-    });
-
-    // Close on outside click
+    }
+    
+    // Close dropdowns when clicking outside
     document.addEventListener('click', (e) => {
-        if (!e.target.closest('#shared-dropdown') && !e.target.closest('.board-search-input')) {
-            closeDropdown();
+        if (!e.target.closest('.board-search-wrapper')) {
+            document.querySelectorAll('.board-dropdown').forEach(d => d.classList.remove('open'));
         }
     });
-
-    // Close on scroll (optional, improves UX)
-    document.querySelector('.vehicle-list')?.addEventListener('scroll', closeDropdown);
+    
+    // Initialize dropdowns
+    initBoardDropdowns();
 
     // -------------------------------
-    // Load saved values
+    // Load saved values for other elements
     // -------------------------------
     document.querySelectorAll(".board-type, #assign-date, #global-board-type")
         .forEach(el => {
             const stored = localStorage.getItem(getKey(el));
             if (stored !== null) el.value = stored;
         });
-
-    // Load saved board selections
-    document.querySelectorAll('.board-id').forEach(hiddenInput => {
-        const savedId = localStorage.getItem(getKey(hiddenInput));
-        if (savedId) {
-            hiddenInput.value = savedId;
-            const savedOpt = sharedDropdown.querySelector(`.board-option[data-id="${savedId}"]`);
-            if (savedOpt) {
-                const wrapper = hiddenInput.closest('.board-search-wrapper');
-                const searchInput = wrapper.querySelector('.board-search-input');
-                searchInput.value = savedOpt.dataset.name;
-                searchInput.dataset.boardId = savedId;
-            }
-        }
-    });
 
     // -------------------------------
     // Update row styling
@@ -949,7 +892,11 @@ document.addEventListener("DOMContentLoaded", function() {
         document.querySelectorAll('.vehicle-row').forEach(row => {
             const boardId = row.querySelector('.board-id');
             const boardType = row.querySelector('.board-type');
-            row.classList.toggle('assigned', !!(boardId?.value && boardType?.value));
+            if (boardId && boardType && boardId.value && boardType.value) {
+                row.classList.add('assigned');
+            } else {
+                row.classList.remove('assigned');
+            }
         });
     }
 
@@ -961,21 +908,28 @@ document.addEventListener("DOMContentLoaded", function() {
         document.querySelectorAll('.vehicle-row').forEach(row => {
             const boardId = row.querySelector('.board-id');
             const boardType = row.querySelector('.board-type');
-            if (boardId?.value && boardType?.value) count++;
+            if (boardId && boardType && boardId.value && boardType.value) {
+                count++;
+            }
         });
-        document.getElementById('assignment-count').textContent = 
-            count + ' assignment' + (count !== 1 ? 's' : '') + ' ready';
+        const countEl = document.getElementById('assignment-count');
+        countEl.textContent = count + ' assignment' + (count !== 1 ? 's' : '') + ' ready';
     }
 
-    // -------------------------------
-    // Track used boards
-    // -------------------------------
-    function updateUsedBoards() {
-        usedBoards.clear();
-        document.querySelectorAll(".board-id").forEach(input => {
-            if (input.value) usedBoards.add(input.value);
-        });
-    }
+    document.querySelectorAll(".board-type, #assign-date, #global-board-type")
+        .forEach(el => el.addEventListener("change", () => {
+            saveElement(el);
+
+            if (el.id === "global-board-type")
+                applyGlobalBoardType();
+
+            if (el.classList.contains("board-type")) {
+                filterBoardsByType(el);
+            }
+            
+            updateRowStyling();
+            updateAssignmentCount();
+        }));
 
     // -------------------------------
     // Filter boards by type selection
@@ -988,13 +942,13 @@ document.addEventListener("DOMContentLoaded", function() {
         const searchInput = wrapper.querySelector('.board-search-input');
         
         // Check if current selection matches the type
-        if (hiddenInput.value) {
-            const selectedOpt = sharedDropdown.querySelector(`.board-option[data-id="${hiddenInput.value}"]`);
-            if (selectedOpt && selectedOpt.dataset.type !== type && type) {
-                hiddenInput.value = '';
-                saveElement(hiddenInput);
-                searchInput.value = '';
-            }
+        const selectedOpt = wrapper.querySelector('.board-option.selected');
+        if (selectedOpt && selectedOpt.dataset.type !== type) {
+            // Clear selection
+            hiddenInput.value = '';
+            saveElement(hiddenInput);
+            selectedOpt.classList.remove('selected');
+            searchInput.value = '';
         }
         
         updateRowStyling();
@@ -1006,6 +960,7 @@ document.addEventListener("DOMContentLoaded", function() {
     // -------------------------------
     function applyGlobalBoardType() {
         const globalType = document.getElementById("global-board-type").value;
+
         document.querySelectorAll(".board-type").forEach(el => {
             if (!el.value || globalType !== localStorage.getItem(getKey(el))) {
                 el.value = globalType;
@@ -1013,19 +968,10 @@ document.addEventListener("DOMContentLoaded", function() {
                 filterBoardsByType(el);
             }
         });
+        
         updateRowStyling();
         updateAssignmentCount();
     }
-
-    // Event listeners for type selects
-    document.querySelectorAll(".board-type, #assign-date, #global-board-type")
-        .forEach(el => el.addEventListener("change", () => {
-            saveElement(el);
-            if (el.id === "global-board-type") applyGlobalBoardType();
-            if (el.classList.contains("board-type")) filterBoardsByType(el);
-            updateRowStyling();
-            updateAssignmentCount();
-        }));
 
     // -------------------------------
     // Clear all
@@ -1039,15 +985,15 @@ document.addEventListener("DOMContentLoaded", function() {
             el.value = '';
             saveElement(el);
         });
-        document.querySelectorAll('.board-search-input').forEach(input => {
-            input.value = '';
-            delete input.dataset.boardId;
+        document.querySelectorAll('.board-search-wrapper').forEach(wrapper => {
+            wrapper.querySelector('.board-search-input').value = '';
+            wrapper.querySelectorAll('.board-option').forEach(opt => opt.classList.remove('selected'));
         });
         document.getElementById('global-board-type').value = '';
         saveElement(document.getElementById('global-board-type'));
-        updateUsedBoards();
         updateRowStyling();
         updateAssignmentCount();
+        updateUsedBoards();
     });
 
     // -------------------------------
@@ -1055,6 +1001,33 @@ document.addEventListener("DOMContentLoaded", function() {
     // -------------------------------
     applyGlobalBoardType();
     document.querySelectorAll(".board-type").forEach(el => filterBoardsByType(el));
+
+    // -----------------------------------------
+    // Track used board IDs & mark as used
+    // -----------------------------------------
+    function updateUsedBoards() {
+        const used = new Set();
+
+        document.querySelectorAll(".board-id").forEach(input => {
+            if (input.value) used.add(input.value);
+        });
+
+        document.querySelectorAll(".board-option").forEach(opt => {
+            const id = opt.dataset.id;
+            const wrapper = opt.closest('.board-search-wrapper');
+            const hiddenInput = wrapper.querySelector('.board-id');
+            
+            // If this vehicle has it selected, don't mark as used
+            if (hiddenInput.value === id) {
+                opt.classList.remove('used');
+            } else if (used.has(id)) {
+                opt.classList.add('used');
+            } else {
+                opt.classList.remove('used');
+            }
+        });
+    }
+
     updateUsedBoards();
     updateRowStyling();
     updateAssignmentCount();
