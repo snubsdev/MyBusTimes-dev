@@ -55,31 +55,30 @@ class Command(BaseCommand):
 		return new_type
 
 	def get_or_create_mbt_livery(self, bt_livery, owner):
-		"""Match BusTimes livery to MBT livery by CSS, or create if not found"""
+		"""Match BusTimes livery to MBT livery by exact name and CSS, or create if not found.
+		Returns tuple (livery, colour) - if name is null, returns (None, left_css_colour)"""
 		if not bt_livery:
-			return None
+			return None, ''
 		
 		bt_left = bt_livery.get('left', '')
 		bt_right = bt_livery.get('right', '')
 		livery_name = bt_livery.get('name', '')
 		
+		# If livery name is null/empty, return the left CSS as the colour instead
 		if not livery_name:
-			return None
+			return None, bt_left or ''
 		
-		# Try to match by exact CSS first (most reliable match)
-		if bt_left or bt_right:
-			exact_css_match = liverie.objects.filter(left_css=bt_left, right_css=bt_right).first()
-			if exact_css_match:
-				return exact_css_match
+		# Match by exact name AND exact CSS (left and right)
+		existing_livery = liverie.objects.filter(
+			name=livery_name,
+			left_css=bt_left,
+			right_css=bt_right
+		).first()
 		
-		# If no CSS match, try matching by name with CSS verification
-		liveries = liverie.objects.filter(name__icontains=livery_name)
+		if existing_livery:
+			return existing_livery, ''
 		
-		for liv in liveries:
-			if bt_left == liv.left_css and bt_right == liv.right_css:
-				return liv
-		
-		# No matching livery found, create new one from BusTimes data
+		# Create new livery from BusTimes data
 		new_livery = liverie.objects.create(
 			name=livery_name,
 			colour=bt_livery.get('colour', '#FFFFFF') or '#FFFFFF',
@@ -91,7 +90,7 @@ class Command(BaseCommand):
 			added_by=owner,
 		)
 		self.stdout.write(self.style.SUCCESS(f"    Created new livery: {livery_name} (ID: {new_livery.id})"))
-		return new_livery
+		return new_livery, ''
 
 	def parse_route_description(self, description):
 		"""Parse BusTimes description into inbound/outbound destinations"""
@@ -313,8 +312,11 @@ class Command(BaseCommand):
 			mbt_type = self.get_or_create_mbt_type(bt_type, owner) if bt_type else None
 			mbt_type_str = f"MBT Type ID: {mbt_type.id} ({mbt_type.type_name})" if mbt_type else "No type"
 			
-			# Get or create MBT livery
-			mbt_livery = self.get_or_create_mbt_livery(bt_livery, owner) if bt_livery else None
+			# Get or create MBT livery (returns tuple of livery, colour)
+			if bt_livery:
+				mbt_livery, fallback_colour = self.get_or_create_mbt_livery(bt_livery, owner)
+			else:
+				mbt_livery, fallback_colour = None, ''
 			mbt_livery_str = f"MBT Livery ID: {mbt_livery.id} ({mbt_livery.name})" if mbt_livery else "No livery"
 			
 			# Check if vehicle already exists (by reg and operator)
@@ -334,6 +336,7 @@ class Command(BaseCommand):
 					existing_vehicle.name = name or existing_vehicle.name
 					existing_vehicle.notes = notes or existing_vehicle.notes
 					existing_vehicle.features = special_features or existing_vehicle.features
+					existing_vehicle.colour = fallback_colour or existing_vehicle.colour
 					existing_vehicle.last_modified_by = owner
 					existing_vehicle.save()
 					self.stdout.write(self.style.SUCCESS(f"  - UPDATED (was withdrawn, now active): Fleet: {fleet_code}, Reg: {reg}"))
@@ -354,7 +357,7 @@ class Command(BaseCommand):
 					notes=notes,
 					last_modified_by=owner,
 					features=special_features,
-					colour=bt_livery.get('colour', '') if bt_livery else '',
+					colour=fallback_colour,
 				)
 				self.stdout.write(self.style.SUCCESS(f"  - CREATED: ID: {new_vehicle.id}, Fleet: {fleet_code}, Reg: {reg}"))
 				self.stdout.write(f"    BT Type: {bt_type_name} -> {mbt_type_str}")
