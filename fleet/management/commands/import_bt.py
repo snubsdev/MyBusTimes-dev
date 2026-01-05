@@ -14,6 +14,7 @@ class Command(BaseCommand):
 	def add_arguments(self, parser):
 		parser.add_argument('--url', help='URL to search for (e.g. https://bustimes.org/operators/midland-classic/vehicles)')
 		parser.add_argument('--owner', help='Username of the owner for the new operator', required=True)
+		parser.add_argument('--import_into', help='Operator code of an existing MBT operator to import vehicles and routes into (skips creating new operator)')
 
 	def format_reg(self, reg):
 		"""Format registration plate with space before last 3 characters (e.g., WN74XVJ -> WN74 XVJ)"""
@@ -172,6 +173,7 @@ class Command(BaseCommand):
 	def handle(self, *args, **options):
 		urlArg = options.get('url')
 		owner_username = options.get('owner')
+		import_into_code = options.get('import_into')
 		
 		if not urlArg:
 			raise CommandError("You must provide a --url argument.")
@@ -212,27 +214,35 @@ class Command(BaseCommand):
 		
 		self.stdout.write(self.style.SUCCESS(f"Found operator: {operator_name} (NOC: {operator_noc})"))
 		
-		# Create or get MBT Operator
-		mbt_operator, created = MBTOperator.objects.get_or_create(
-			operator_code=operator_noc,
-			defaults={
-				'operator_name': operator_name,
-				'operator_slug': slug,
-				'owner': owner,
-				'operator_details': {
-					'website': bt_operator.get('url', ''),
-					'twitter': bt_operator.get('twitter', ''),
-					'game': 'OMSI2',
-					'type': 'real-company',
-					'transit_authorities': '',
-				}
-			}
-		)
-		
-		if created:
-			self.stdout.write(self.style.SUCCESS(f"Created new MBT Operator: {mbt_operator.operator_name} (ID: {mbt_operator.id})"))
+		# If --import_into is provided, use existing MBT operator
+		if import_into_code:
+			try:
+				mbt_operator = MBTOperator.objects.get(operator_code=import_into_code)
+				self.stdout.write(self.style.SUCCESS(f"Importing into existing MBT Operator: {mbt_operator.operator_name} (ID: {mbt_operator.id}, Code: {import_into_code})"))
+			except MBTOperator.DoesNotExist:
+				raise CommandError(f"MBT Operator with code '{import_into_code}' not found.")
 		else:
-			self.stdout.write(self.style.WARNING(f"MBT Operator already exists: {mbt_operator.operator_name} (ID: {mbt_operator.id})"))
+			# Create or get MBT Operator based on BusTimes NOC
+			mbt_operator, created = MBTOperator.objects.get_or_create(
+				operator_code=operator_noc,
+				defaults={
+					'operator_name': operator_name,
+					'operator_slug': slug,
+					'owner': owner,
+					'operator_details': {
+						'website': bt_operator.get('url', ''),
+						'twitter': bt_operator.get('twitter', ''),
+						'game': 'OMSI2',
+						'type': 'real-company',
+						'transit_authorities': '',
+					}
+				}
+			)
+			
+			if created:
+				self.stdout.write(self.style.SUCCESS(f"Created new MBT Operator: {mbt_operator.operator_name} (ID: {mbt_operator.id})"))
+			else:
+				self.stdout.write(self.style.WARNING(f"MBT Operator already exists: {mbt_operator.operator_name} (ID: {mbt_operator.id})"))
 		
 		# First pass: collect all vehicles and group by reg to handle duplicates
 		all_vehicles = []
