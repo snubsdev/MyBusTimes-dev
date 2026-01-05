@@ -564,13 +564,6 @@ subscribe:457:13
                             
                             
                             {% if not ads_enabled %}
-                            <button class="Button PriceColumn-button  Button--primary Button--lg" type="button" disabled
-                                    style="background-color: var(--brand-color); border-color: var(--border-color);">
-                                    <div class="flex-container justify-content-center align-items-center"><span
-                                            class="Text Text-color--default Text-fontWeight--500 Text--truncate">Currently disabled</span>
-                                    </div>  
-                            </button>
-                            {% elif not had_pro_trial %}
                             <button class="Button PriceColumn-button  Button--primary Button--lg" type="button"
                                 style="background-color: var(--brand-color); border-color: var(--border-color);"
                                 onclick="startTrial('pro', 7)">
