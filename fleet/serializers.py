@@ -69,6 +69,13 @@ class companyUpdateSerializer(serializers.ModelSerializer):
         model = companyUpdate
         fields = '__all__'
 
+# Lightweight serializer for operator lists (e.g., map filter, dropdowns)
+class operatorListSerializer(serializers.ModelSerializer):
+    """Minimal serializer for operator lists - much faster than full serializer."""
+    class Meta:
+        model = MBTOperator
+        fields = ['id', 'operator_name', 'operator_slug', 'operator_code']
+
 class operatorSerializer(serializers.ModelSerializer):
     region = serializers.PrimaryKeyRelatedField(queryset=region.objects.all(), many=True)  # Allow writing region as IDs
     region_detail = regionsSerializer(source='region', many=True, read_only=True)  # Use regionsSerializer to read related region data

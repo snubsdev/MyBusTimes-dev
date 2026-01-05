@@ -166,12 +166,25 @@ class fleetDetailView(generics.RetrieveAPIView):
     filter_backends = (DjangoFilterBackend,)
     filterset_class = fleetsFilter
 
-class operatorListView(generics.ListCreateAPIView):
-    queryset = MBTOperator.objects.all()
+class operatorListView(generics.ListAPIView):
     serializer_class = operatorSerializer
     permission_classes = [ReadOnly]
     filter_backends = (DjangoFilterBackend,)
     filterset_class = operatorsFilter
+
+    def get_serializer_class(self):
+        # Use lightweight serializer when minimal=true is passed
+        if self.request.query_params.get('minimal', '').lower() == 'true':
+            return operatorListSerializer
+        return operatorSerializer
+
+    def get_queryset(self):
+        # Use minimal query when minimal serializer is requested
+        if self.request.query_params.get('minimal', '').lower() == 'true':
+            return MBTOperator.objects.only('id', 'operator_name', 'operator_slug', 'operator_code').order_by('operator_name')
+        
+        # Full queryset with prefetching for the full serializer
+        return MBTOperator.objects.prefetch_related('region').select_related('owner', 'group', 'organisation').order_by('operator_name')
 
 class operatorDetailView(RetrieveAPIView):
     queryset = MBTOperator.objects.all()

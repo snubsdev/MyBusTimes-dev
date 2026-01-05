@@ -319,10 +319,13 @@ class EstimatedPositionSerializer(serializers.Serializer):
             features = "<br>".join(obj.features) if isinstance(obj.features, list) else str(obj.features)
         
         operator_slug = obj.operator.operator_slug
+        operator_name = obj.operator.operator_name
         
         vehicle_data = {
             "url": f"/operator/{operator_slug}/vehicles/{obj.id}/",
             "name": vehicle_name,
+            "operator_slug": operator_slug,
+            "operator_name": operator_name,
             "features": features,
             "livery": {
                 "id": livery.id if has_livery else None,
@@ -390,6 +393,10 @@ class trackingAPIView(generics.ListAPIView):
         operator_id = params.get("operator_id")
         route_id = params.get("route_id")
         vehicle_id = params.get("vehicle_id")
+        
+        # Handle hidden operators - comma-separated list of operator IDs to exclude
+        hide_operator_ids = params.get("hide_operator_ids", "")
+        hidden_ids = [int(x) for x in hide_operator_ids.split(",") if x.strip().isdigit()]
 
         filters = Q(
             sim_lat__isnull=False,
@@ -409,6 +416,10 @@ class trackingAPIView(generics.ListAPIView):
 
         if vehicle_id:
             filters &= Q(id=vehicle_id)
+        
+        # Exclude hidden operators
+        if hidden_ids:
+            filters &= ~Q(operator_id__in=hidden_ids)
 
         # Optimized query with prefetch for route_operators
         return fleet.objects.select_related(
@@ -427,7 +438,7 @@ class trackingAPIView(generics.ListAPIView):
             "id", "fleet_number", "reg", "colour", "advanced_details", "features",
             "sim_lat", "sim_lon", "sim_heading", "updated_at",
             # Operator fields
-            "operator__id", "operator__operator_slug",
+            "operator__id", "operator__operator_slug", "operator__operator_name",
             # Livery fields
             "livery__id", "livery__name", "livery__colour", "livery__text_colour",
             "livery__left_css", "livery__right_css", "livery__stroke_colour",
