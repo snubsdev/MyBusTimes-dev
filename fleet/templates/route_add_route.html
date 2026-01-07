@@ -199,6 +199,24 @@
   /* Table styling */
   #stopList tr td { padding: 8px 5px; border-bottom: 1px solid rgba(0,0,0,0.05); }
   #stopList tr:last-child td { border-bottom: none; }
+  /* Inbound route reference legend */
+  .inbound-reference-legend {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(158, 158, 158, 0.1);
+    border-bottom: 1px solid rgba(0,0,0,0.1);
+    font-size: 12px;
+    color: var(--text-color);
+  }
+  .inbound-reference-legend .legend-line {
+    width: 30px;
+    height: 4px;
+    background: #9e9e9e;
+    opacity: 0.5;
+    border-radius: 2px;
+  }
 </style>
 {% endblock %}
 
@@ -211,6 +229,13 @@
 
 <div class="stop-list" id="stopListPanel">
   <div class="resize-handle" id="resizeHandle" role="separator" aria-label="Resize map and stop list" tabindex="0" aria-orientation="vertical"></div>
+
+  {% if inbound_route_geometry %}
+  <div class="inbound-reference-legend">
+    <span class="legend-line"></span>
+    <span>Inbound route (for reference)</span>
+  </div>
+  {% endif %}
 
   <div class="mode-banner" id="modeBanner">
     <span class="mode-text" id="modeText">Click on the map to add a stop</span>
@@ -975,6 +1000,45 @@
   map.on("load", () => {
     fetchStops();
     autoSnapRoute();
+    
+    // Show inbound route as reference when creating outbound
+    {% if inbound_route_geometry %}
+    const inboundGeometry = {{ inbound_route_geometry|safe }};
+    if (inboundGeometry && inboundGeometry.length > 0) {
+      map.addSource('inboundRoute', {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          geometry: {
+            type: 'LineString',
+            coordinates: inboundGeometry
+          }
+        }
+      });
+      map.addLayer({
+        id: 'inboundRoute',
+        type: 'line',
+        source: 'inboundRoute',
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round'
+        },
+        paint: {
+          'line-color': '#9e9e9e',
+          'line-width': 4,
+          'line-opacity': 0.5
+        }
+      });
+      
+      // Fit map to show the inbound route
+      if (!savedView) {
+        const bounds = inboundGeometry.reduce((bounds, coord) => {
+          return bounds.extend(coord);
+        }, new maplibregl.LngLatBounds(inboundGeometry[0], inboundGeometry[0]));
+        map.fitBounds(bounds, { padding: 50 });
+      }
+    }
+    {% endif %}
   });
 
   // Add waypoint button handler
