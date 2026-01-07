@@ -23,13 +23,27 @@ def theme_settings(request):
     brand_colour = request.COOKIES.get('brandColour', '8cb9d5')
     
     # Default logos and favicons
-    menu_logo = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/MBT-Logo-Black.png'
+    menu_logo = 'https://cdn.mybustimes.cc/assets/main/Logo-Dark.svg'
     burger_menu_logo = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/Burger-Menu-Black.webp'
     # Default favicons
-    favicon_ico = 'https://cdn.mybustimes.cc/mybustimeshttps://cdn.mybustimes.cc/mybustimes/staticfilesfiles/src/icons/favicon/favicon.ico'
-    favicon_svg = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/favicon/favicon.svg'
-    favicon_96x96 = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/favicon/favicon-96x96.png'
-    favicon_touch = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/favicon/apple-touch-icon.png'
+    favicon_ico = 'https://cdn.mybustimes.cc/assets/main/favicons/favicon.ico'
+    favicon_svg = 'https://cdn.mybustimes.cc/assets/main/icon.svg'
+    favicon_96x96 = 'https://cdn.mybustimes.cc/assets/main/favicons/favicon-96x96.png'
+    favicon_32x32 = 'https://cdn.mybustimes.cc/assets/main/favicons/favicon-32x32.png'
+    favicon_16x16 = 'https://cdn.mybustimes.cc/assets/main/favicons/favicon-16x16.png'
+    favicon_touch = 'https://cdn.mybustimes.cc/assets/main/favicons/apple-icon.png'
+    apple_icon_57x57 = 'https://cdn.mybustimes.cc/assets/main/favicons/apple-icon-57x57.png'
+    apple_icon_60x60 = 'https://cdn.mybustimes.cc/assets/main/favicons/apple-icon-60x60.png'
+    apple_icon_72x72 = 'https://cdn.mybustimes.cc/assets/main/favicons/apple-icon-72x72.png'
+    apple_icon_76x76 = 'https://cdn.mybustimes.cc/assets/main/favicons/apple-icon-76x76.png'
+    apple_icon_114x114 = 'https://cdn.mybustimes.cc/assets/main/favicons/apple-icon-114x114.png'
+    apple_icon_120x120 = 'https://cdn.mybustimes.cc/assets/main/favicons/apple-icon-120x120.png'
+    apple_icon_144x144 = 'https://cdn.mybustimes.cc/assets/main/favicons/apple-icon-144x144.png'
+    apple_icon_152x152 = 'https://cdn.mybustimes.cc/assets/main/favicons/apple-icon-152x152.png'
+    apple_icon_180x180 = 'https://cdn.mybustimes.cc/assets/main/favicons/apple-icon-180x180.png'
+    android_icon_192x192 = 'https://cdn.mybustimes.cc/assets/main/favicons/android-icon-192x192.png'
+    ms_icon_144x144 = 'https://cdn.mybustimes.cc/assets/main/favicons/ms-icon-144x144.png'
+    manifest_json = 'https://cdn.mybustimes.cc/assets/main/favicons/manifest.json'
 
     # Default fallback (light)
     theme_filename = 'MBT_Light.css'
@@ -128,7 +142,7 @@ def theme_settings(request):
         elif pride_month:
             menu_logo = 'https://raw.githubusercontent.com/Kai-codin/MBT-Media-Kit/refs/heads/main/MBT%20Logos/MBT-Logo-Pride-MMH-outline-2.webp'
         else:
-            menu_logo = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/MBT-Logo-White_200.webp'
+            menu_logo = 'https://cdn.mybustimes.cc/assets/main/Logo.svg'
     else:
         #ymenu_logo = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/MainLogoDark.svg'
         burger_menu_logo = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/Burger-Menu-Black.webp'
@@ -143,19 +157,42 @@ def theme_settings(request):
         elif pride_month:
             menu_logo = 'https://raw.githubusercontent.com/Kai-codin/MBT-Media-Kit/refs/heads/main/MBT%20Logos/MBT-Logo-Pride-MMH-outline-2.webp'
         else:
-            menu_logo = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/MBT-Logo-Black_200.webp'
+            menu_logo = 'https://cdn.mybustimes.cc/assets/main/Logo-Dark.svg'
 
     if spm:
-        favicon_ico = favicon_svg = favicon_96x96 = favicon_touch = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/favicon/MBTSPM.png'
+        favicon_ico = favicon_svg = favicon_96x96 = favicon_32x32 = favicon_16x16 = favicon_touch = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/favicon/MBTSPM.png'
+        apple_icon_57x57 = apple_icon_60x60 = apple_icon_72x72 = apple_icon_76x76 = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/favicon/MBTSPM.png'
+        apple_icon_114x114 = apple_icon_120x120 = apple_icon_144x144 = apple_icon_152x152 = apple_icon_180x180 = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/favicon/MBTSPM.png'
+        android_icon_192x192 = ms_icon_144x144 = 'https://cdn.mybustimes.cc/mybustimes/staticfiles/src/icons/favicon/MBTSPM.png'
     elif poppy:
-        favicon_ico = favicon_svg = favicon_96x96 = favicon_touch = 'https://cdn.mybustimes.cc/assets/Square%20Small%20Icon.svg'
+        favicon_ico = favicon_svg = favicon_96x96 = favicon_32x32 = favicon_16x16 = favicon_touch = 'https://cdn.mybustimes.cc/assets/Square%20Small%20Icon.svg'
+        apple_icon_57x57 = apple_icon_60x60 = apple_icon_72x72 = apple_icon_76x76 = 'https://cdn.mybustimes.cc/assets/Square%20Small%20Icon.svg'
+        apple_icon_114x114 = apple_icon_120x120 = apple_icon_144x144 = apple_icon_152x152 = apple_icon_180x180 = 'https://cdn.mybustimes.cc/assets/Square%20Small%20Icon.svg'
+        android_icon_192x192 = ms_icon_144x144 = 'https://cdn.mybustimes.cc/assets/Square%20Small%20Icon.svg'
     elif christmas:
-        favicon_ico = favicon_svg = favicon_96x96 = favicon_touch = 'https://cdn.mybustimes.cc/assets/Christmas/Square Small Icon.svg'
+        favicon_ico = favicon_svg = favicon_96x96 = favicon_32x32 = favicon_16x16 = favicon_touch = 'https://cdn.mybustimes.cc/assets/Christmas/Square Small Icon.svg'
+        apple_icon_57x57 = apple_icon_60x60 = apple_icon_72x72 = apple_icon_76x76 = 'https://cdn.mybustimes.cc/assets/Christmas/Square Small Icon.svg'
+        apple_icon_114x114 = apple_icon_120x120 = apple_icon_144x144 = apple_icon_152x152 = apple_icon_180x180 = 'https://cdn.mybustimes.cc/assets/Christmas/Square Small Icon.svg'
+        android_icon_192x192 = ms_icon_144x144 = 'https://cdn.mybustimes.cc/assets/Christmas/Square Small Icon.svg'
     else:
-        favicon_ico = 'https://cdn.mybustimes.cc/assets/favicon/favicon.ico'
-        favicon_svg = 'https://cdn.mybustimes.cc/assets/favicon/favicon.svg'
-        favicon_96x96 = 'https://cdn.mybustimes.cc/assets/favicon/favicon-96x96.png'
-        favicon_touch = 'https://cdn.mybustimes.cc/assets/favicon/apple-touch-icon.png'
+        favicon_ico = 'https://cdn.mybustimes.cc/assets/main/favicons/favicon.ico'
+        favicon_svg = 'https://cdn.mybustimes.cc/assets/main/icon.svg'
+        favicon_96x96 = 'https://cdn.mybustimes.cc/assets/main/favicons/favicon-96x96.png'
+        favicon_32x32 = 'https://cdn.mybustimes.cc/assets/main/favicons/favicon-32x32.png'
+        favicon_16x16 = 'https://cdn.mybustimes.cc/assets/main/favicons/favicon-16x16.png'
+        favicon_touch = 'https://cdn.mybustimes.cc/assets/main/favicons/apple-icon.png'
+        apple_icon_57x57 = 'https://cdn.mybustimes.cc/assets/main/favicons/apple-icon-57x57.png'
+        apple_icon_60x60 = 'https://cdn.mybustimes.cc/assets/main/favicons/apple-icon-60x60.png'
+        apple_icon_72x72 = 'https://cdn.mybustimes.cc/assets/main/favicons/apple-icon-72x72.png'
+        apple_icon_76x76 = 'https://cdn.mybustimes.cc/assets/main/favicons/apple-icon-76x76.png'
+        apple_icon_114x114 = 'https://cdn.mybustimes.cc/assets/main/favicons/apple-icon-114x114.png'
+        apple_icon_120x120 = 'https://cdn.mybustimes.cc/assets/main/favicons/apple-icon-120x120.png'
+        apple_icon_144x144 = 'https://cdn.mybustimes.cc/assets/main/favicons/apple-icon-144x144.png'
+        apple_icon_152x152 = 'https://cdn.mybustimes.cc/assets/main/favicons/apple-icon-152x152.png'
+        apple_icon_180x180 = 'https://cdn.mybustimes.cc/assets/main/favicons/apple-icon-180x180.png'
+        android_icon_192x192 = 'https://cdn.mybustimes.cc/assets/main/favicons/android-icon-192x192.png'
+        ms_icon_144x144 = 'https://cdn.mybustimes.cc/assets/main/favicons/ms-icon-144x144.png'
+        manifest_json = 'https://cdn.mybustimes.cc/assets/main/favicons/manifest.json'
 
     live_ads = list(ad.objects.filter(ad_live=True).values('ad_name', 'ad_img', 'ad_link', 'ad_img_overide'))
     google_ads = {g.ad_place_id: g.ad_id for g in google_ad.objects.all()}
@@ -264,6 +301,20 @@ def theme_settings(request):
         'favicon_ico': favicon_ico,
         'favicon_svg': favicon_svg,
         'favicon_96x96': favicon_96x96,
+        'favicon_32x32': favicon_32x32,
+        'favicon_16x16': favicon_16x16,
         'favicon_touch': favicon_touch,
+        'apple_icon_57x57': apple_icon_57x57,
+        'apple_icon_60x60': apple_icon_60x60,
+        'apple_icon_72x72': apple_icon_72x72,
+        'apple_icon_76x76': apple_icon_76x76,
+        'apple_icon_114x114': apple_icon_114x114,
+        'apple_icon_120x120': apple_icon_120x120,
+        'apple_icon_144x144': apple_icon_144x144,
+        'apple_icon_152x152': apple_icon_152x152,
+        'apple_icon_180x180': apple_icon_180x180,
+        'android_icon_192x192': android_icon_192x192,
+        'ms_icon_144x144': ms_icon_144x144,
+        'manifest_json': manifest_json,
         'silence': silence,
     }

@@ -54,12 +54,7 @@
     }
   </style>
 
-  <link rel="icon" type="image/png" href="{{ favicon_96x96 }}" sizes="96x96" />
-  <link rel="icon" type="image/svg+xml" href="{{ favicon_svg }}" />
-  <link rel="shortcut icon" href="{{ favicon_ico }}" />
-  <link rel="apple-touch-icon" sizes="180x180" href="{{ favicon_touch }}" />
-  <meta name="apple-mobile-web-app-title" content="MyBusTimes" />
-  <link rel="manifest" href="{% static 'src/icons/favicon/site.webmanifest' %}" />
+  {% include "favicons.html" %}
 
   <link rel="stylesheet" href="{% static 'css/style.css' %}">
   <link rel="preload" href="{% static 'css/select2.min.css' %}" as="style" onload="this.rel='stylesheet'">
@@ -116,7 +111,7 @@
   </div>
   <header>
     <div class="site-header">
-      <a href="/"><img id="logo" src="{{ menuLogo }}" height="45px" alt="My Bus Times Logo" fetchpriority="high"
+      <a href="/"><img id="logo" src="{{ menuLogo }}" height="45px" style="max-width: 155px;" alt="My Bus Times Logo" fetchpriority="high"
           decoding="async"></a>
       <button id="menu-toggle"><img id="menu" src="{{ burgerMenuLogo }}" height="35px" alt="Burger Menu Icon"></button>
       <form action="/search">
