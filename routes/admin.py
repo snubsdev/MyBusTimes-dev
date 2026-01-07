@@ -46,6 +46,7 @@ class dayTypeAdmin(SimpleHistoryAdmin):
 class timetableEntryAdmin(SimpleHistoryAdmin):
     list_display = ['route', 'get_day_types', 'get_operator_schedule']
     list_filter = ['route']
+    autocomplete_fields = ['route']
     search_fields = ['route__route_num']
     filter_horizontal = ['day_type']
 
