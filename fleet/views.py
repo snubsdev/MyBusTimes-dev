@@ -5289,6 +5289,16 @@ def route_add_stops(request, operator_slug, route_id, direction):
         {'name': route_instance.route_num or 'Route Timetable', 'url': f'/operator/{operator_slug}/route/{route_id}/timeable/'}
     ]
 
+    # Fetch inbound route data to show as reference when creating outbound
+    inbound_route_geometry = None
+    if direction == "outbound":
+        inbound_route_stop = routeStop.objects.filter(
+            route=route_instance,
+            inbound=True
+        ).first()
+        if inbound_route_stop and inbound_route_stop.snapped_route:
+            inbound_route_geometry = inbound_route_stop.snapped_route
+
     context = {
         'breadcrumbs': breadcrumbs,
         'operator': operator,
@@ -5296,6 +5306,7 @@ def route_add_stops(request, operator_slug, route_id, direction):
         'helper_permissions': userPerms,
         'direction': direction,
         'mapTile': mapTiles,
+        'inbound_route_geometry': inbound_route_geometry,
     }
     return render(request, 'route_add_route.html', context)
 
