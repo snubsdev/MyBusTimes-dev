@@ -5,6 +5,7 @@
     <td><div class="livery-cell" style="background: {{ livery.left_css }};"><span class="livery-cell-text" style="color: {{ livery.text_colour }}; {% if livery.stroke_colour %}text-stroke: 3px {{ livery.stroke_colour }}; -webkit-text-stroke: 3px {{ livery.stroke_colour }};{% endif %}">21</span></div></td>
     <td><div class="livery-cell" style="background: {{ livery.right_css }};"><span class="livery-cell-text" style="color: {{ livery.text_colour }}; {% if livery.stroke_colour %}text-stroke: 3px {{ livery.stroke_colour }}; -webkit-text-stroke: 3px {{ livery.stroke_colour }};{% endif %}">21</span></div></td>
     <td>&nbsp;&nbsp;&nbsp;</td>
+    <td>{{ livery.added_by }}</td>
     {% if livery.published %}
     <td></td>
     <td>

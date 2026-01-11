@@ -227,3 +227,10 @@ class transitAuthoritiesColourSerializer(serializers.ModelSerializer):
     class Meta:
         model = transitAuthoritiesColour
         fields = ['authority_code', 'primary_colour', 'secondary_colour']
+
+class boardCategorySerializer(serializers.ModelSerializer):
+    parent = serializers.StringRelatedField(source='parent_category', read_only=True)
+
+    class Meta:
+        model = board_category
+        fields = ['id', 'name', 'parent']

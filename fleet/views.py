@@ -1326,7 +1326,7 @@ def vehicle_edit(request, operator_slug, vehicle_id):
         except vehicleType.DoesNotExist:
             vehicle.vehicleType = None
 
-        livery_id = request.POST.get('livery')
+            livery_id = request.POST.get('livery')
         if livery_id:
             try:
                 vehicle.livery = liverie.objects.get(id=livery_id)
@@ -1335,6 +1335,25 @@ def vehicle_edit(request, operator_slug, vehicle_id):
         else:
             vehicle.livery = None
 
+        # Vehicle category (ensure it belongs to the current operator)
+        try:
+            from routes.models import board_category as BoardCategory
+            vc_id = request.POST.get('vehicle_category')
+            if vc_id:
+                try:
+                    cat = BoardCategory.objects.get(id=vc_id)
+                    # Ensure category operator matches vehicle.operator
+                    if cat.operator and vehicle.operator and cat.operator.id == vehicle.operator.id:
+                        vehicle.vehicle_category = cat
+                    else:
+                        vehicle.vehicle_category = None
+                except BoardCategory.DoesNotExist:
+                    vehicle.vehicle_category = None
+            else:
+                vehicle.vehicle_category = None
+        except Exception:
+            # If anything goes wrong, don't block saving
+            pass
 
         # Features JSON string stored in hidden input - parse and save as a comma-separated string or JSON field
         features_json = request.POST.get('features', '[]')
@@ -1382,12 +1401,20 @@ def vehicle_edit(request, operator_slug, vehicle_id):
         else:
             hide_sell_button = False
 
+        # Categories for this operator
+        try:
+            from routes.models import board_category as BoardCategory
+            category_list = BoardCategory.objects.filter(operator=vehicle.operator)
+        except Exception:
+            category_list = []
+
         context = {
             'hide_sell_button': hide_sell_button,
             'fleetData': vehicle,
             'operatorData': operators,
             'typeData': types,
             'liveryData': liveries_list,
+            'categoryData': category_list,
             'features': features_list,
             'userData': user_data,
             'breadcrumbs': breadcrumbs,
@@ -1938,10 +1965,35 @@ def duties(request, operator_slug):
     group_by = request.GET.get('group_by', 'category')
 
     # Get categories for this operator
-    categories = board_category.objects.filter(
+    qs = board_category.objects.filter(
         operator=operator,
         board_type=board_type
     ).prefetch_related('subcategories')
+
+    # Numeric-aware sort key (same as routes)
+    def parse_name_key(name):
+        rn = (name or '').upper()
+
+        normal = re.match(r'^([0-9]+)$', rn)
+        xprefix = re.match(r'^X([0-9]+)$', rn)
+        suffix = re.match(r'^([0-9]+)([A-Z]+)$', rn)
+        other = re.match(r'^([A-Z]+)([0-9]+)$', rn)
+
+        if normal:
+            return (0, int(normal.group(1)), "")
+        if suffix:
+            return (1, int(suffix.group(1)), suffix.group(2))
+        if xprefix:
+            return (2, int(xprefix.group(1)), "X")
+        if other:
+            return (3, other.group(1), int(other.group(2)))
+        return (4, rn, 0)
+
+    try:
+        categories = list(qs)
+        categories.sort(key=lambda c: parse_name_key(c.name))
+    except Exception:
+        categories = qs.order_by('name')
 
     if group_by == 'category':
         # Group duties by category
@@ -1959,8 +2011,11 @@ def duties(request, operator_slug):
             else:
                 uncategorized.append(d)
         
-        # Sort categories alphabetically
-        grouped_duties_ordered = dict(sorted(grouped_duties.items()))
+        # Sort categories using numeric-aware ordering like routes
+        grouped_duties_ordered = dict(sorted(
+            grouped_duties.items(),
+            key=lambda kv: parse_name_key(kv[0].split(' > ')[-1])
+        ))
         if uncategorized:
             grouped_duties_ordered['Uncategorized'] = uncategorized
     else:
@@ -3284,10 +3339,35 @@ def duty_edit(request, operator_slug, duty_id):
     days = dayType.objects.all()
     
     # Get categories for this operator and board type
-    categories = board_category.objects.filter(
+    qs = board_category.objects.filter(
         operator=operator,
         board_type=board_type
-    ).select_related('parent_category')
+    ).prefetch_related('subcategories')
+
+    # Numeric-aware sort key (same as routes)
+    def parse_name_key(name):
+        rn = (name or '').upper()
+
+        normal = re.match(r'^([0-9]+)$', rn)
+        xprefix = re.match(r'^X([0-9]+)$', rn)
+        suffix = re.match(r'^([0-9]+)([A-Z]+)$', rn)
+        other = re.match(r'^([A-Z]+)([0-9]+)$', rn)
+
+        if normal:
+            return (0, int(normal.group(1)), "")
+        if suffix:
+            return (1, int(suffix.group(1)), suffix.group(2))
+        if xprefix:
+            return (2, int(xprefix.group(1)), "X")
+        if other:
+            return (3, other.group(1), int(other.group(2)))
+        return (4, rn, 0)
+
+    try:
+        categories = list(qs)
+        categories.sort(key=lambda c: parse_name_key(c.name))
+    except Exception:
+        categories = qs.order_by('name')
 
     if request.method == "POST":
         duty_name = request.POST.get('duty_name')
@@ -3362,11 +3442,36 @@ def board_categories(request, operator_slug):
     userPerms = get_helper_permissions(request.user, operator)
 
     # Get top-level categories (no parent) for this operator
-    categories = board_category.objects.filter(
+    qs = board_category.objects.filter(
         operator=operator,
         board_type=board_type,
         parent_category__isnull=True
     ).prefetch_related('subcategories')
+
+    # Numeric-aware ordering (same system as routes)
+    try:
+        def parse_name_key(name):
+            rn = (name or '').upper()
+
+            normal = re.match(r'^([0-9]+)$', rn)
+            xprefix = re.match(r'^X([0-9]+)$', rn)
+            suffix = re.match(r'^([0-9]+)([A-Z]+)$', rn)
+            other = re.match(r'^([A-Z]+)([0-9]+)$', rn)
+
+            if normal:
+                return (0, int(normal.group(1)), "")
+            if suffix:
+                return (1, int(suffix.group(1)), suffix.group(2))
+            if xprefix:
+                return (2, int(xprefix.group(1)), "X")
+            if other:
+                return (3, other.group(1), int(other.group(2)))
+            return (4, rn, 0)
+
+        categories = list(qs)
+        categories.sort(key=lambda c: parse_name_key(c.name))
+    except Exception:
+        categories = qs.order_by('name')
 
     breadcrumbs = [
         {'name': 'Home', 'url': '/'},
@@ -4344,6 +4449,24 @@ def vehicle_mass_edit(request, operator_slug):
             except liverie.DoesNotExist:
                 vehicle.livery = None
 
+            # Vehicle category (shared field in the form) — ensure it belongs to the operator
+            try:
+                from routes.models import board_category as BoardCategory
+                vc_id = request.POST.get('vehicle_category')
+                if vc_id:
+                    try:
+                        cat = BoardCategory.objects.get(id=vc_id)
+                        if cat.operator and vehicle.operator and cat.operator.id == vehicle.operator.id:
+                            vehicle.vehicle_category = cat
+                        else:
+                            vehicle.vehicle_category = None
+                    except BoardCategory.DoesNotExist:
+                        vehicle.vehicle_category = None
+                else:
+                    vehicle.vehicle_category = None
+            except Exception:
+                pass
+
             try:
                 features_selected = json.loads(request.POST.get('features', '[]'))
                 vehicle.features = features_selected
@@ -4424,6 +4547,13 @@ def vehicle_mass_edit(request, operator_slug):
         else:
             hide_sell_button = False
         # GET: pre-fill form with first vehicle for shared fields
+        # categories for this operator
+        try:
+            from routes.models import board_category as BoardCategory
+            category_list = BoardCategory.objects.filter(operator=operator)
+        except Exception:
+            category_list = []
+
         context = {
             'hide_sell_button': hide_sell_button,
             'fleetData': vehicles[0],  # Used for shared fields
@@ -4431,6 +4561,7 @@ def vehicle_mass_edit(request, operator_slug):
             'operatorData': allowed_operators,
             'typeData': types,
             'liveryData': liveries_list,
+            'categoryData': category_list,
             'features': features_list,
             'userData': [request.user],
             'vehicle_count': len(vehicles),
@@ -4481,6 +4612,132 @@ def vehicle_select_mass_edit(request, operator_slug):
         'vehicles': vehicles,
     }
     return render(request, 'mass_edit_select.html', context)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def duty_select_mass_edit(request, operator_slug):
+    response = feature_enabled(request, "mass_edit_boards")
+    if response:
+        return response
+
+    operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
+    userPerms = get_helper_permissions(request.user, operator)
+
+    if request.user != operator.owner and 'Mass Edit Boards' not in userPerms and not request.user.is_superuser:
+        messages.error(request, "You do not have permission to mass edit boards for this operator.")
+        return redirect(f'/operator/{operator_slug}/')
+
+    def alphanum_key(name):
+        return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', name or '')]
+
+    duties_qs = list(duty.objects.filter(duty_operator=operator))
+    duties_qs.sort(key=lambda d: alphanum_key(d.duty_name))
+
+    if request.method == "POST":
+        selected_ids = request.POST.getlist('selected_duties')
+        if not selected_ids:
+            messages.error(request, "You must select at least one board.")
+            return redirect(request.path)
+
+        id_string = ",".join(selected_ids)
+        return redirect(f'/operator/{operator_slug}/duties/mass-edit/?ids={id_string}')
+
+    context = {
+        'operator': operator,
+        'duties': duties_qs,
+    }
+    return render(request, 'mass_edit_select_boards.html', context)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def duty_mass_edit(request, operator_slug):
+    response = feature_enabled(request, "mass_edit_boards")
+    if response:
+        return response
+
+    operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
+    userPerms = get_helper_permissions(request.user, operator)
+    if request.user != operator.owner and 'Mass Edit Boards' not in userPerms and not request.user.is_superuser:
+        messages.error(request, "You do not have permission to mass edit boards for this operator.")
+        return redirect(f'/operator/{operator_slug}/duties/')
+
+    ids = request.GET.get('ids', '')
+    duty_ids = [int(x) for x in ids.split(',') if x.strip().isdigit()]
+    duties = list(duty.objects.filter(id__in=duty_ids, duty_operator=operator))
+
+    if not duties:
+        messages.error(request, "No valid boards selected for editing.")
+        return redirect(f'/operator/{operator_slug}/duties/')
+
+    # Categories for this operator (numeric-aware ordered)
+    try:
+        qs_categories = board_category.objects.filter(operator=operator)
+        def _parse_name_key(name):
+            rn = (name or '').upper()
+            normal = re.match(r'^([0-9]+)$', rn)
+            xprefix = re.match(r'^X([0-9]+)$', rn)
+            suffix = re.match(r'^([0-9]+)([A-Z]+)$', rn)
+            other = re.match(r'^([A-Z]+)([0-9]+)$', rn)
+            if normal:
+                return (0, int(normal.group(1)), "")
+            if suffix:
+                return (1, int(suffix.group(1)), suffix.group(2))
+            if xprefix:
+                return (2, int(xprefix.group(1)), "X")
+            if other:
+                return (3, other.group(1), int(other.group(2)))
+            return (4, rn, 0)
+
+        category_list = list(qs_categories)
+        category_list.sort(key=lambda c: _parse_name_key(c.name))
+    except Exception:
+        category_list = board_category.objects.filter(operator=operator).order_by('name')
+
+    if request.method == 'POST':
+        updated = 0
+        for i, bd in enumerate(duties, start=1):
+            name = request.POST.get(f'duty_name_{i}', bd.duty_name).strip()
+            cat_id = request.POST.get(f'category_{i}')
+            board_type_val = request.POST.get(f'board_type_{i}', bd.board_type)
+
+            bd.duty_name = name
+
+            if cat_id:
+                try:
+                    c = board_category.objects.get(id=cat_id)
+                    if c.operator and bd.duty_operator and c.operator.id == bd.duty_operator.id:
+                        bd.category = c
+                    else:
+                        bd.category = None
+                except board_category.DoesNotExist:
+                    bd.category = None
+            else:
+                bd.category = None
+
+            if board_type_val in ['duty', 'running-boards']:
+                bd.board_type = board_type_val
+
+            bd.save()
+            updated += 1
+
+        messages.success(request, f"{updated} board(s) updated successfully.")
+        return redirect(f'/operator/{operator_slug}/duties/')
+
+    context = {
+        'duties': duties,
+        'categoryData': category_list,
+        'breadcrumbs': [
+            {'name': 'Home', 'url': '/'},
+            {'name': operator.operator_name, 'url': f'/operator/{operator_slug}/'},
+            {'name': 'Duties', 'url': f'/operator/{operator_slug}/duties/'},
+            {'name': 'Mass Edit Boards', 'url': request.path},
+        ],
+        'tabs': generate_tabs('duties', operator),
+        'operator': operator,
+    }
+    return render(request, 'mass_edit_boards.html', context)
  
 @login_required
 @require_http_methods(["GET", "POST"])

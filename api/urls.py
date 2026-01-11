@@ -17,6 +17,8 @@ urlpatterns = [
     path('online-members/', ratelimit(key='ip', method='GET', rate='5/s')(online_members), name='online-members'),
     path('liveries/', ratelimit(key='ip', method='GET', rate='10/s')(liveriesListView.as_view()), name='liveries-list'),
     path('liveries/<int:pk>/', ratelimit(key='ip', method='GET', rate='10/s')(liveriesDetailView.as_view()), name='liveries-detail'),
+    # Board categories - searchable and filterable by operator
+    path('board-categories/', ratelimit(key='ip', method='GET', rate='10/s')(boardCategoryListView.as_view()), name='board-categories-list'),
     path('type/', ratelimit(key='ip', method='GET', rate='10/s')(typeListView.as_view()), name='type-list'),
     path('type/<int:pk>/', ratelimit(key='ip', method='GET', rate='10/s')(typeDetailView.as_view()), name='type-detail'),
     path('routes/<int:pk>/stops/', ratelimit(key='ip', method='GET', rate='100/s')(routeStops.as_view()), name='route-stops'),
