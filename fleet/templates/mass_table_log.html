@@ -880,13 +880,15 @@ document.addEventListener("DOMContentLoaded", function() {
     // Initialize Select2 for board search
     $('.board-search-input').select2({
       ajax: {
-        url: '{% url "boards_api" operator.operator_slug %}',
+        url: '/api/board-categories/',
         dataType: 'json',
         delay: 250,
         data: function (params) {
           return {
-            q: params.term || '',
-            type: $(this).closest('.vehicle-row').find('.board-type').val(),
+            search: params.term || '',
+            operator: $('#operator').val() || '{{ fleetData.operator.id }}',
+            limit: 100,
+            offset: params.page ? params.page * 100 : 0,
             category: $('#global-category').val()
           };
         },
