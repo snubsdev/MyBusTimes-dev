@@ -884,9 +884,11 @@ document.addEventListener("DOMContentLoaded", function() {
         dataType: 'json',
         delay: 250,
         data: function (params) {
+          let boardType = $(this).closest('.vehicle-row').find('.board-type').val();
+          if (boardType === 'running') boardType = 'running-boards';
           return {
             q: params.term || '',
-            type: $(this).closest('.vehicle-row').find('.board-type').val(),
+            type: boardType,
             category: $('#global-category').val()
           };
         },
@@ -903,6 +905,16 @@ document.addEventListener("DOMContentLoaded", function() {
     }).on('select2:select', function (e) {
       const vehicleRow = $(this).closest('.vehicle-row');
       vehicleRow.find('.board-id').val(e.params.data.id);
+      // Set type if not set
+      const typeSelect = vehicleRow.find('.board-type');
+      if (!typeSelect.val() && e.params.data.type) {
+        let mappedType = e.params.data.type;
+        if (mappedType === 'running-boards') mappedType = 'running';
+        typeSelect.val(mappedType);
+        saveElement(typeSelect[0]);
+      }
+      // Ensure Select2 displays the selected value
+      $(this).append(new Option(e.params.data.text, e.params.data.id, true, true)).trigger('change');
       // Update UI
       vehicleRow.find('.board-option').removeClass('selected');
       const boardOption = vehicleRow.find('.board-option[data-id="' + e.params.data.id + '"]');
@@ -1057,8 +1069,24 @@ document.addEventListener("DOMContentLoaded", function() {
             return;
         }
 
-        // Get all vehicles without assignment
-        const vehicleRows = document.querySelectorAll('.vehicle-row:not(.assigned)');
+        // Clear all assignments first
+        document.querySelectorAll('.vehicle-row').forEach(row => {
+            const boardTypeSelect = row.querySelector('.board-type');
+            const boardIdHidden = row.querySelector('.board-id');
+            const searchInput = row.querySelector('.board-search-input');
+
+            boardTypeSelect.value = boardType;
+            boardIdHidden.value = '';
+            searchInput.value = '';
+            $(searchInput).val('').trigger('change');
+            row.querySelectorAll('.board-option').forEach(opt => opt.classList.remove('selected'));
+
+            saveElement(boardTypeSelect);
+            saveElement(boardIdHidden);
+        });
+
+        // Get all vehicles
+        const vehicleRows = document.querySelectorAll('.vehicle-row');
 
         // Group boards by category
         const boardsByCategory = {};

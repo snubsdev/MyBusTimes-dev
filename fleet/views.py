@@ -7063,16 +7063,15 @@ def boards_api(request, operator_slug):
     search = request.GET.get('q', '').strip()
     category = request.GET.get('category', '').strip()
 
-    if board_type not in ['duty', 'running']:
-        return JsonResponse({'results': []})
-
     if board_type == 'running':
         board_type = 'running-boards'
 
     queryset = duty.objects.filter(
         duty_operator=operator,
-        board_type=board_type
     ).select_related('category')
+
+    if board_type:
+        queryset = queryset.filter(board_type=board_type)
 
     if category:
         queryset = queryset.filter(category__id=category)
@@ -7087,7 +7086,8 @@ def boards_api(request, operator_slug):
         results.append({
             'id': board.id,
             'text': board.duty_name,
-            'category': board.category.name if board.category else 'No Category'
+            'category': board.category.name if board.category else 'No Category',
+            'type': board.board_type
         })
 
     return JsonResponse({'results': results})
