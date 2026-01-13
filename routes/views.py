@@ -137,7 +137,16 @@ class boardCategoryListView(generics.ListAPIView):
         if operator:
             qs = qs.filter(operator__id=operator)
 
-        # Numeric-aware ordering using same logic as routes (e.g. 1, 2, 10, X1, A1)
+        # Let DRF/DjangoFilterBackend/SearchFilter do their work first, then sort in Python if needed
+        # This ensures we always return a QuerySet for filtering/searching, and only sort after filtering
+        qs = qs.order_by('name')  # fallback ordering for DB
+        return qs
+
+    def filter_queryset(self, queryset):
+        # Use default filtering/searching first
+        queryset = super().filter_queryset(queryset)
+
+        # Now apply numeric-aware ordering in Python
         def parse_name_key(name):
             route_num = (name or '').upper()
 
@@ -163,14 +172,13 @@ class boardCategoryListView(generics.ListAPIView):
             else:
                 return (float('inf'), 4, route_num)
 
-        # Evaluate queryset and sort in Python using the key
         try:
-            items = list(qs)
+            items = list(queryset)
             items.sort(key=lambda c: parse_name_key(c.name))
             return items
         except Exception:
             print("Error sorting board categories, falling back to name ordering")
-            return qs.order_by('name')
+            return queryset
 
 class stopRouteSearchView(APIView):
     def get(self, request):

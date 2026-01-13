@@ -4723,7 +4723,7 @@ def duty_mass_edit(request, operator_slug):
             updated += 1
 
         messages.success(request, f"{updated} board(s) updated successfully.")
-        return redirect(f'/operator/{operator_slug}/duties/')
+        return redirect(f'/operator/{operator_slug}/duties/select-mass-edit')
 
     context = {
         'duties': duties,
