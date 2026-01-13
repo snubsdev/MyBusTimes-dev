@@ -1326,7 +1326,7 @@ def vehicle_edit(request, operator_slug, vehicle_id):
         except vehicleType.DoesNotExist:
             vehicle.vehicleType = None
 
-            livery_id = request.POST.get('livery')
+        livery_id = request.POST.get('livery')
         if livery_id:
             try:
                 vehicle.livery = liverie.objects.get(id=livery_id)
