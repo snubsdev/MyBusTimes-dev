@@ -7080,15 +7080,7 @@ def boards_api(request, operator_slug):
     if search:
         queryset = queryset.filter(duty_name__icontains=search)
 
-    print("search:", search)
-    print("category:", category)
-    print("board_type:", board_type)
-    print("operator:", operator.operator_name)
-
     queryset = queryset.order_by('duty_name')
-
-    print(queryset)
-    print("test")
 
     results = []
     for board in queryset:
