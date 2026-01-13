@@ -7063,8 +7063,11 @@ def boards_api(request, operator_slug):
     search = request.GET.get('q', '').strip()
     category = request.GET.get('category', '').strip()
 
-    if board_type not in ['duty', 'running-boards']:
+    if board_type not in ['duty', 'running']:
         return JsonResponse({'results': []})
+
+    if board_type == 'running':
+        board_type = 'running-boards'
 
     queryset = duty.objects.filter(
         duty_operator=operator,
@@ -7077,7 +7080,15 @@ def boards_api(request, operator_slug):
     if search:
         queryset = queryset.filter(duty_name__icontains=search)
 
-    queryset = queryset.order_by('duty_name')[:50]  # limit to 50 for performance
+    print("search:", search)
+    print("category:", category)
+    print("board_type:", board_type)
+    print("operator:", operator.operator_name)
+
+    queryset = queryset.order_by('duty_name')
+
+    print(queryset)
+    print("test")
 
     results = []
     for board in queryset:

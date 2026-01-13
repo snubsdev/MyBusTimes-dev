@@ -880,15 +880,13 @@ document.addEventListener("DOMContentLoaded", function() {
     // Initialize Select2 for board search
     $('.board-search-input').select2({
       ajax: {
-        url: '/api/board-categories/',
+        url: '{% url "boards_api" operator.operator_slug %}',
         dataType: 'json',
         delay: 250,
         data: function (params) {
           return {
-            search: params.term || '',
-            operator: $('#operator').val() || '{{ fleetData.operator.id }}',
-            limit: 100,
-            offset: params.page ? params.page * 100 : 0,
+            q: params.term || '',
+            type: $(this).closest('.vehicle-row').find('.board-type').val(),
             category: $('#global-category').val()
           };
         },
@@ -1100,6 +1098,9 @@ document.addEventListener("DOMContentLoaded", function() {
             boardTypeSelect.value = boardType;
             boardIdHidden.value = selectedOption.dataset.value;
             searchInput.value = selectedOption.dataset.name;
+
+            // Update Select2 display
+            $(searchInput).append(new Option(selectedOption.dataset.name, selectedOption.dataset.value, true, true)).trigger('change');
 
             usedBoards.add(selectedOption.dataset.value);
             selectedOption.classList.add('used');
