@@ -5,6 +5,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/narrow.css' %}">
+<link rel="stylesheet" href="{% static 'css/select2.min.css' %}">
 <style>
 .mass-log-card {
   background: var(--viewed-color);
@@ -612,10 +613,16 @@
       </div>
       <div class="settings-group" style="margin-left: auto;">
         <label>&nbsp;</label>
+        <div style="display:flex;gap:0.5rem;">
         <button type="button" class="btn-clear" id="clear-all-btn">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           Clear All
         </button>
+        <button type="button" class="btn-clear" id="auto-fill-btn" title="Auto fill boards by vehicle category">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/></svg>
+          Auto Fill
+        </button>
+        </div>
       </div>
     </div>
 
@@ -627,7 +634,7 @@
 
     <div class="vehicle-list">
       {% for v in vehicles %}
-      <div class="vehicle-row" data-vehicle="{{ v.id }}" data-category="{{ v.vehicle_category.id|default:'' }}">
+      <div class="vehicle-row" data-vehicle="{{ v.id }}" data-vehicle-category="{% if v.vehicle_category %}{{ v.vehicle_category.id }}{% else %}none{% endif %}">
         <div class="vehicle-info">
           <span class="vehicle-fleet-num">{{ v.fleet_number }}</span>
           <div class="vehicle-details">
@@ -657,30 +664,7 @@
         </select>
 
         <div class="board-search-wrapper" data-vehicle="{{ v.id }}">
-          <input type="hidden" name="assignments[{{ v.id }}][board_id]" class="board-id" data-vehicle="{{ v.id }}" value="">
-          <input type="text" class="board-search-input" placeholder="Select board..." data-vehicle="{{ v.id }}">
-          <span class="board-search-icon">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-          </span>
-          <div class="board-dropdown">
-            <div class="board-option-group duty-group">
-              <div class="board-option-group-label">Duties</div>
-              {% for d in duties %}
-              <div class="board-option" data-id="{{ d.id }}" data-type="duty" data-name="{{ d.duty_name }}" data-category="{{ d.category.id|default:'' }}" data-value="{{ d.id }}">
-                <span class="board-name">{{ d.duty_name }}</span>
-              </div>
-              {% endfor %}
-            </div>
-            <div class="board-option-group running-group">
-              <div class="board-option-group-label">Running Boards</div>
-              {% for rb in running_boards %}
-              <div class="board-option" data-id="{{ rb.id }}" data-type="running" data-name="{{ rb.duty_name }}" data-category="{{ rb.category.id|default:'' }}" data-value="{{ rb.id }}">
-                <span class="board-name">{{ rb.duty_name }}</span>
-              </div>
-              {% endfor %}
-            </div>
-            <div class="no-results" style="display: none;">No matching boards found</div>
-          </div>
+          <select class="board-select" name="assignments[{{ v.id }}][board_id]" data-vehicle="{{ v.id }}" style="width:100%"></select>
         </div>
       </div>
       {% empty %}
@@ -694,7 +678,6 @@
     <div class="action-bar">
       <div class="action-bar-left">
         <span class="assignment-count" id="assignment-count">0 assignments ready</span>
-        <button type="button" class="btn-save" id="auto-assign-btn">Auto Assign from Category</button>
       </div>
       <button type="button" class="btn-save" id="start-log-btn">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
@@ -727,6 +710,7 @@
   </div>
 </div>
 
+<script src="{% static 'js/select2.min.js' %}"></script>
 <script>
 document.addEventListener("DOMContentLoaded", function() {
 
@@ -735,9 +719,9 @@ document.addEventListener("DOMContentLoaded", function() {
     // -------------------------------
     function getKey(el) {
         if (el.classList.contains("board-type"))
-            return "massassign_vehicle_" + el.dataset.vehicle + "_type";
-        if (el.classList.contains("board-id"))
-            return "massassign_vehicle_" + el.dataset.vehicle + "_id";
+          return "massassign_vehicle_" + el.dataset.vehicle + "_type";
+        if (el.classList.contains("board-id") || el.classList.contains("board-select"))
+          return "massassign_vehicle_" + el.dataset.vehicle + "_id";
         if (el.id === "global-board-type")
             return "massassign_global_type";
         if (el.id === "assign-date")
@@ -755,182 +739,130 @@ document.addEventListener("DOMContentLoaded", function() {
     // -------------------------------
     // Searchable Board Dropdown (matching trip pages style)
     // -------------------------------
-    function initBoardDropdowns() {
-        document.querySelectorAll('.board-search-wrapper').forEach(wrapper => {
-            const searchInput = wrapper.querySelector('.board-search-input');
-            const dropdown = wrapper.querySelector('.board-dropdown');
-            const hiddenInput = wrapper.querySelector('.board-id');
-            const options = wrapper.querySelectorAll('.board-option');
-            const noResults = wrapper.querySelector('.no-results');
-            const vehicleId = wrapper.dataset.vehicle;
-            
-            // Open dropdown on click
-            searchInput.addEventListener('click', () => {
-                searchInput.removeAttribute('readonly');
-                searchInput.select();
-                filterOptions('');
-                dropdown.classList.add('open');
-            });
-            
-            // Filter on input
-            searchInput.addEventListener('input', (e) => {
-                filterOptions(e.target.value);
-                dropdown.classList.add('open');
-            });
-            
-            // Close on blur
-            searchInput.addEventListener('blur', () => {
-                setTimeout(() => {
-                    dropdown.classList.remove('open');
-                    searchInput.setAttribute('readonly', '');
-                }, 200);
-            });
-            
-            function filterOptions(query) {
-                const typeSelect = document.querySelector(`.board-type[data-vehicle="${vehicleId}"]`);
-                const selectedType = typeSelect ? typeSelect.value : '';
-                const q = query.toLowerCase();
-                let hasVisible = false;
-                
-                options.forEach(opt => {
-                    const name = opt.dataset.name.toLowerCase();
-                    const type = opt.dataset.type;
-                    const matchesSearch = name.includes(q);
-                    const matchesType = !selectedType || type === selectedType;
-                    
-                    if (matchesSearch && matchesType && !opt.classList.contains('used')) {
-                        opt.classList.remove('hidden');
-                        hasVisible = true;
-                    } else {
-                        opt.classList.add('hidden');
-                    }
-                });
-                
-                // Show/hide group labels based on visible options
-                wrapper.querySelectorAll('.board-option-group').forEach(group => {
-                    const visibleOpts = group.querySelectorAll('.board-option:not(.hidden)');
-                    group.style.display = visibleOpts.length ? '' : 'none';
-                });
-                
-                noResults.style.display = hasVisible ? 'none' : '';
+    function initBoardSelect2s() {
+      if (!window.jQuery || !jQuery().select2) return;
+      const boardsUrl = "{% url 'boards_api' operator.operator_slug %}";
+
+      document.querySelectorAll('.board-select').forEach(sel => {
+        const vehicleId = sel.dataset.vehicle;
+
+        $(sel).select2({
+          placeholder: 'Select board...',
+          allowClear: true,
+          width: 'resolve',
+          ajax: {
+            url: boardsUrl,
+            dataType: 'json',
+            delay: 250,
+            data: function(params) {
+              const typeEl = document.querySelector(`.board-type[data-vehicle="${vehicleId}"]`);
+              const type = typeEl ? typeEl.value : '';
+              // collect used IDs and exclude them (but allow current select's value)
+              const used = Array.from(document.querySelectorAll('.board-select')).map(s => s.value).filter(Boolean);
+              const excluded = used.filter(id => id !== sel.value).join(',');
+              return { q: params.term || '', type: type, excluded: excluded };
+            },
+            processResults: function(data) {
+              return { results: data.results };
             }
-            
-            // Select option
-            options.forEach(opt => {
-                opt.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    if (opt.classList.contains('used')) return;
-                    
-                    const id = opt.dataset.id;
-                    const name = opt.dataset.name;
-                    const type = opt.dataset.type;
-                    
-                    // Update hidden input
-                    hiddenInput.value = id;
-                    hiddenInput.dataset.boardName = name;
-                    hiddenInput.dataset.boardType = type;
-                    saveElement(hiddenInput);
-                    
-                    // Update search input display
-                    searchInput.value = name;
-                    searchInput.dataset.boardId = id;
-                    
-                    // Update type select to match
-                    const typeSelect = document.querySelector(`.board-type[data-vehicle="${vehicleId}"]`);
-                    if (typeSelect && typeSelect.value !== type) {
-                        typeSelect.value = type;
-                        saveElement(typeSelect);
-                    }
-                    
-                    // Mark as selected
-                    options.forEach(o => o.classList.remove('selected'));
-                    opt.classList.add('selected');
-                    
-                    dropdown.classList.remove('open');
-                    updateUsedBoards();
-                    updateRowStyling();
-                    updateAssignmentCount();
-                });
-            });
-            
-            // Load saved value
-            const savedId = localStorage.getItem(getKey(hiddenInput));
-            if (savedId) {
-                hiddenInput.value = savedId;
-                const savedOpt = wrapper.querySelector(`.board-option[data-id="${savedId}"]`);
-                if (savedOpt) {
-                    searchInput.value = savedOpt.dataset.name;
-                    searchInput.dataset.boardId = savedId;
-                    savedOpt.classList.add('selected');
-                }
-            }
+          },
+          templateResult: function(item) { if (!item.id) return item.text; return item.text + (item.category ? ' — ' + item.category : ''); }
+        }).on('select2:selecting', function(e) {
+          // Prevent selecting an already-used board on another row
+          const val = e.params.args.data.id;
+          const used = new Set();
+          document.querySelectorAll('.board-select').forEach(s => { if (s.value) used.add(s.value); });
+          if (used.has(String(val)) && this.value !== String(val)) {
+            alert('That board is already assigned to another vehicle.');
+            e.preventDefault();
+          }
+        }).on('select2:select', function(e) {
+          saveElement(this);
+          updateUsedBoards();
+          updateRowStyling();
+          updateAssignmentCount();
+        }).on('change', function() {
+          saveElement(this);
+          updateUsedBoards();
+          updateRowStyling();
+          updateAssignmentCount();
         });
+
+        // Load saved value
+        const saved = localStorage.getItem(getKey(sel));
+        if (saved) {
+          $(sel).val(saved).trigger('change');
+        }
+      });
     }
     
-    // Close dropdowns when clicking outside
+    // Close legacy dropdowns when clicking outside
     document.addEventListener('click', (e) => {
-        if (!e.target.closest('.board-search-wrapper')) {
-            document.querySelectorAll('.board-dropdown').forEach(d => d.classList.remove('open'));
-        }
+      if (!e.target.closest('.board-search-wrapper')) {
+        document.querySelectorAll('.board-dropdown').forEach(d => d.classList.remove('open'));
+      }
     });
-    
-    // Initialize dropdowns
-    initBoardDropdowns();
 
-    // Initialize Select2 for board search
-    $('.board-search-input').select2({
-      ajax: {
-        url: '{% url "boards_api" operator.operator_slug %}',
-        dataType: 'json',
-        delay: 250,
-        data: function (params) {
-          let boardType = $(this).closest('.vehicle-row').find('.board-type').val();
-          if (boardType === 'running') boardType = 'running-boards';
-          return {
-            q: params.term || '',
-            type: boardType,
-            category: $('#global-category').val()
-          };
-        },
-        processResults: function (data) {
-          return {
-            results: data.results
-          };
-        },
-        cache: true
-      },
-      placeholder: 'Select board...',
-      allowClear: true,
-      minimumInputLength: 0
-    }).on('select2:select', function (e) {
-      const vehicleRow = $(this).closest('.vehicle-row');
-      vehicleRow.find('.board-id').val(e.params.data.id);
-      // Set type if not set
-      const typeSelect = vehicleRow.find('.board-type');
-      if (!typeSelect.val() && e.params.data.type) {
-        let mappedType = e.params.data.type;
-        if (mappedType === 'running-boards') mappedType = 'running';
-        typeSelect.val(mappedType);
-        saveElement(typeSelect[0]);
-      }
-      // Ensure Select2 displays the selected value
-      $(this).append(new Option(e.params.data.text, e.params.data.id, true, true)).trigger('change');
-      // Update UI
-      vehicleRow.find('.board-option').removeClass('selected');
-      const boardOption = vehicleRow.find('.board-option[data-id="' + e.params.data.id + '"]');
-      if (boardOption.length) {
-        boardOption.addClass('selected');
-      }
+    // Initialize Select2-powered board selects
+    initBoardSelect2s();
+
+    // Build available boards grouped by category (from server-provided context)
+    var availableBoards = {};
+    {% for d in duties %}
+    (function(){
+      var cat = "{% if d.category %}{{ d.category.id }}{% else %}none{% endif %}";
+      availableBoards[cat] = availableBoards[cat] || [];
+      availableBoards[cat].push({id: "{{ d.id }}", text: "{{ d.duty_name|escapejs }}", type: "duty"});
+    })();
+    {% endfor %}
+    {% for rb in running_boards %}
+    (function(){
+      var cat = "{% if rb.category %}{{ rb.category.id }}{% else %}none{% endif %}";
+      availableBoards[cat] = availableBoards[cat] || [];
+      availableBoards[cat].push({id: "{{ rb.id }}", text: "{{ rb.duty_name|escapejs }}", type: "running"});
+    })();
+    {% endfor %}
+
+    // Auto-fill: randomly select a board matching vehicle's category for unassigned rows
+    document.getElementById('auto-fill-btn').addEventListener('click', function(){
+      const used = new Set(Array.from(document.querySelectorAll('.board-select')).map(s => s.value).filter(Boolean));
+
+      document.querySelectorAll('.vehicle-row').forEach(row => {
+        const sel = row.querySelector('.board-select');
+        const typeSel = row.querySelector('.board-type');
+        if (!sel) return;
+        if (sel.value) return; // skip already assigned
+
+        const cat = row.getAttribute('data-vehicle-category') || 'none';
+        const pool = (availableBoards[cat] || []).filter(b => !used.has(String(b.id)));
+        if (!pool.length) return;
+        const pick = pool[Math.floor(Math.random() * pool.length)];
+
+        // set board type to match pick
+        if (typeSel) {
+          typeSel.value = pick.type;
+          saveElement(typeSel);
+          typeSel.dispatchEvent(new Event('change'));
+        }
+
+        // set select2 value (ensure option exists)
+        if (window.jQuery && jQuery().select2) {
+          const $sel = $(sel);
+          if ($sel.find('option[value="' + pick.id + '"]').length === 0) {
+            $sel.append(new Option(pick.text, pick.id, false, false));
+          }
+          $sel.val(pick.id).trigger('change');
+        } else {
+          sel.value = pick.id;
+        }
+
+        saveElement(sel);
+        used.add(String(pick.id));
+      });
+
+      updateUsedBoards();
       updateRowStyling();
       updateAssignmentCount();
-      saveElement(vehicleRow.find('.board-id')[0]);
-    }).on('select2:clear', function () {
-      const vehicleRow = $(this).closest('.vehicle-row');
-      vehicleRow.find('.board-id').val('');
-      vehicleRow.find('.board-option').removeClass('selected');
-      updateRowStyling();
-      updateAssignmentCount();
-      saveElement(vehicleRow.find('.board-id')[0]);
     });
 
     // -------------------------------
@@ -947,7 +879,7 @@ document.addEventListener("DOMContentLoaded", function() {
     // -------------------------------
     function updateRowStyling() {
         document.querySelectorAll('.vehicle-row').forEach(row => {
-            const boardId = row.querySelector('.board-id');
+            const boardId = row.querySelector('.board-select');
             const boardType = row.querySelector('.board-type');
             if (boardId && boardType && boardId.value && boardType.value) {
                 row.classList.add('assigned');
@@ -963,7 +895,7 @@ document.addEventListener("DOMContentLoaded", function() {
     function updateAssignmentCount() {
         let count = 0;
         document.querySelectorAll('.vehicle-row').forEach(row => {
-            const boardId = row.querySelector('.board-id');
+            const boardId = row.querySelector('.board-select');
             const boardType = row.querySelector('.board-type');
             if (boardId && boardType && boardId.value && boardType.value) {
                 count++;
@@ -982,12 +914,6 @@ document.addEventListener("DOMContentLoaded", function() {
 
             if (el.classList.contains("board-type")) {
                 filterBoardsByType(el);
-                // Clear the board selection when type changes
-                const vehicleRow = el.closest('.vehicle-row');
-                const searchInput = vehicleRow.querySelector('.board-search-input');
-                $(searchInput).val('').trigger('change');
-                vehicleRow.querySelector('.board-id').value = '';
-                vehicleRow.querySelectorAll('.board-option').forEach(opt => opt.classList.remove('selected'));
             }
             
             updateRowStyling();
@@ -1001,17 +927,18 @@ document.addEventListener("DOMContentLoaded", function() {
         const vehicle = typeSelect.dataset.vehicle;
         const type = typeSelect.value;
         const wrapper = document.querySelector(`.board-search-wrapper[data-vehicle="${vehicle}"]`);
-        const hiddenInput = wrapper.querySelector('.board-id');
-        const searchInput = wrapper.querySelector('.board-search-input');
-        
-        // Check if current selection matches the type
-        const selectedOpt = wrapper.querySelector('.board-option.selected');
-        if (selectedOpt && selectedOpt.dataset.type !== type) {
-            // Clear selection
-            hiddenInput.value = '';
-            saveElement(hiddenInput);
-            selectedOpt.classList.remove('selected');
-            searchInput.value = '';
+        const sel = wrapper.querySelector('.board-select');
+        if (sel) {
+          // if selected item doesn't match new type, clear
+          try {
+            const selected = $(sel).select2('data')[0];
+            if (selected && selected.type && selected.type !== type) {
+              $(sel).val(null).trigger('change');
+              saveElement(sel);
+            }
+          } catch (err) {
+            // ignore if select2 not yet initialized
+          }
         }
         
         updateRowStyling();
@@ -1044,13 +971,15 @@ document.addEventListener("DOMContentLoaded", function() {
             el.value = '';
             saveElement(el);
         });
-        document.querySelectorAll('.board-id').forEach(el => {
-            el.value = '';
-            saveElement(el);
+        document.querySelectorAll('.board-select').forEach(el => {
+          if (window.jQuery && jQuery().select2) $(el).val(null).trigger('change');
+          el.value = '';
+          saveElement(el);
         });
         document.querySelectorAll('.board-search-wrapper').forEach(wrapper => {
-            wrapper.querySelector('.board-search-input').value = '';
-            wrapper.querySelectorAll('.board-option').forEach(opt => opt.classList.remove('selected'));
+          // legacy cleanup for any remaining markup
+          const input = wrapper.querySelector('.board-search-input');
+          if (input) input.value = '';
         });
         document.getElementById('global-board-type').value = '';
         saveElement(document.getElementById('global-board-type'));
@@ -1060,117 +989,19 @@ document.addEventListener("DOMContentLoaded", function() {
     });
 
     // -------------------------------
-    // Auto Assign from Category
+    // Initial load
     // -------------------------------
-    document.getElementById('auto-assign-btn').addEventListener('click', () => {
-        const boardType = document.getElementById('global-board-type').value;
-        if (!boardType) {
-            alert('Please select a board type first.');
-            return;
-        }
-
-        // Clear all assignments first
-        document.querySelectorAll('.vehicle-row').forEach(row => {
-            const boardTypeSelect = row.querySelector('.board-type');
-            const boardIdHidden = row.querySelector('.board-id');
-            const searchInput = row.querySelector('.board-search-input');
-
-            boardTypeSelect.value = boardType;
-            boardIdHidden.value = '';
-            searchInput.value = '';
-            $(searchInput).val('').trigger('change');
-            row.querySelectorAll('.board-option').forEach(opt => opt.classList.remove('selected'));
-
-            saveElement(boardTypeSelect);
-            saveElement(boardIdHidden);
-        });
-
-        // Get all vehicles
-        const vehicleRows = document.querySelectorAll('.vehicle-row');
-
-        // Group boards by category
-        const boardsByCategory = {};
-        document.querySelectorAll('.board-option').forEach(option => {
-            if (option.dataset.type !== boardType) return;  // Only consider selected board type
-            const category = option.dataset.category;
-            if (!category) return;
-            if (!boardsByCategory[category]) boardsByCategory[category] = [];
-            boardsByCategory[category].push(option);
-        });
-
-        // Used boards
-        const usedBoards = new Set();
-        document.querySelectorAll('.vehicle-row.assigned .board-id').forEach(hidden => {
-            if (hidden.value) usedBoards.add(hidden.value);
-        });
-
-        // For each vehicle
-        vehicleRows.forEach(row => {
-            const category = row.dataset.category;
-            if (!category || !boardsByCategory[category]) return;
-
-            // Filter unused boards
-            const available = boardsByCategory[category].filter(option => !usedBoards.has(option.dataset.value) && !option.classList.contains('used'));
-
-            if (available.length === 0) return;
-
-            // Pick random
-            const randomIndex = Math.floor(Math.random() * available.length);
-            const selectedOption = available[randomIndex];
-
-            // Assign
-            const boardTypeSelect = row.querySelector('.board-type');
-            const boardIdHidden = row.querySelector('.board-id');
-            const searchInput = row.querySelector('.board-search-input');
-
-            boardTypeSelect.value = boardType;
-            boardIdHidden.value = selectedOption.dataset.value;
-            searchInput.value = selectedOption.dataset.name;
-
-            // Update Select2 display
-            $(searchInput).append(new Option(selectedOption.dataset.name, selectedOption.dataset.value, true, true)).trigger('change');
-
-            usedBoards.add(selectedOption.dataset.value);
-            selectedOption.classList.add('used');
-
-            // Save
-            saveElement(boardTypeSelect);
-            saveElement(boardIdHidden);
-
-            // Update UI
-            row.querySelectorAll('.board-option').forEach(opt => opt.classList.remove('selected'));
-            selectedOption.classList.add('selected');
-        });
-
-        updateUsedBoards();
-        updateRowStyling();
-        updateAssignmentCount();
-    });
+    applyGlobalBoardType();
+    document.querySelectorAll(".board-type").forEach(el => filterBoardsByType(el));
 
     // -----------------------------------------
     // Track used board IDs & mark as used
     // -----------------------------------------
     function updateUsedBoards() {
-        const used = new Set();
-
-        document.querySelectorAll(".board-id").forEach(input => {
-            if (input.value) used.add(input.value);
-        });
-
-        document.querySelectorAll(".board-option").forEach(opt => {
-            const id = opt.dataset.id;
-            const wrapper = opt.closest('.board-search-wrapper');
-            const hiddenInput = wrapper.querySelector('.board-id');
-            
-            // If this vehicle has it selected, don't mark as used
-            if (hiddenInput.value === id) {
-                opt.classList.remove('used');
-            } else if (used.has(id)) {
-                opt.classList.add('used');
-            } else {
-                opt.classList.remove('used');
-            }
-        });
+      const used = new Set();
+      document.querySelectorAll('.board-select').forEach(s => { if (s.value) used.add(s.value); });
+      // We don't mark options in remote Select2 results; instead we prevent selecting used IDs on select attempt.
+      return used;
     }
 
     updateUsedBoards();
@@ -1202,7 +1033,8 @@ document.addEventListener("DOMContentLoaded", function() {
             const type = typeSelect.value;
             
             const wrapper = document.querySelector(`.board-search-wrapper[data-vehicle="${vehicleId}"]`);
-            const boardId = wrapper.querySelector('.board-id').value;
+            const boardIdEl = wrapper.querySelector('.board-select');
+            const boardId = boardIdEl ? boardIdEl.value : '';
             const vehicleRow = typeSelect.closest('.vehicle-row');
             const fleetNum = vehicleRow.querySelector('.vehicle-fleet-num').textContent;
 

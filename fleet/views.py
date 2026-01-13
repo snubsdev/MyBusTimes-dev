@@ -7062,6 +7062,7 @@ def boards_api(request, operator_slug):
     board_type = request.GET.get('type', '').strip()
     search = request.GET.get('q', '').strip()
     category = request.GET.get('category', '').strip()
+    excluded = request.GET.get('excluded', '').strip()
 
     if board_type == 'running':
         board_type = 'running-boards'
@@ -7078,6 +7079,15 @@ def boards_api(request, operator_slug):
 
     if search:
         queryset = queryset.filter(duty_name__icontains=search)
+
+    # Exclude any IDs passed from the client (comma-separated)
+    if excluded:
+        try:
+            ids = [int(x) for x in excluded.split(',') if x.strip().isdigit()]
+            if ids:
+                queryset = queryset.exclude(id__in=ids)
+        except Exception:
+            pass
 
     queryset = queryset.order_by('duty_name')
 
