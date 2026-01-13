@@ -627,7 +627,7 @@
 
     <div class="vehicle-list">
       {% for v in vehicles %}
-      <div class="vehicle-row" data-vehicle="{{ v.id }}">
+      <div class="vehicle-row" data-vehicle="{{ v.id }}" data-category="{{ v.vehicle_category.id|default:'' }}">
         <div class="vehicle-info">
           <span class="vehicle-fleet-num">{{ v.fleet_number }}</span>
           <div class="vehicle-details">
@@ -658,7 +658,7 @@
 
         <div class="board-search-wrapper" data-vehicle="{{ v.id }}">
           <input type="hidden" name="assignments[{{ v.id }}][board_id]" class="board-id" data-vehicle="{{ v.id }}" value="">
-          <input type="text" class="board-search-input" placeholder="Select board..." readonly>
+          <input type="text" class="board-search-input" placeholder="Select board..." data-vehicle="{{ v.id }}">
           <span class="board-search-icon">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
           </span>
@@ -666,7 +666,7 @@
             <div class="board-option-group duty-group">
               <div class="board-option-group-label">Duties</div>
               {% for d in duties %}
-              <div class="board-option" data-id="{{ d.id }}" data-type="duty" data-name="{{ d.duty_name }}">
+              <div class="board-option" data-id="{{ d.id }}" data-type="duty" data-name="{{ d.duty_name }}" data-category="{{ d.category.id|default:'' }}" data-value="{{ d.id }}">
                 <span class="board-name">{{ d.duty_name }}</span>
               </div>
               {% endfor %}
@@ -674,7 +674,7 @@
             <div class="board-option-group running-group">
               <div class="board-option-group-label">Running Boards</div>
               {% for rb in running_boards %}
-              <div class="board-option" data-id="{{ rb.id }}" data-type="running" data-name="{{ rb.duty_name }}">
+              <div class="board-option" data-id="{{ rb.id }}" data-type="running" data-name="{{ rb.duty_name }}" data-category="{{ rb.category.id|default:'' }}" data-value="{{ rb.id }}">
                 <span class="board-name">{{ rb.duty_name }}</span>
               </div>
               {% endfor %}
@@ -694,6 +694,7 @@
     <div class="action-bar">
       <div class="action-bar-left">
         <span class="assignment-count" id="assignment-count">0 assignments ready</span>
+        <button type="button" class="btn-save" id="auto-assign-btn">Auto Assign from Category</button>
       </div>
       <button type="button" class="btn-save" id="start-log-btn">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
@@ -876,6 +877,50 @@ document.addEventListener("DOMContentLoaded", function() {
     // Initialize dropdowns
     initBoardDropdowns();
 
+    // Initialize Select2 for board search
+    $('.board-search-input').select2({
+      ajax: {
+        url: '{% url "boards_api" operator.operator_slug %}',
+        dataType: 'json',
+        delay: 250,
+        data: function (params) {
+          return {
+            q: params.term || '',
+            type: $(this).closest('.vehicle-row').find('.board-type').val(),
+            category: $('#global-category').val()
+          };
+        },
+        processResults: function (data) {
+          return {
+            results: data.results
+          };
+        },
+        cache: true
+      },
+      placeholder: 'Select board...',
+      allowClear: true,
+      minimumInputLength: 0
+    }).on('select2:select', function (e) {
+      const vehicleRow = $(this).closest('.vehicle-row');
+      vehicleRow.find('.board-id').val(e.params.data.id);
+      // Update UI
+      vehicleRow.find('.board-option').removeClass('selected');
+      const boardOption = vehicleRow.find('.board-option[data-id="' + e.params.data.id + '"]');
+      if (boardOption.length) {
+        boardOption.addClass('selected');
+      }
+      updateRowStyling();
+      updateAssignmentCount();
+      saveElement(vehicleRow.find('.board-id')[0]);
+    }).on('select2:clear', function () {
+      const vehicleRow = $(this).closest('.vehicle-row');
+      vehicleRow.find('.board-id').val('');
+      vehicleRow.find('.board-option').removeClass('selected');
+      updateRowStyling();
+      updateAssignmentCount();
+      saveElement(vehicleRow.find('.board-id')[0]);
+    });
+
     // -------------------------------
     // Load saved values for other elements
     // -------------------------------
@@ -925,6 +970,12 @@ document.addEventListener("DOMContentLoaded", function() {
 
             if (el.classList.contains("board-type")) {
                 filterBoardsByType(el);
+                // Clear the board selection when type changes
+                const vehicleRow = el.closest('.vehicle-row');
+                const searchInput = vehicleRow.querySelector('.board-search-input');
+                $(searchInput).val('').trigger('change');
+                vehicleRow.querySelector('.board-id').value = '';
+                vehicleRow.querySelectorAll('.board-option').forEach(opt => opt.classList.remove('selected'));
             }
             
             updateRowStyling();
@@ -997,10 +1048,73 @@ document.addEventListener("DOMContentLoaded", function() {
     });
 
     // -------------------------------
-    // Initial load
+    // Auto Assign from Category
     // -------------------------------
-    applyGlobalBoardType();
-    document.querySelectorAll(".board-type").forEach(el => filterBoardsByType(el));
+    document.getElementById('auto-assign-btn').addEventListener('click', () => {
+        const boardType = document.getElementById('global-board-type').value;
+        if (!boardType) {
+            alert('Please select a board type first.');
+            return;
+        }
+
+        // Get all vehicles without assignment
+        const vehicleRows = document.querySelectorAll('.vehicle-row:not(.assigned)');
+
+        // Group boards by category
+        const boardsByCategory = {};
+        document.querySelectorAll('.board-option').forEach(option => {
+            if (option.dataset.type !== boardType) return;  // Only consider selected board type
+            const category = option.dataset.category;
+            if (!category) return;
+            if (!boardsByCategory[category]) boardsByCategory[category] = [];
+            boardsByCategory[category].push(option);
+        });
+
+        // Used boards
+        const usedBoards = new Set();
+        document.querySelectorAll('.vehicle-row.assigned .board-id').forEach(hidden => {
+            if (hidden.value) usedBoards.add(hidden.value);
+        });
+
+        // For each vehicle
+        vehicleRows.forEach(row => {
+            const category = row.dataset.category;
+            if (!category || !boardsByCategory[category]) return;
+
+            // Filter unused boards
+            const available = boardsByCategory[category].filter(option => !usedBoards.has(option.dataset.value) && !option.classList.contains('used'));
+
+            if (available.length === 0) return;
+
+            // Pick random
+            const randomIndex = Math.floor(Math.random() * available.length);
+            const selectedOption = available[randomIndex];
+
+            // Assign
+            const boardTypeSelect = row.querySelector('.board-type');
+            const boardIdHidden = row.querySelector('.board-id');
+            const searchInput = row.querySelector('.board-search-input');
+
+            boardTypeSelect.value = boardType;
+            boardIdHidden.value = selectedOption.dataset.value;
+            searchInput.value = selectedOption.dataset.name;
+
+            usedBoards.add(selectedOption.dataset.value);
+            selectedOption.classList.add('used');
+
+            // Save
+            saveElement(boardTypeSelect);
+            saveElement(boardIdHidden);
+
+            // Update UI
+            row.querySelectorAll('.board-option').forEach(opt => opt.classList.remove('selected'));
+            selectedOption.classList.add('selected');
+        });
+
+        updateUsedBoards();
+        updateRowStyling();
+        updateAssignmentCount();
+    });
 
     // -----------------------------------------
     // Track used board IDs & mark as used

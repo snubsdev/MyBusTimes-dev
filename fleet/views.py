@@ -6950,15 +6950,15 @@ def mass_assign_boards(request, operator_slug):
     # ----------------------------------------------------------------------
     duties_list = duty.objects.filter(
         duty_operator=operator, board_type='duty'
-    ).order_by('duty_name')
+    ).select_related('category').prefetch_related('duty_trips').order_by('duty_name')
 
     running_list = duty.objects.filter(
         duty_operator=operator, board_type='running-boards'
-    ).order_by('duty_name')
+    ).select_related('category').prefetch_related('duty_trips').order_by('duty_name')
 
     vehicles = fleet.objects.filter(
         Q(operator=operator) | Q(loan_operator=operator), in_service=True
-    ).order_by('fleet_number_sort')
+    ).select_related('vehicle_category').order_by('fleet_number_sort')
 
     breadcrumbs = [
         {'name': 'Home', 'url': '/'},
@@ -7041,3 +7041,50 @@ def route_update_delete(request, operator_slug, route_id, update_id):
         'route_id': route_id,
         'operator_slug': operator_slug
     })
+
+@login_required
+@require_http_methods(["GET"])
+def boards_api(request, operator_slug):
+    """
+    API for Select2 to load boards (duties and running boards) for mass assign.
+    """
+    operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
+
+    # Permissions
+    userPerms = get_helper_permissions(request.user, operator)
+    if (
+        request.user != operator.owner
+        and 'Mass Log Trips' not in userPerms
+        and not request.user.is_superuser
+    ):
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+
+    board_type = request.GET.get('type', '').strip()
+    search = request.GET.get('q', '').strip()
+    category = request.GET.get('category', '').strip()
+
+    if board_type not in ['duty', 'running-boards']:
+        return JsonResponse({'results': []})
+
+    queryset = duty.objects.filter(
+        duty_operator=operator,
+        board_type=board_type
+    ).select_related('category')
+
+    if category:
+        queryset = queryset.filter(category__id=category)
+
+    if search:
+        queryset = queryset.filter(duty_name__icontains=search)
+
+    queryset = queryset.order_by('duty_name')[:50]  # limit to 50 for performance
+
+    results = []
+    for board in queryset:
+        results.append({
+            'id': board.id,
+            'text': board.duty_name,
+            'category': board.category.name if board.category else 'No Category'
+        })
+
+    return JsonResponse({'results': results})
