@@ -173,6 +173,8 @@
       const usersTbody = document.getElementById('usersTable').tBodies[0];
       const ticketsList = document.getElementById('ticketsList');
       let secs = 5;
+      let liveUsersCache = null;
+      let searchTimeout = null;
 
       async function fetchAndRender(){
         try{
@@ -195,15 +197,9 @@
         }
       }
 
-      function renderData(data){
-        document.querySelector('.meta-line').textContent = 'Cutoff: ' + new Date(data.cutoff).toLocaleString();
-        document.querySelectorAll('.stats .card .big')[0].textContent = data.active_count;
-        document.querySelectorAll('.stats .card .big')[1].textContent = data.recent_signups.length;
-        document.querySelectorAll('.stats .card .big')[2].textContent = data.open_tickets.length;
-
-        // rebuild users table
+      function renderUsersList(users){
         usersTbody.innerHTML = '';
-        data.active_users.forEach(u=>{
+        users.forEach(u=>{
           const tr = document.createElement('tr');
           tr.className = 'clickable-row';
           tr.setAttribute('data-user-id', u.id);
@@ -225,9 +221,21 @@
                           <td>${flags.join('')}</td>`;
           usersTbody.appendChild(tr);
         });
-        if(data.active_users.length === 0){
-          const tr = document.createElement('tr'); tr.innerHTML = '<td colspan="4" class="muted">No active users</td>'; usersTbody.appendChild(tr);
+        if(users.length === 0){
+          const tr = document.createElement('tr'); tr.innerHTML = '<td colspan="4" class="muted">No users</td>'; usersTbody.appendChild(tr);
         }
+        attachRowHandlers();
+      }
+
+      function renderData(data){
+        document.querySelector('.meta-line').textContent = 'Cutoff: ' + new Date(data.cutoff).toLocaleString();
+        document.querySelectorAll('.stats .card .big')[0].textContent = data.active_count;
+        document.querySelectorAll('.stats .card .big')[1].textContent = data.recent_signups.length;
+        document.querySelectorAll('.stats .card .big')[2].textContent = data.open_tickets.length;
+
+        // cache live active users for fallback
+        liveUsersCache = data.active_users;
+        renderUsersList(data.active_users);
 
         // open tickets
         ticketsList.innerHTML = '';
@@ -240,7 +248,6 @@
         });
         if(data.open_tickets.length===0){ ticketsList.innerHTML = '<div class="muted">No open tickets</div>' }
 
-        attachRowHandlers();
         filterRows(); // re-run filter
       }
 
@@ -249,12 +256,28 @@
         countdownEl.textContent = 'Next update in ' + secs + 's';
         if(secs<=0){ fetchAndRender(); }
       }
+
       let timer = setInterval(tick,1000);
+      function stopTimer(){
+        if(timer){
+          clearInterval(timer);
+          timer = null;
+          countdownEl.textContent = 'Auto refresh paused';
+        }
+      }
+      function startTimer(){
+        if(!timer){
+          secs = 5;
+          countdownEl.style.color = '';
+          timer = setInterval(tick,1000);
+        }
+      }
 
       refreshBtn.addEventListener('click', ()=>{ fetchAndRender(); });
 
       clearFilter.addEventListener('click', ()=>{
         userFilter.value=''; filterRows();
+        startTimer();
       });
 
       // flag controls
@@ -264,7 +287,30 @@
       if(filterInactive) filterInactive.addEventListener('change', filterRows);
       if(clearFlags) clearFlags.addEventListener('click', (e)=>{ e.preventDefault(); if(filterStaff) filterStaff.checked=false; if(filterBanned) filterBanned.checked=false; if(filterIpFlag) filterIpFlag.checked=false; if(filterInactive) filterInactive.checked=false; filterRows(); });
 
-      userFilter.addEventListener('input', filterRows);
+      userFilter.addEventListener('input', (e)=>{
+        const q = (userFilter.value || '').toLowerCase().trim();
+        // pause auto-refresh while searching
+        if(q.length > 0){ stopTimer(); } else { startTimer(); }
+        if(searchTimeout) clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(async ()=>{
+          if(q.length >= 2){
+            try{
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 10000);
+              const res = await fetch('/admin/user-search/api/?q=' + encodeURIComponent(q), { credentials: 'same-origin', signal: controller.signal });
+              clearTimeout(timeoutId);
+              if(res.ok){
+                const data = await res.json();
+                renderUsersList(data.results);
+                filterRows();
+                return;
+              }
+            }catch(err){ console.error('Search failed', err); }
+          }
+          // fallback: restore live users or run client-side filter
+          if(liveUsersCache){ renderUsersList(liveUsersCache); filterRows(); } else { filterRows(); }
+        }, 300);
+      });
 
       function filterRows(){
         const q = (userFilter.value || '').toLowerCase().trim();

@@ -6,6 +6,7 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('', dashboard_view, name='dashboard'),
     path("user-activity/", user_activity_view, name="user_activity_view"),
+    path("user-search/api/", user_search_api, name="user_search_api"),
     path('users-management/', users_view, name='users-management'),
     path("users/<int:user_id>/gdpr/download/", gdpr_export_download, name="gdpr-export-download"),
     path("users/<int:user_id>/gdpr/email/", gdpr_export_email, name="gdpr-export-email"),

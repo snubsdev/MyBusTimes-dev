@@ -433,6 +433,48 @@ def live_activity_api(request):
     })
 
 
+@login_required(login_url='/admin/login/')
+def user_search_api(request):
+    if not request.user.is_staff:
+        return HttpResponseForbidden()
+
+    q = request.GET.get('q', '').strip()
+    results = []
+    if q:
+        # allow searching by username, email, or IP address
+        qs = User.objects.filter(
+            Q(username__icontains=q) | Q(email__icontains=q) | Q(last_ip__icontains=q)
+        ).order_by('username')[:200]
+        for u in qs:
+            masked_ip = None
+            last_ip = getattr(u, 'last_ip', None)
+            if last_ip:
+                # mask IPv4/IPv6 for safe display
+                if ':' in last_ip:
+                    parts = last_ip.split(':')
+                    masked_ip = ':'.join(parts[:2]) + ':…'
+                else:
+                    parts = last_ip.split('.')
+                    if len(parts) == 4:
+                        masked_ip = '.'.join(parts[:3]) + '.x'
+                    else:
+                        masked_ip = last_ip
+            results.append({
+                'id': u.id,
+                'username': u.username,
+                'email': getattr(u, 'email', None),
+                'last_active': u.last_active.isoformat() if getattr(u, 'last_active', None) else None,
+                'last_ip': last_ip,
+                'masked_last_ip': masked_ip,
+                'is_staff': bool(getattr(u, 'is_staff', False)),
+                'banned': bool(getattr(u, 'banned', False)),
+                'ip_flag': False,
+                'is_active': bool(getattr(u, 'is_active', True)),
+            })
+
+    return JsonResponse({'results': results})
+
+
 from datetime import datetime
 from main.models import BannedIps, StripeSubscription 
 
