@@ -81,6 +81,16 @@
       {% endfor %}
     </select>
 
+    <label for="vehicle_category">Category:</label>
+    <select name="vehicle_category" id="vehicle_category">
+      <option value=""></option>
+      {% for cat in categoryData %}
+      <option value="{{ cat.id }}" {% if fleetData.vehicle_category and cat.id == fleetData.vehicle_category.id %}selected{% endif %}>
+        {{ cat.name }}
+      </option>
+      {% endfor %}
+    </select>
+
     <script>
       document.getElementById('length').addEventListener('input', function(e) {
         this.value = this.value.replace(/[^\d.]/g, '');
@@ -340,6 +350,10 @@
     $('#type').next('.select2-container').find('.select2-selection--single').css('border-radius', '.5em .5em 0 0');
     $('#type').on('select2:open', function() {
       $('.select2-dropdown').css('border-radius', '0 0 .5em .5em');
+    });
+
+    $('#operator').on('change', function () {
+      $('#vehicle_category').val(null).trigger('change');
     });
   });
 </script>

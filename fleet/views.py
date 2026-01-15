@@ -928,7 +928,18 @@ def vehicles(request, operator_slug, depot=None, withdrawn=False):
         vehicle_id = request.POST.get("vehicle_id")
         operator_id = request.POST.get("operator_id")
 
-        vehicle = get_object_or_404(fleet, id=vehicle_id)
+        # Validate vehicle id before querying to avoid ValueError when it's empty
+        if not vehicle_id:
+            messages.error(request, "No vehicle selected.")
+            return redirect(request.path)
+
+        try:
+            vehicle_pk = int(vehicle_id)
+        except (TypeError, ValueError):
+            messages.error(request, "Invalid vehicle selected.")
+            return redirect(request.path)
+
+        vehicle = get_object_or_404(fleet, id=vehicle_pk)
         current_operator = vehicle.operator
         new_operator = get_object_or_404(MBTOperator, id=operator_id)
 
@@ -1889,7 +1900,13 @@ def generate_vehicle_card(fleet_number, reg, vehicle_type, status):
     return img
 
 def vehicle_card_image(request, vehicle_id):
-    vehicle = get_object_or_404(fleet, id=vehicle_id)
+    # Validate vehicle id before querying the DB
+    try:
+        vehicle_pk = int(vehicle_id)
+    except (TypeError, ValueError):
+        return JsonResponse({'success': False, 'error': "Invalid vehicle id."}, status=400)
+
+    vehicle = get_object_or_404(fleet, id=vehicle_pk)
 
     # Safely get the vehicle type name
     vehicle_type_name = getattr(vehicle.vehicleType, 'type_name', 'N/A')
@@ -1909,7 +1926,13 @@ def vehicle_card_image(request, vehicle_id):
 
 
 def vehicle_status_preview(request, vehicle_id):
-    vehicle = get_object_or_404(fleet, id=vehicle_id)
+    # Validate vehicle id before querying the DB
+    try:
+        vehicle_pk = int(vehicle_id)
+    except (TypeError, ValueError):
+        return JsonResponse({'success': False, 'error': "Invalid vehicle id."}, status=400)
+
+    vehicle = get_object_or_404(fleet, id=vehicle_pk)
 
     if not vehicle.for_sale:
         link = "Sold" if vehicle.for_sale else "Not for Sale"
@@ -4067,6 +4090,23 @@ def vehicle_add(request, operator_slug):
         except json.JSONDecodeError:
             features_selected = []
 
+        try:
+            from routes.models import board_category as BoardCategory
+            vc_id = request.POST.get('vehicle_category')
+            if vc_id:
+                try:
+                    cat = BoardCategory.objects.get(id=vc_id)
+                    if cat.operator and vehicle.operator and cat.operator.id == vehicle.operator.id:
+                        vehicle.vehicle_category = cat
+                    else:
+                        vehicle.vehicle_category = None
+                except BoardCategory.DoesNotExist:
+                    vehicle.vehicle_category = None
+            else:
+                vehicle.vehicle_category = None
+        except Exception:
+            pass
+
         vehicle.features = features_selected
         vehicle.save()
 
@@ -4090,6 +4130,12 @@ def vehicle_add(request, operator_slug):
 
         tabs = []
 
+        try:
+            from routes.models import board_category as BoardCategory
+            category_list = BoardCategory.objects.filter(operator=operator)
+        except Exception:
+            category_list = []
+
         context = {
             'operator_current': operator,
             'fleetData': vehicle,
@@ -4099,6 +4145,7 @@ def vehicle_add(request, operator_slug):
             'features': features_list,
             'userData': user_data,
             'breadcrumbs': breadcrumbs,
+            'category_list': category_list,
             'tabs': tabs,
             'allowed_operators': allowed_operators,
         }
@@ -4162,6 +4209,7 @@ def vehicle_mass_add(request, operator_slug):
         depot = request.POST.get('depot', '').strip()
         name = request.POST.get('name', '').strip()
         notes = request.POST.get('notes', '').strip()
+        
         summary = request.POST.get('summary', '').strip()
 
         custom = request.POST.get('custom', '').strip()
@@ -4202,6 +4250,23 @@ def vehicle_mass_add(request, operator_slug):
             features_selected = json.loads(request.POST.get('features', '[]'))
         except json.JSONDecodeError:
             features_selected = []
+
+        try:
+            from routes.models import board_category as BoardCategory
+            vc_id = request.POST.get('vehicle_category')
+            if vc_id:
+                try:
+                    cat = BoardCategory.objects.get(id=vc_id)
+                    if cat.operator and vehicle.operator and cat.operator.id == vehicle.operator.id:
+                        vehicle.vehicle_category = cat
+                    else:
+                        vehicle.vehicle_category = None
+                except BoardCategory.DoesNotExist:
+                    vehicle.vehicle_category = None
+            else:
+                vehicle.vehicle_category = None
+        except Exception:
+            pass
 
         created_count = 0
         for i in range(1, number_of_vehicles + 1):
@@ -4260,6 +4325,12 @@ def vehicle_mass_add(request, operator_slug):
 
         tabs = []
 
+        try:
+            from routes.models import board_category as BoardCategory
+            category_list = BoardCategory.objects.filter(operator=operator)
+        except Exception:
+            category_list = []
+
         context = {
             'fleetData': vehicle,
             'operator_current': operator,
@@ -4269,6 +4340,7 @@ def vehicle_mass_add(request, operator_slug):
             'features': features_list,
             'userData': user_data,
             'breadcrumbs': breadcrumbs,
+            'categoryData': category_list,
             'tabs': tabs,
         }
         return render(request, 'mass_add.html', context)
@@ -6637,11 +6709,32 @@ def mass_log_trips(request, operator_slug):
 
     if request.method == "POST":
         vehicle_id = request.POST.get("vehicle")
+
+        if request.POST.get("vehicle"):
+            vehicle_id = request.POST.get("vehicle")
+        elif request.POST.get("running_board_vehicle"):
+            vehicle_id = request.POST.get("running_board_vehicle")
+        elif request.POST.get("duty_vehicle"):
+            vehicle_id = request.POST.get("duty_vehicle")
+        else:
+            vehicle_id = None
+
         duty_id = request.POST.get("duty")
         running_board_id = request.POST.get("running_board")
         start_at = request.POST.get("start_at")
 
-        vehicle = get_object_or_404(fleet, id=vehicle_id)
+        # Validate vehicle id from POST before querying
+        if not vehicle_id:
+            messages.error(request, "No vehicle selected.")
+            return redirect(request.path)
+
+        try:
+            vehicle_pk = int(vehicle_id)
+        except (TypeError, ValueError):
+            messages.error(request, "Invalid vehicle selected.")
+            return redirect(request.path)
+
+        vehicle = get_object_or_404(fleet, id=vehicle_pk)
 
         # Handle Duty or Running Board logging
         if duty_id:

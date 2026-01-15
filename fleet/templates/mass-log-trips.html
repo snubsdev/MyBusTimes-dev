@@ -277,7 +277,7 @@
       <div class="RunningBoardLog">
         <div class="form-group">
           <p>Vehicle</p>
-          <select name="vehicle" required>
+          <select name="running_board_vehicle" id="running_board_vehicle" required>
             <option value="">Select Vehicle...</option>
             {% for vehicle in vehicles %}
             <option value="{{ vehicle.id }}">{{ vehicle.fleet_number }} - {{ vehicle.reg|upper }}</option>
@@ -314,7 +314,7 @@
       <div class="dutyLog">
         <div class="form-group">
           <p>Vehicle</p>
-          <select name="vehicle" required>
+          <select name="duty_vehicle" id="duty_vehicle" required>
             <option value="">Select Vehicle...</option>
             {% for vehicle in vehicles %}
             <option value="{{ vehicle.id }}">{{ vehicle.fleet_number }} - {{ vehicle.reg|upper }}</option>
