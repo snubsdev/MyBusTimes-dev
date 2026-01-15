@@ -241,8 +241,10 @@
             html += '<td>' + escapeHtml(features) + '</td>';
         }
         if (data.show_depot) html += '<td><a href="?depot=' + encodeURIComponent(v.depot || '') + '">' + escapeHtml(v.depot || '') + '</a></td>';
-        
-        html += '<td class="flickr-link"><a target="_blank" href="' + escapeHtml(v.flickr_link) + '">Flickr</a></td>';
+
+        html += "<td class='flickr-link'><a target='_blank' href='"
+        html += escapeHtml(v.flickr_link)
+        html += "'>Flickr</a></td>";
         
         if (CONFIG.canEdit) {
             html += '<td class="edit-link"><a href="/operator/' + v.operator__operator_slug + '/vehicle/edit/' + v.id + '/">Edit</a></td>';
