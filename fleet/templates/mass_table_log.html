@@ -848,10 +848,7 @@
         initBoardSelect2s();
 
         // Build available boards grouped by category (from server-provided context)
-        var availableBoards = {}; {
-          %
-          for d in duties %
-        }
+        var availableBoards = {}; {%for d in duties %}
         (function () {
           var cat = "{% if d.category %}{{ d.category.id }}{% else %}none{% endif %}";
           availableBoards[cat] = availableBoards[cat] || [];
@@ -860,12 +857,7 @@
             text: "{{ d.duty_name|escapejs }}",
             type: "duty"
           });
-        })(); {
-          % endfor %
-        } {
-          %
-          for rb in running_boards %
-        }
+        })(); {% endfor %} {%for rb in running_boards %}
         (function () {
           var cat = "{% if rb.category %}{{ rb.category.id }}{% else %}none{% endif %}";
           availableBoards[cat] = availableBoards[cat] || [];
@@ -874,9 +866,7 @@
             text: "{{ rb.duty_name|escapejs }}",
             type: "running"
           });
-        })(); {
-          % endfor %
-        }
+        })(); {% endfor %}
 
         // Auto-fill: randomly select a board matching vehicle's category for unassigned rows
         document.getElementById('auto-fill-btn').addEventListener('click', function () {
