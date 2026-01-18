@@ -153,6 +153,9 @@ def get_changes(entry):
 
 
 def user_activity_view(request):
+    if not has_permission(request.user, 'user_view'):
+        return redirect('/admin/permission-denied/')
+
     query_username = request.GET.get("username", "").strip()
     query_operator = request.GET.get("operator", "").strip()
     selected_model = request.GET.get("model", "").strip()
@@ -435,8 +438,8 @@ def live_activity_api(request):
 
 @login_required(login_url='/admin/login/')
 def user_search_api(request):
-    if not request.user.is_staff:
-        return HttpResponseForbidden()
+    if not has_permission(request.user, 'user_view'):
+        return redirect('/admin/permission-denied/')
 
     q = request.GET.get('q', '').strip()
     results = []
@@ -480,8 +483,8 @@ from main.models import BannedIps, StripeSubscription
 
 @login_required(login_url='/admin/login/')
 def user_actions_view(request, user_id):
-    if not request.user.is_staff:
-        return redirect('/admin/login/')
+    if not has_permission(request.user, 'user_view'):
+        return redirect('/admin/permission-denied/')
 
     target = get_object_or_404(User, id=user_id)
 

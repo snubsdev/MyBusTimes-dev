@@ -10,7 +10,7 @@ from django.core import serializers
 from django.db.models import ForeignKey, ManyToManyField, OneToOneField, FileField, ImageField, TextField, CharField
 from django.forms.models import model_to_dict
 from django.contrib.auth import get_user_model
-from django.db import connection
+from django.db import connection, OperationalError
 
 def instance_to_dict(instance, include_m2m=True):
 	"""Convert a model instance into a serializable dict, including file paths and m2m ids."""
@@ -149,6 +149,11 @@ class Command(BaseCommand):
 				model_name = model._meta.model_name
 				exported = []
 
+				# Skip auto-created/simple-history models which may have schema mismatches
+				mname = model.__name__.lower()
+				if mname.startswith('historical') or 'historical' in model._meta.db_table or 'history' in mname:
+					continue
+
 				# Find relation fields that point to the user model
 				relation_fields = [f for f in model._meta.get_fields() if getattr(f, 'remote_field', None) and getattr(f.remote_field, 'model', None) in (User, User.__name__, )]
 
@@ -175,20 +180,29 @@ class Command(BaseCommand):
 						# For reverse relations or complex fields skip
 						continue
 
-					if qs_rel.exists():
-						for inst in qs_rel:
-							try:
-								inst_dict = instance_to_dict(inst)
-							except Exception as e:
-								manifest.setdefault('errors', []).append({
-									'app': app_label,
-									'model': model_name,
-									'pk': getattr(inst, 'pk', None),
-									'error': str(e),
-									'field': fname,
-								})
-								continue
-							exported.append(inst_dict)
+					# Guard DB operations in case of schema mismatch or other DB errors
+					try:
+						if qs_rel.exists():
+							for inst in qs_rel:
+								try:
+									inst_dict = instance_to_dict(inst)
+								except Exception as e:
+									manifest.setdefault('errors', []).append({
+										'app': app_label,
+										'model': model_name,
+										'pk': getattr(inst, 'pk', None),
+										'error': str(e),
+										'field': fname,
+									})
+									continue
+								exported.append(inst_dict)
+					except OperationalError as e:
+						manifest.setdefault('errors', []).append({
+							'app': app_label,
+							'model': model_name,
+							'error': f"DB error when querying relations: {e}",
+							'field': fname,
+						})
 
 				# Optionally deep-scan Char/Text fields for containing identifiers
 				if deep:

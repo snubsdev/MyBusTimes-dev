@@ -1,43 +1,8 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8"/>
-  <title>User actions — Admin</title>
-  <style>
-    body{font-family:Inter,Arial,sans-serif;padding:24px;background:#f6f8fa;color:#111}
-    .card{background:#fff;padding:18px;border-radius:10px;max-width:1000px}
-    /* Improved buttons */
-    .btn{
-      display:inline-flex;align-items:center;gap:8px;
-      padding:10px 14px;border-radius:10px;border:none;
-      background:linear-gradient(180deg,#1070ff 0%,#0b5ed7 100%);
-      color:#fff;font-weight:700;cursor:pointer;box-shadow:0 6px 18px rgba(16,112,255,.12);
-      transition:transform .06s ease,box-shadow .06s ease;
-      text-decoration:none;
-    }
-    .btn:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(16,112,255,.14)}
-    .btn:active{transform:translateY(0)}
-    .btn.ghost{background:transparent;color:#0f62fe;border:1px solid rgba(15,98,254,.12);box-shadow:none;font-weight:600}
-    .btn.danger{background:linear-gradient(180deg,#ff6b6b 0%,#ef4444 100%);box-shadow:0 6px 18px rgba(239,68,68,.12)}
-    .meta{color:#6b7280;font-size:13px}
-    .grid{display:grid;grid-template-columns:1fr 360px;gap:16px}
-    .badge-pill{display:inline-block;padding:6px 10px;border-radius:999px;background:#eef6ff;color:#0f62fe;margin:4px;font-weight:600;font-size:13px}
-    .muted{color:#6b7280;font-size:13px}
-    .ticket-row{padding:12px;border-radius:10px;border:1px solid #edf2f7;margin-bottom:8px;background:#fff;display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
-    .ticket-meta{color:#6b7280;font-size:13px;margin-top:6px}
-    .ticket-title{font-weight:700}
-    textarea,input[type="date"]{width:100%;padding:8px;border-radius:8px;border:1px solid #e6e9ee}
-    .two-btns{display:flex;gap:8px;align-items:center;margin-top:8px}
-    .small-list{max-height:280px;overflow:auto;padding:8px;background:#fbfdff;border-radius:8px;border:1px solid #eef2f6}
-    /* status chips */
-    .status-chip{display:inline-block;padding:6px 10px;border-radius:999px;font-weight:700;font-size:12px;color:#fff}
-    .status-open{background:#10b981}         /* green */
-    .status-in_progress{background:#f59e0b} /* amber */
-    .status-resolved{background:#06b6d4}    /* teal */
-    .status-closed{background:#6b7280}      /* muted */
-  </style>
-</head>
-<body>
+{% extends 'adminbase.html' %}
+
+{% block title %}User Actions{% endblock %}
+
+{% block content %}
   <a href="/admin/live-activity/">← Back</a>
   <h1>User actions</h1>
 
@@ -135,6 +100,19 @@
         <a href="{{ admin_change_url }}" class="btn" role="button">Open full admin change</a>
       </form>
 
+      <!-- GDPR export actions -->
+      <div style="margin-top:12px">
+        <form method="post" action="{% url 'gdpr-export-download' target.id %}" style="display:inline-block;margin-right:8px">
+          {% csrf_token %}
+          <button class="btn" type="submit">Download GDPR data</button>
+        </form>
+
+        <form method="post" action="{% url 'gdpr-export-email' target.id %}" style="display:inline-block">
+          {% csrf_token %}
+          <button class="btn ghost" type="submit">Email GDPR data</button>
+        </form>
+      </div>
+
       <hr/>
       <h4>Ban user (account ban)</h4>
       <form method="post">
@@ -156,7 +134,7 @@
         {% csrf_token %}
         <input type="hidden" name="action" value="ip_ban"/>
         <label class="muted">Last known IP</label>
-        <div style="padding:8px;border-radius:6px;border:1px solid #eef2f6;background:#fff;margin-bottom:6px">
+        <div class="small-list">
           {% if masked_last_ip %}
             {{ masked_last_ip }}
           {% elif target.last_ip %}
@@ -214,5 +192,4 @@
       <hr/>
     </div>
   </div>
-</body>
-</html>
+{% endblock %}

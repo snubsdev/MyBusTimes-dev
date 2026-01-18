@@ -4,7 +4,7 @@ from django.contrib.auth import views as auth_views
 from django.views.generic import RedirectView
 
 urlpatterns = [
-    path('', index),
+    path('', index, name='index'),
     path('adfirst-test', adfirst_test, name='adfirst_test'),
     path('about/', about, name='about'),
     path("help/", resources, name="help"),

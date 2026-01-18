@@ -1,47 +1,8 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Live Activity — Admin</title>
-  <style>
-    :root{--bg:#f6f8fa;--card:#fff;--muted:#6b7280;--accent:#0f62fe;--success:#10b981}
-    body{font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:#111;margin:0;padding:24px}
-    .container{max-width:1200px;margin:0 auto}
-    header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}
-    h1{font-size:20px;margin:0}
-    .subtitle{color:var(--muted);font-size:13px}
-    .controls{display:flex;gap:8px;align-items:center}
-    .btn{background:var(--accent);color:#fff;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600}
-    .btn.ghost{background:transparent;color:var(--accent);border:1px solid rgba(15,98,254,.12)}
-    .stats{display:flex;gap:12px;margin:18px 0 24px;flex-wrap:wrap}
-    .card{background:var(--card);padding:14px;border-radius:12px;box-shadow:0 1px 2px rgba(16,24,40,.04);min-width:160px;flex:1}
-    .card h3{margin:0;font-size:13px;color:var(--muted)}
-    .card .big{font-size:28px;margin-top:6px;font-weight:700}
-    .search-row{display:flex;gap:8px;align-items:center;margin-bottom:12px}
-    .search-row input{flex:1;padding:10px;border-radius:10px;border:1px solid #e6e9ee;background:#fff}
-    table{width:100%;border-collapse:collapse;background:var(--card);border-radius:8px;overflow:hidden}
-    thead th{background:#f3f6fb;text-align:left;padding:10px;font-size:13px;color:var(--muted);border-bottom:1px solid #eef2f6}
-    tbody tr{border-bottom:1px solid #f1f5f9;cursor:pointer}
-    tbody td{padding:10px;font-size:14px}
-    tbody tr:hover{background:#fbfdff}
-    .badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#eef2ff;color:var(--accent);font-weight:600;font-size:12px}
-    .staff{background:#e6ffef;color:var(--success)}
-    .banned{background:#ffeef0;color:#bf1650}
-    .muted{color:var(--muted);font-size:13px}
-    .cols{display:grid;grid-template-columns:2fr 1fr;gap:14px}
-    @media(max-width:900px){.cols{grid-template-columns:1fr}.stats{flex-direction:column}}
-    .small{font-size:12px;color:var(--muted)}
-    .count-pill{font-weight:700;font-size:16px}
-    .table-wrap{overflow:auto;border-radius:8px}
-    .meta-line{font-size:13px;color:var(--muted)}
-    .countdown{font-weight:600;color:var(--muted)}
-    .ticket-item{padding:8px;border-radius:8px;border:1px solid #edf2f7;margin-bottom:8px;background:#fff}
-    .clickable-row{cursor:pointer}
-    .warning{background:#fef3c7;color:#92400e}
-  </style>
-</head>
-<body>
+{% extends 'adminbase.html' %}
+
+{% block title %}Live Activity{% endblock %}
+
+{% block content %}
   <div class="container">
     <header>
       <div>
@@ -363,5 +324,4 @@
       filterRows();
     })();
   </script>
-</body>
-</html>
+{% endblock %}
