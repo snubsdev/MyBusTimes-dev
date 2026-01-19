@@ -118,15 +118,15 @@
         --success: #34d399;
         --danger: #f87171;
     }
+    #toggle-btn{display: none;}
     body{transition:background-color .18s ease,color .18s ease}
     @media(max-width:900px){
         .sidebar{position:relative;left:0;top:0;width:100%;margin-bottom:12px}
         .main-content{margin-left:0;padding:12px}
-        #toggle-btn{display:inline-flex}
         .sidebar{display:none}
-        .sidebar.open{display:block}
+        .sidebar.open{display:block;position:fixed;top:0;left:0;right:0;z-index:1;bottom:0;}
+        #toggle-btn{position: fixed;right: 15px;top: 15px;border-radius: .25em;border: 0;background: var(--card);color: var(--text-color);width: 50px;height: 25px;text-align: center;display: block;z-index:2;}
     }
-
     hr {
     margin-top: 1rem;
     margin-bottom: 1rem;
@@ -142,9 +142,9 @@
 </head>
 <body>
     <div class="container">
+        <button id="toggle-btn">Menu</button>
         <aside class="sidebar">
             <nav class="nav">
-                
                 <a href="{% url 'dashboard' %}">Home</a>
                 <a href="{% url 'applications-management' %}">Applications</a>
                 <a href="{% url 'live_activity' %}">Users</a>
