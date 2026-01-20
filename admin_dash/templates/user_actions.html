@@ -3,118 +3,161 @@
 {% block title %}User Actions{% endblock %}
 
 {% block content %}
-  <a href="/admin/live-activity/">← Back</a>
-  <h1>User actions</h1>
+<a href="/admin/live-activity/">← Back</a>
+<h1>User actions</h1>
 
-  <div class="card grid">
-    <div>
-      <div><strong style="font-size:18px">{{ target.username }}</strong></div>
-      <div class="meta">{{ target.email }} — id: {{ target.id }}</div>
-      <div class="meta">Staff: {{ target.is_staff }} · Superuser: {{ target.is_superuser }} · Active: {{ target.is_active }}</div>
+<div class="card grid">
+  <div>
+    <div><strong style="font-size:18px">{{ target.username }}</strong></div>
+    <div class="meta">{{ target.email }} — id: {{ target.id }}</div>
+    <div class="meta">Staff: {{ target.is_staff }} · Superuser: {{ target.is_superuser }} · Active:
+      {{ target.is_active }}</div>
+    <div style="margin-bottom:12px">
+      {% if target.banned %}
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+        <span class="status-chip" style="background:#ef4444">BANNED</span>
+        <div>
+          <div class="muted">
+            {% if target.banned_reason %}Reason: {{ target.banned_reason }}{% endif %}
+            {% if target.banned_date %}
+            · Until:
+            {% if target.banned_date|date:"Y" == "9999" %}
+            Permanent (IP ban)
+            <a href="#" onclick="this.closest('form').querySelector('textarea[name=ban_reason]').value='';return false;"
+              class="muted">Clear</a>
+            {{ target.banned_date|date:"Y-m-d H:i" }}
+            {% endif %}
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% else %}
       <div style="margin-bottom:12px">
-        {% if target.banned %}
-          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-            <span class="status-chip" style="background:#ef4444">BANNED</span>
-            <div>
-              <div class="muted">
-                {% if target.banned_reason %}Reason: {{ target.banned_reason }}{% endif %}
-                {% if target.banned_date %}
-                  · Until:
-                  {% if target.banned_date|date:"Y" == "9999" %}
-                    Permanent (IP ban)
-              <a href="#" onclick="this.closest('form').querySelector('textarea[name=ban_reason]').value='';return false;" class="muted">Clear</a>
-                    {{ target.banned_date|date:"Y-m-d H:i" }}
-                  {% endif %}
-                {% endif %}
-              </div>
-            </div>
-          </div>
-        {% else %}
-          <div style="margin-bottom:12px">
-            <span class="status-chip" style="background:#10b981">Not banned</span>
-          </div>
-        {% endif %}
+        <span class="status-chip" style="background:#10b981">Not banned</span>
       </div>
-      <hr/>
+      {% endif %}
+    </div>
+    <hr />
 
-      <h3>Badges</h3>
-      <div>
-        {% for b in badges %}
-          <span class="badge-pill">{{ b.badge_name }}</span>
-        {% empty %}
-          <div class="muted">No badges</div>
-        {% endfor %}
-      </div>
-
-      <hr/>
-      <h3>Tickets</h3>
-      <div class="small-list">
-        {% for t in tickets %}
-          <div class="ticket-row">
-            <div style="flex:1">
-              <div class="ticket-title">Ticket #{{ t.id }}</div>
-              <div class="ticket-meta">Created: {{ t.created_at }}</div>
-              <div class="meta">Team: {% if target.mbt_team %}{{ target.mbt_team.name }}{% else %}—{% endif %}</div>
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
-              <div>
-                <span class="status-chip status-{{ t.status }}">{{ t.get_status_display }}</span>
-              </div>
-              <div>
-                <a class="btn" href="/tickets/{{ t.id }}/">Open</a>
-              </div>
-            </div>
-          </div>
-        {% empty %}
-          <div class="muted">No tickets for this user</div>
-        {% endfor %}
-      </div>
-
-      <hr/>
-      <h3>Recent forum messages (up to 20)</h3>
-      <div class="small-list">
-        {% for m in forum_messages %}
-          <div style="padding:8px;border-bottom:1px solid #eef2f6">
-            <div><strong>{{ m.title|default:m.subject|default:"Message" }}</strong></div>
-            <div class="muted">{{ m.created_at }}{% if m.thread %} · {{ m.thread.title }}{% endif %}</div>
-            <div style="margin-top:6px">{{ m.body|truncatechars:200 }}</div>
-          </div>
-        {% empty %}
-          <div class="muted">No recent forum messages</div>
-        {% endfor %}
-      </div>
+    <h3>Badges</h3>
+    <div>
+      {% for b in badges %}
+      <span class="badge-pill">{{ b.badge_name }}</span>
+      {% empty %}
+      <div class="muted">No badges</div>
+      {% endfor %}
     </div>
 
-    <div>
-      <h3>Quick actions</h3>
+    <hr />
+    <h3>Tickets</h3>
+    <div class="small-list">
+      {% for t in tickets %}
+      <div class="ticket-row">
+        <div style="flex:1">
+          <div class="ticket-title">Ticket #{{ t.id }}</div>
+          <div class="ticket-meta">Created: {{ t.created_at }}</div>
+          <div class="meta">Team: {% if target.mbt_team %}{{ target.mbt_team.name }}{% else %}—{% endif %}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+          <div>
+            <span class="status-chip status-{{ t.status }}">{{ t.get_status_display }}</span>
+          </div>
+          <div>
+            <a class="btn" href="/tickets/{{ t.id }}/">Open</a>
+          </div>
+        </div>
+      </div>
+      {% empty %}
+      <div class="muted">No tickets for this user</div>
+      {% endfor %}
+    </div>
 
-      <form method="post" style="margin-bottom:12px">
+    <hr />
+    <h3>Recent forum messages (up to 20)</h3>
+    <div class="small-list">
+      {% for m in forum_messages %}
+      <div style="padding:8px;border-bottom:1px solid #eef2f6">
+        <div><strong>{{ m.title|default:m.subject|default:"Message" }}</strong></div>
+        <div class="muted">{{ m.created_at }}{% if m.thread %} · {{ m.thread.title }}{% endif %}</div>
+        <div style="margin-top:6px">{{ m.body|truncatechars:200 }}</div>
+      </div>
+      {% empty %}
+      <div class="muted">No recent forum messages</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div>
+    <h3>Quick actions</h3>
+
+    <form method="post" style="margin-bottom:12px">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="toggle_active" />
+      {% if target.is_active %}
+      <button class="btn danger" type="submit">Deactivate account</button>
+      {% else %}
+      <button class="btn" type="submit">Activate account</button>
+      {% endif %}
+      <hr>
+      <a href="{{ admin_change_url }}" class="btn" role="button">Open full admin change</a>
+    </form>
+
+    <!-- GDPR export actions -->
+    <div style="margin-top:12px">
+      <form method="post" action="{% url 'gdpr-export-download' target.id %}"
+        style="display:inline-block;margin-right:8px">
         {% csrf_token %}
-        <input type="hidden" name="action" value="toggle_active"/>
-        {% if target.is_active %}
-          <button class="btn danger" type="submit">Deactivate account</button>
-        {% else %}
-          <button class="btn" type="submit">Activate account</button>
-        {% endif %}
-        <hr>
-        <a href="{{ admin_change_url }}" class="btn" role="button">Open full admin change</a>
+        <button class="btn" type="submit">Download GDPR data</button>
       </form>
 
-      <!-- GDPR export actions -->
-      <div style="margin-top:12px">
-        <form method="post" action="{% url 'gdpr-export-download' target.id %}" style="display:inline-block;margin-right:8px">
-          {% csrf_token %}
-          <button class="btn" type="submit">Download GDPR data</button>
-        </form>
+      <form method="post" action="{% url 'gdpr-export-email' target.id %}" style="display:inline-block">
+        {% csrf_token %}
+        <button class="btn ghost" type="submit">Email GDPR data</button>
+      </form>
+    </div>
 
-        <form method="post" action="{% url 'gdpr-export-email' target.id %}" style="display:inline-block">
-          {% csrf_token %}
-          <button class="btn ghost" type="submit">Email GDPR data</button>
-        </form>
+    <hr />
+
+    <!-- Show banned IPs related to this user -->
+    <hr />
+    <h4>Banned IPs for this account</h4>
+    <div class="small-list">
+      {% if banned_ips %}
+      {% for ip in banned_ips %}
+      <div style="padding:8px;border-bottom:1px solid #eef2f6">
+        <div>
+          <strong>
+            {% if ip.masked_ip %}
+            {{ ip.masked_ip }}
+            {% elif ip.ip_address %}
+            {{ ip.ip_address }}
+            {% else %}
+            —
+            {% endif %}
+          </strong>
+        </div>
+        <div class="muted">Banned at: {{ ip.banned_at }}{% if ip.reason %} · Reason: {{ ip.reason }}{% endif %}</div>
       </div>
+      {% endfor %}
+      {% else %}
+      <div class="muted">No banned IPs related to this user</div>
+      {% endif %}
+    </div>
 
-      <hr/>
-      <h4>Ban user (account ban)</h4>
+    <h3>Stripe subscription</h3>
+    <div>
+      {% if stripe_sub %}
+      <div>Subscription ID: <code>{{ stripe_sub.subscription_id }}</code></div>
+      <div>Customer ID: <code>{{ stripe_sub.customer_id }}</code></div>
+      <div>Start: {{ stripe_sub.start_date }}</div>
+      {% else %}
+      <div class="muted">No stripe subscription found</div>
+      {% endif %}
+    </div>
+  </div>
+  <div>
+    <hr />
+    <h4>Ban user (account ban)</h4>
       <form method="post">
         {% csrf_token %}
         <input type="hidden" name="action" value="ban_user"/>
@@ -151,45 +194,35 @@
         </div>
         <div class="muted" style="margin-top:6px">IP ban will set ban-until to 9999-12-31</div>
       </form>
-
-      <!-- Show banned IPs related to this user -->
-      <hr/>
-    <h4>Banned IPs for this account</h4>
+      <hr>
+    <h4>Devices associated with this account</h4>
     <div class="small-list">
-      {% if banned_ips %}
-        {% for ip in banned_ips %}
-        <div style="padding:8px;border-bottom:1px solid #eef2f6">
-          <div>
-            <strong>
-              {% if ip.masked_ip %}
-                {{ ip.masked_ip }}
-              {% elif ip.ip_address %}
-                {{ ip.ip_address }}
-              {% else %}
-                —
-              {% endif %}
-            </strong>
+      {% if devices %}
+      {% for d in devices %}
+      <div
+        style="padding:8px;border-bottom:1px solid #eef2f6;display:flex;justify-content:space-between;align-items:center">
+        <div style="flex:1">
+          <div><strong>{{ d.fingerprint|slice:":8" }}…</strong> <small class="muted">seen {{ d.seen_count }}×</small>
           </div>
-          <div class="muted">Banned at: {{ ip.banned_at }}{% if ip.reason %} · Reason: {{ ip.reason }}{% endif %}</div>
+          <div class="muted">Last seen: {{ d.last_seen }} {% if d.last_ip %}· IP: {{ d.last_ip }}{% endif %}</div>
+          {% if d.user_agent %}<div class="muted">UA: {{ d.user_agent|truncatechars:120 }}</div>{% endif %}
         </div>
-        {% endfor %}
+        <div style="margin-left:12px">
+          <form method="post" style="display:inline-block">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="ban_device" />
+            <input type="hidden" name="fingerprint" value="{{ d.fingerprint }}" />
+            <textarea name="ban_reason" rows="2" placeholder="Reason (optional)"
+              style="display:block;margin-bottom:6px"></textarea>
+            <button class="btn danger" type="submit">Ban device</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
       {% else %}
-        <div class="muted">No banned IPs related to this user</div>
+      <div class="muted">No known devices for this user</div>
       {% endif %}
     </div>
-
-      <h3>Stripe subscription</h3>
-      <div>
-        {% if stripe_sub %}
-          <div>Subscription ID: <code>{{ stripe_sub.subscription_id }}</code></div>
-          <div>Customer ID: <code>{{ stripe_sub.customer_id }}</code></div>
-          <div>Start: {{ stripe_sub.start_date }}</div>
-        {% else %}
-          <div class="muted">No stripe subscription found</div>
-        {% endif %}
-      </div>
-
-      <hr/>
-    </div>
   </div>
+</div>
 {% endblock %}

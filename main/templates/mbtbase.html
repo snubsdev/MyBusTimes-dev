@@ -208,7 +208,13 @@
       {% endblock content %}
       {% else %}
       <div class="alert alert-danger">
-        {% if ip_banned == True %}
+        {% if device_banned == True %}
+        <h2>Device Banned</h2>
+        <p>Your device has been banned. If you believe this is a mistake, please contact support.</p>
+        {% if device_ban_reason %}
+          <p><strong>Reason:</strong> {{ device_ban_reason }}</p>
+        {% endif %}
+        {% elif ip_banned == True %}
         <h2>IP Banned</h2>
         <p>Your IP address has been banned. If you believe this is a mistake, please contact support.</p>
         {% elif user_banned == True %}

@@ -1,5 +1,5 @@
 from datetime import datetime
-from main.models import theme, ad, google_ad, featureToggle, BannedIps, ActiveSubscription
+from main.models import theme, ad, google_ad, featureToggle, BannedIps, ActiveSubscription, DeviceBan, Device
 from django.utils import timezone
 from datetime import timedelta
 from django.contrib.auth import get_user_model
@@ -249,6 +249,29 @@ def theme_settings(request):
 
     banned = user_has_banned_ip or user_account_banned
 
+    # Device ban checks (if middleware attached fingerprint)
+    device_fp = None
+    device_banned = False
+    device_ban_reason = None
+    try:
+        # Do not surface device bans on admin API pages to avoid locking out admins
+        if request.path.startswith('/api-admin/') or request.path.startswith('/admin/'):
+            device_fp = getattr(request, 'device_fingerprint', None) or request.COOKIES.get('mbt_device_fp')
+            device_banned = False
+            device_ban_reason = None
+        else:
+            device_fp = getattr(request, 'device_fingerprint', None) or request.COOKIES.get('mbt_device_fp')
+            if device_fp:
+                db = DeviceBan.objects.filter(fingerprint=device_fp, active=True).first()
+                if db:
+                    device_banned = True
+                    device_ban_reason = db.reason
+                    banned = True
+    except Exception:
+        device_fp = None
+        device_banned = False
+        device_ban_reason = None
+
     if user.is_authenticated and (user.is_superuser or user.is_staff):
         admin = True
     else:
@@ -296,6 +319,9 @@ def theme_settings(request):
         'mbt_ads_enabled': mbt_ads_enabled,
         'ads_enabled': ads_enabled,
         'admin': admin,
+        'device_banned': device_banned,
+        'device_ban_reason': device_ban_reason,
+        'device_fp': device_fp,
         'CF_SITE_KEY': CF_SITE_KEY,
         'STRIPE_BILLING_PORTAL_URL': STRIPE_BILLING_PORTAL_URL,
         'favicon_ico': favicon_ico,

@@ -12,6 +12,7 @@ from .forms import AdForm, LiveryForm, VehicleForm
 from .models import CustomModel
 from tickets.models import Ticket
 from main.models import CustomUser, badge, ad, featureToggle, BannedIps, MBTTeam
+from main.models import Device, DeviceBan
 from fleet.models import liverie, fleet, vehicleType, MBTOperator
 import requests
 from django.template.loader import render_to_string
@@ -621,6 +622,19 @@ def user_actions_view(request, user_id):
             target.banned_date = far_future
             target.save()
             return redirect(f"/admin/user/{user_id}/actions/")
+        # Device ban: create a DeviceBan record for given fingerprint
+        if action == "ban_device":
+            if not has_permission(request.user, 'user_ban'):
+                return redirect('/admin/permission-denied/')
+            fingerprint = request.POST.get('fingerprint')
+            reason = request.POST.get('ban_reason', '').strip() or None
+            if fingerprint:
+                try:
+                    DeviceBan.objects.create(fingerprint=fingerprint, reason=reason, related_user=target)
+                except Exception:
+                    # ignore duplicates or other errors
+                    pass
+            return redirect('admin_dash:user_actions', user_id=user_id)
         
     print("badges:", badges)
     print("tickets:", tickets)
@@ -641,6 +655,11 @@ def user_actions_view(request, user_id):
             masked_last_ip = last_ip
     else:
         masked_last_ip = None
+    # Devices associated with this user
+    try:
+        devices = Device.objects.filter(usages__user=target).distinct().order_by('-last_seen')
+    except Exception:
+        devices = Device.objects.filter(last_user=target).order_by('-last_seen')[:50]
     return render(request, "user_actions.html", {
         "target": target,
         "admin_change_url": admin_change_url,
@@ -650,6 +669,7 @@ def user_actions_view(request, user_id):
         "forum_messages": forum_messages,
         "banned_ips": banned_ips,
         "masked_last_ip": masked_last_ip,
+        "devices": devices,
     })
 
 
