@@ -2720,7 +2720,6 @@ def duty_add_trip(request, operator_slug, duty_id):
         }
         return render(request, 'add_duty_trip.html', context)
     
-
 def get_timetable_trips(request, route_id):
     """
     Return a list of vehicle blocks (duties) calculated from timetable entries.
@@ -2741,6 +2740,9 @@ def get_timetable_trips(request, route_id):
     
     # Get all timetable entries for this route
     all_trips = []
+    
+    # Use a set to track unique trips and prevent duplicates
+    seen_trips = set()
     
     timetables = timetableEntry.objects.filter(route=r)
     
@@ -2784,11 +2786,22 @@ def get_timetable_trips(request, route_id):
             continue
         
         for i, start_time in enumerate(first_times):
-            if not start_time:
+            # Skip empty strings and None values
+            if not start_time or start_time.strip() == '':
                 continue
             end_time = last_times[i] if i < len(last_times) else None
-            if not end_time:
+            if not end_time or end_time.strip() == '':
                 continue
+            
+            # Create unique identifier for this trip
+            trip_direction = 'inbound' if is_inbound else 'outbound'
+            trip_key = f"{start_time}|{end_time}|{trip_direction}|{first_stop_name}|{last_stop_name}"
+            
+            # Skip if we've already seen this exact trip
+            if trip_key in seen_trips:
+                continue
+            
+            seen_trips.add(trip_key)
             
             # Use logical location: outbound ends at 'far', inbound ends at 'home'
             # This allows proper chaining regardless of actual stop names
@@ -2804,9 +2817,9 @@ def get_timetable_trips(request, route_id):
                 'end_time': end_time,
                 'start_location': start_loc,
                 'end_location': end_loc,
-                'start_stop': first_stop_name,
-                'end_stop': last_stop_name,
-                'direction': 'inbound' if is_inbound else 'outbound',
+                'origin': first_stop_name,
+                'destination': last_stop_name,
+                'direction': trip_direction,
                 'start_minutes': time_to_minutes(start_time),
                 'end_minutes': time_to_minutes(end_time)
             })
@@ -2814,53 +2827,60 @@ def get_timetable_trips(request, route_id):
     # Sort all trips by start time
     all_trips.sort(key=lambda x: x['start_minutes'])
     
-    # Vehicle blocking algorithm - assign trips to vehicles
+    # Debug: Print all trips
+    print(f"\n===== ALL TRIPS FOR ROUTE {r.route_num} (direction={direction}) =====")
+    print(f"Total trips found: {len(all_trips)}")
+    for idx, trip in enumerate(all_trips):
+        print(f"Trip {idx}: {trip['start_time']} → {trip['end_time']} | {trip['direction']} | {trip['origin']} → {trip['destination']} | start_loc={trip['start_location']}, end_loc={trip['end_location']}")
+    print("=" * 80)
+    
+    # Vehicle blocking algorithm - minimize number of vehicles by maximizing trips per vehicle
+    # Strategy: Always try to assign to the FIRST vehicle that can do it, no matter the wait time
     vehicles = []  # List of vehicle blocks, each is {'trips': [], 'end_minutes': int, 'end_location': str}
     
     # For single-direction mode, we need to account for deadhead time back to start
-    # Estimate based on trip duration (roughly same time to get back)
     single_direction_mode = direction in ['inbound', 'outbound']
     
     for trip in all_trips:
-        # Find a vehicle that can do this trip
-        # Must have finished previous trip and be at the right location (or have time to deadhead back)
-        best_vehicle = None
-        best_wait_time = float('inf')
+        # Try to assign to existing vehicles first, starting from vehicle 0
+        assigned = False
         
         for v in vehicles:
+            can_do_trip = False
+            
             if single_direction_mode:
                 # In single direction mode, estimate deadhead time as the trip duration
-                # Vehicle needs time to get back to start point
+                # Vehicle needs time to get back to start point after completing the trip
                 last_trip = v['trips'][-1] if v['trips'] else None
                 if last_trip:
                     trip_duration = last_trip['end_minutes'] - last_trip['start_minutes']
                     deadhead_time = trip_duration  # Assume similar time to deadhead back
+                    # Vehicle becomes available at: end time + deadhead time
                     available_time = v['end_minutes'] + deadhead_time
                 else:
                     available_time = v['end_minutes']
                 
-                # Check if vehicle can make it back in time for the next trip
+                # Check if vehicle can complete deadhead and be ready for next trip
+                # No maximum wait time - accept any gap
                 if available_time <= trip['start_minutes']:
-                    wait_time = trip['start_minutes'] - v['end_minutes']
-                    if wait_time < best_wait_time:
-                        best_vehicle = v
-                        best_wait_time = wait_time
+                    can_do_trip = True
             else:
                 # In both directions mode, check location matching
+                # No maximum wait time - accept any gap
                 if v['end_minutes'] <= trip['start_minutes']:
                     if v['end_location'] == trip['start_location']:
-                        wait_time = trip['start_minutes'] - v['end_minutes']
-                        if wait_time < best_wait_time:
-                            best_vehicle = v
-                            best_wait_time = wait_time
+                        can_do_trip = True
+            
+            if can_do_trip:
+                # Assign trip to this vehicle
+                v['trips'].append(trip)
+                v['end_minutes'] = trip['end_minutes']
+                v['end_location'] = trip['end_location']
+                assigned = True
+                break  # Stop at first vehicle that can do it
         
-        if best_vehicle:
-            # Assign trip to existing vehicle
-            best_vehicle['trips'].append(trip)
-            best_vehicle['end_minutes'] = trip['end_minutes']
-            best_vehicle['end_location'] = trip['end_location']
-        else:
-            # Need a new vehicle
+        if not assigned:
+            # Need a new vehicle - no existing vehicle can do this trip
             vehicles.append({
                 'trips': [trip],
                 'end_minutes': trip['end_minutes'],
@@ -2873,19 +2893,29 @@ def get_timetable_trips(request, route_id):
         if v['trips']:
             first_trip = v['trips'][0]
             last_trip = v['trips'][-1]
+            
+            # Double-check for any duplicate trips within this vehicle block
+            unique_trips = []
+            trip_keys_in_block = set()
+            
+            for t in v['trips']:
+                t_key = f"{t['start_time']}|{t['end_time']}|{t['direction']}"
+                if t_key not in trip_keys_in_block:
+                    trip_keys_in_block.add(t_key)
+                    unique_trips.append(t)
+            
             result.append({
                 'vehicle_num': i + 1,
                 'start_time': first_trip['start_time'],
                 'end_time': last_trip['end_time'],
-                'trip_count': len(v['trips']),
-                'trips': v['trips']
+                'trip_count': len(unique_trips),
+                'trips': unique_trips
             })
     
     # Sort by first trip start time
     result.sort(key=lambda x: time_to_minutes(x['start_time']))
     
     return JsonResponse({"trips": result, "vehicle_count": len(result)})
-
 
 def time_to_minutes(time_str):
     """Convert HH:MM to minutes since midnight."""
