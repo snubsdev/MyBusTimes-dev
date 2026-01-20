@@ -582,7 +582,7 @@ def user_actions_view(request, user_id):
         if action == "toggle_active":
             target.is_active = not target.is_active
             target.save()
-            return redirect('admin_dash:user_actions', user_id=user_id)
+            return redirect(f"/admin/user/{user_id}/actions/")
 
         # Normal account ban (sets user.banned and banned_date/reason)
         if action == "ban_user":
@@ -599,7 +599,7 @@ def user_actions_view(request, user_id):
             target.banned_reason = reason
             target.banned_date = until_dt
             target.save()
-            return redirect('admin_dash:user_actions', user_id=user_id)
+            return redirect(f"/admin/user/{user_id}/actions/")
 
         # IP ban: add last_ip to BannedIps and set user as banned with far future date
         if action == "ip_ban":
@@ -634,7 +634,18 @@ def user_actions_view(request, user_id):
                 except Exception:
                     # ignore duplicates or other errors
                     pass
-            return redirect('admin_dash:user_actions', user_id=user_id)
+            return redirect(f"/admin/user/{user_id}/actions/")
+        # Unban device: mark DeviceBan.active=False for given fingerprint
+        if action == "unban_device":
+            if not has_permission(request.user, 'user_ban'):
+                return redirect('/admin/permission-denied/')
+            fingerprint = request.POST.get('fingerprint')
+            if fingerprint:
+                try:
+                    DeviceBan.objects.filter(fingerprint=fingerprint, active=True).update(active=False)
+                except Exception:
+                    pass
+            return redirect(f"/admin/user/{user_id}/actions/")
         
     print("badges:", badges)
     print("tickets:", tickets)
@@ -660,6 +671,14 @@ def user_actions_view(request, user_id):
         devices = Device.objects.filter(usages__user=target).distinct().order_by('-last_seen')
     except Exception:
         devices = Device.objects.filter(last_user=target).order_by('-last_seen')[:50]
+    # Attach ban info to each device instance for template
+    try:
+        for d in devices:
+            db = DeviceBan.objects.filter(fingerprint=d.fingerprint, active=True).first()
+            d.is_banned = bool(db)
+            d.ban_reason = db.reason if db else None
+    except Exception:
+        pass
     return render(request, "user_actions.html", {
         "target": target,
         "admin_change_url": admin_change_url,

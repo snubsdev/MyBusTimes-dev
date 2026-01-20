@@ -3,226 +3,537 @@
 {% block title %}User Actions{% endblock %}
 
 {% block content %}
-<a href="/admin/live-activity/">← Back</a>
-<h1>User actions</h1>
+<div style="margin-bottom: 16px;">
+  <a href="/admin/live-activity/" style="color: var(--accent); text-decoration: none; font-weight: 600;">← Back to Users</a>
+</div>
 
-<div class="card grid">
-  <div>
-    <div><strong style="font-size:18px">{{ target.username }}</strong></div>
-    <div class="meta">{{ target.email }} — id: {{ target.id }}</div>
-    <div class="meta">Staff: {{ target.is_staff }} · Superuser: {{ target.is_superuser }} · Active:
-      {{ target.is_active }}</div>
-    <div style="margin-bottom:12px">
-      {% if target.banned %}
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-        <span class="status-chip" style="background:#ef4444">BANNED</span>
-        <div>
-          <div class="muted">
-            {% if target.banned_reason %}Reason: {{ target.banned_reason }}{% endif %}
-            {% if target.banned_date %}
-            · Until:
-            {% if target.banned_date|date:"Y" == "9999" %}
-            Permanent (IP ban)
-            <a href="#" onclick="this.closest('form').querySelector('textarea[name=ban_reason]').value='';return false;"
-              class="muted">Clear</a>
-            {{ target.banned_date|date:"Y-m-d H:i" }}
-            {% endif %}
-            {% endif %}
-          </div>
-        </div>
-      </div>
-      {% else %}
-      <div style="margin-bottom:12px">
-        <span class="status-chip" style="background:#10b981">Not banned</span>
-      </div>
-      {% endif %}
-    </div>
-    <hr />
-
-    <h3>Badges</h3>
-    <div>
-      {% for b in badges %}
-      <span class="badge-pill">{{ b.badge_name }}</span>
-      {% empty %}
-      <div class="muted">No badges</div>
-      {% endfor %}
-    </div>
-
-    <hr />
-    <h3>Tickets</h3>
-    <div class="small-list">
-      {% for t in tickets %}
-      <div class="ticket-row">
-        <div style="flex:1">
-          <div class="ticket-title">Ticket #{{ t.id }}</div>
-          <div class="ticket-meta">Created: {{ t.created_at }}</div>
-          <div class="meta">Team: {% if target.mbt_team %}{{ target.mbt_team.name }}{% else %}—{% endif %}</div>
-        </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
-          <div>
-            <span class="status-chip status-{{ t.status }}">{{ t.get_status_display }}</span>
-          </div>
-          <div>
-            <a class="btn" href="/tickets/{{ t.id }}/">Open</a>
-          </div>
-        </div>
-      </div>
-      {% empty %}
-      <div class="muted">No tickets for this user</div>
-      {% endfor %}
-    </div>
-
-    <hr />
-    <h3>Recent forum messages (up to 20)</h3>
-    <div class="small-list">
-      {% for m in forum_messages %}
-      <div style="padding:8px;border-bottom:1px solid #eef2f6">
-        <div><strong>{{ m.title|default:m.subject|default:"Message" }}</strong></div>
-        <div class="muted">{{ m.created_at }}{% if m.thread %} · {{ m.thread.title }}{% endif %}</div>
-        <div style="margin-top:6px">{{ m.body|truncatechars:200 }}</div>
-      </div>
-      {% empty %}
-      <div class="muted">No recent forum messages</div>
-      {% endfor %}
+<div class="user-header-card">
+  <div class="user-info">
+    <h1 style="margin: 0 0 8px 0; font-size: 24px;">{{ target.username }}</h1>
+    <div class="meta" style="margin-bottom: 8px;">{{ target.email }} • ID: {{ target.id }}</div>
+    <div class="user-flags">
+      {% if target.is_staff %}<span class="flag-badge staff">Staff</span>{% endif %}
+      {% if target.is_superuser %}<span class="flag-badge superuser">Superuser</span>{% endif %}
+      {% if target.is_active %}<span class="flag-badge active">Active</span>{% else %}<span class="flag-badge inactive">Inactive</span>{% endif %}
     </div>
   </div>
-
-  <div>
-    <h3>Quick actions</h3>
-
-    <form method="post" style="margin-bottom:12px">
-      {% csrf_token %}
-      <input type="hidden" name="action" value="toggle_active" />
-      {% if target.is_active %}
-      <button class="btn danger" type="submit">Deactivate account</button>
-      {% else %}
-      <button class="btn" type="submit">Activate account</button>
-      {% endif %}
-      <hr>
-      <a href="{{ admin_change_url }}" class="btn" role="button">Open full admin change</a>
-    </form>
-
-    <!-- GDPR export actions -->
-    <div style="margin-top:12px">
-      <form method="post" action="{% url 'gdpr-export-download' target.id %}"
-        style="display:inline-block;margin-right:8px">
-        {% csrf_token %}
-        <button class="btn" type="submit">Download GDPR data</button>
-      </form>
-
-      <form method="post" action="{% url 'gdpr-export-email' target.id %}" style="display:inline-block">
-        {% csrf_token %}
-        <button class="btn ghost" type="submit">Email GDPR data</button>
-      </form>
-    </div>
-
-    <hr />
-
-    <!-- Show banned IPs related to this user -->
-    <hr />
-    <h4>Banned IPs for this account</h4>
-    <div class="small-list">
-      {% if banned_ips %}
-      {% for ip in banned_ips %}
-      <div style="padding:8px;border-bottom:1px solid #eef2f6">
-        <div>
-          <strong>
-            {% if ip.masked_ip %}
-            {{ ip.masked_ip }}
-            {% elif ip.ip_address %}
-            {{ ip.ip_address }}
-            {% else %}
-            —
-            {% endif %}
-          </strong>
-        </div>
-        <div class="muted">Banned at: {{ ip.banned_at }}{% if ip.reason %} · Reason: {{ ip.reason }}{% endif %}</div>
-      </div>
-      {% endfor %}
-      {% else %}
-      <div class="muted">No banned IPs related to this user</div>
-      {% endif %}
-    </div>
-
-    <h3>Stripe subscription</h3>
-    <div>
-      {% if stripe_sub %}
-      <div>Subscription ID: <code>{{ stripe_sub.subscription_id }}</code></div>
-      <div>Customer ID: <code>{{ stripe_sub.customer_id }}</code></div>
-      <div>Start: {{ stripe_sub.start_date }}</div>
-      {% else %}
-      <div class="muted">No stripe subscription found</div>
-      {% endif %}
-    </div>
-  </div>
-  <div>
-    <hr />
-    <h4>Ban user (account ban)</h4>
-      <form method="post">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="ban_user"/>
-        <label class="muted">Reason</label>
-        <textarea name="ban_reason" rows="3" placeholder="Reason for ban"></textarea>
-        <label class="muted" style="margin-top:8px">Banned until (optional, ISO datetime)</label>
-        <input type="date" name="ban_until" />
-        <div class="two-btns">
-          <button class="btn danger" type="submit">Ban account</button>
-          <a href="#" onclick="document.querySelector('textarea[name=ban_reason]').value='';return false;" class="muted">Clear</a>
-        </div>
-      </form>
-
-      <hr/>
-      <h4>IP ban (adds last IP to banned IPs)</h4>
-      <form method="post">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="ip_ban"/>
-        <label class="muted">Last known IP</label>
-        <div class="small-list">
-          {% if masked_last_ip %}
-            {{ masked_last_ip }}
-          {% elif target.last_ip %}
-            {{ target.last_ip }}
+  
+  <div class="ban-status">
+    {% if target.banned %}
+    <div class="alert alert-danger">
+      <strong>⚠ BANNED</strong>
+      <div class="muted" style="margin-top: 4px;">
+        {% if target.banned_reason %}{{ target.banned_reason }}{% endif %}
+        {% if target.banned_date %}
+          {% if target.banned_date|date:"Y" == "9999" %}
+            • Permanent (IP ban)
           {% else %}
-            —
+            • Until: {{ target.banned_date|date:"Y-m-d H:i" }}
           {% endif %}
-        </div>
-        <label class="muted">Reason</label>
-        <textarea name="ban_reason" rows="3" placeholder="Reason for IP ban"></textarea>
-        <div class="two-btns">
-          <button class="btn danger" type="submit">IP Ban (permanent)</button>
-          <a href="#" onclick="this.previousElementSibling.querySelector('textarea').value='';return false;" class="muted">Clear</a>
-        </div>
-        <div class="muted" style="margin-top:6px">IP ban will set ban-until to 9999-12-31</div>
-      </form>
-      <hr>
-    <h4>Devices associated with this account</h4>
-    <div class="small-list">
-      {% if devices %}
-      {% for d in devices %}
-      <div
-        style="padding:8px;border-bottom:1px solid #eef2f6;display:flex;justify-content:space-between;align-items:center">
-        <div style="flex:1">
-          <div><strong>{{ d.fingerprint|slice:":8" }}…</strong> <small class="muted">seen {{ d.seen_count }}×</small>
+        {% endif %}
+      </div>
+    </div>
+    {% else %}
+    <div class="alert alert-success">
+      <strong>✓ Account in good standing</strong>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Main content area with better grid -->
+<div class="user-content-grid">
+  
+  <!-- Left column - User information -->
+  <div class="left-column">
+    
+    <!-- Badges Section -->
+    <section class="info-section">
+      <h3>Badges</h3>
+      <div class="badges-list">
+        {% for b in badges %}
+        <span class="badge-pill">{{ b.badge_name }}</span>
+        {% empty %}
+        <div class="muted">No badges earned</div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <!-- Team Info -->
+    <section class="info-section">
+      <h3>Team Assignment</h3>
+      <div>{% if target.mbt_team %}{{ target.mbt_team.name }}{% else %}<span class="muted">No team assigned</span>{% endif %}</div>
+    </section>
+
+    <!-- Stripe Section -->
+    <section class="info-section">
+      <h3>Subscription</h3>
+      {% if stripe_sub %}
+      <div class="data-row">
+        <span class="muted">Subscription ID:</span>
+        <code>{{ stripe_sub.subscription_id }}</code>
+      </div>
+      <div class="data-row">
+        <span class="muted">Customer ID:</span>
+        <code>{{ stripe_sub.customer_id }}</code>
+      </div>
+      <div class="data-row">
+        <span class="muted">Start Date:</span>
+        <span>{{ stripe_sub.start_date }}</span>
+      </div>
+      {% else %}
+      <div class="muted">No active subscription</div>
+      {% endif %}
+    </section>
+
+    <!-- Tickets Section -->
+    <section class="info-section">
+      <h3>Support Tickets</h3>
+      <div class="scrollable-list">
+        {% for t in tickets %}
+        <div class="list-item">
+          <div style="flex: 1;">
+            <div class="item-title">Ticket #{{ t.id }}</div>
+            <div class="muted">Created: {{ t.created_at }}</div>
           </div>
-          <div class="muted">Last seen: {{ d.last_seen }} {% if d.last_ip %}· IP: {{ d.last_ip }}{% endif %}</div>
-          {% if d.user_agent %}<div class="muted">UA: {{ d.user_agent|truncatechars:120 }}</div>{% endif %}
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <span class="status-chip status-{{ t.status }}">{{ t.get_status_display }}</span>
+            <a class="btn-small" href="/tickets/{{ t.id }}/">View</a>
+          </div>
         </div>
-        <div style="margin-left:12px">
-          <form method="post" style="display:inline-block">
+        {% empty %}
+        <div class="muted">No support tickets</div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <!-- Forum Messages -->
+    <section class="info-section">
+      <h3>Recent Forum Activity</h3>
+      <div class="muted" style="margin-bottom: 8px;">Last 20 messages</div>
+      <div class="scrollable-list">
+        {% for m in forum_messages %}
+        <div class="list-item" style="flex-direction: column; align-items: flex-start;">
+          <div class="item-title">{{ m.title|default:m.subject|default:"Message" }}</div>
+          <div class="muted">{{ m.created_at }}{% if m.thread %} • {{ m.thread.title }}{% endif %}</div>
+          <div style="margin-top: 6px; font-size: 13px;">{{ m.body|truncatechars:200 }}</div>
+        </div>
+        {% empty %}
+        <div class="muted">No forum messages</div>
+        {% endfor %}
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Right column - Actions and security -->
+  <div class="right-column">
+    
+    <!-- Quick Actions -->
+    <section class="action-section safe-actions">
+      <h3>Quick Actions</h3>
+      
+      <form method="post" style="margin-bottom: 12px;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="toggle_active" />
+        {% if target.is_active %}
+        <button class="btn-block warning" type="submit">Deactivate Account</button>
+        {% else %}
+        <button class="btn-block" type="submit">Activate Account</button>
+        {% endif %}
+      </form>
+
+      <a href="{{ admin_change_url }}" class="btn-block ghost">Open Full Admin Panel</a>
+      
+      <div style="margin-top: 16px;">
+        <h4 style="font-size: 13px; color: var(--muted); margin-bottom: 8px;">GDPR Data Export</h4>
+        <form method="post" action="{% url 'gdpr-export-download' target.id %}" style="margin-bottom: 8px;">
+          {% csrf_token %}
+          <button class="btn-block ghost" type="submit">Download User Data</button>
+        </form>
+        <form method="post" action="{% url 'gdpr-export-email' target.id %}">
+          {% csrf_token %}
+          <button class="btn-block ghost" type="submit">Email User Data</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- Devices Section -->
+    <section class="action-section">
+      <h3>Devices ({{ devices|length }})</h3>
+      <div class="scrollable-list">
+        {% for d in devices %}
+        <div class="device-item">
+          <div class="device-info">
+            <div class="item-title">{{ d.fingerprint|slice:":12" }}…</div>
+            <div class="muted">Seen {{ d.seen_count }}× • Last: {{ d.last_seen }}</div>
+            {% if d.last_ip %}<div class="muted">IP: {{ d.last_ip }}</div>{% endif %}
+            {% if d.user_agent %}<div class="muted" style="font-size: 11px;">{{ d.user_agent|truncatechars:80 }}</div>{% endif %}
+          </div>
+          {% if d.is_banned %}
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+            <div class="muted" style="color: var(--danger);font-weight:700">BANNED{% if d.ban_reason %}: {{ d.ban_reason }}{% endif %}</div>
+            <form method="post" class="device-unban-form">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="unban_device" />
+              <input type="hidden" name="fingerprint" value="{{ d.fingerprint }}" />
+              <button class="btn-small" type="submit" onclick="return confirm('Unban this device?')">Unban</button>
+            </form>
+          </div>
+          {% else %}
+          <form method="post" class="device-ban-form">
             {% csrf_token %}
             <input type="hidden" name="action" value="ban_device" />
             <input type="hidden" name="fingerprint" value="{{ d.fingerprint }}" />
-            <textarea name="ban_reason" rows="2" placeholder="Reason (optional)"
-              style="display:block;margin-bottom:6px"></textarea>
-            <button class="btn danger" type="submit">Ban device</button>
+            <button class="btn-small danger" type="submit" onclick="return confirm('Ban this device?')">Ban Device</button>
           </form>
+          {% endif %}
         </div>
+        {% empty %}
+        <div class="muted">No tracked devices</div>
+        {% endfor %}
       </div>
-      {% endfor %}
-      {% else %}
-      <div class="muted">No known devices for this user</div>
-      {% endif %}
-    </div>
+    </section>
+
+    <!-- Banned IPs Section -->
+    <section class="action-section">
+      <h3>Banned IPs</h3>
+      <div class="scrollable-list">
+        {% if banned_ips %}
+        {% for ip in banned_ips %}
+        <div class="list-item" style="flex-direction: column; align-items: flex-start;">
+          <div class="item-title">
+            {% if ip.masked_ip %}{{ ip.masked_ip }}{% elif ip.ip_address %}{{ ip.ip_address }}{% else %}—{% endif %}
+          </div>
+          <div class="muted">Banned: {{ ip.banned_at }}{% if ip.reason %} • {{ ip.reason }}{% endif %}</div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="muted">No banned IPs</div>
+        {% endif %}
+      </div>
+    </section>
+
   </div>
 </div>
+
+<!-- Danger Zone - Separated at bottom -->
+<div class="danger-zone">
+  <h2 style="margin: 0 0 16px 0; font-size: 18px; color: var(--danger);">⚠ Danger Zone</h2>
+  
+  <div class="danger-grid">
+    
+    <!-- Account Ban -->
+    <div class="danger-card">
+      <h4>Ban User Account</h4>
+      <p class="muted">Prevents user from logging in. Can be temporary or permanent.</p>
+      <form method="post" class="ban-form">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="ban_user"/>
+        
+        <label class="form-label">Reason for ban</label>
+        <textarea name="ban_reason" rows="3" placeholder="Explain why this user is being banned..." required></textarea>
+        
+        <label class="form-label">Ban until (optional)</label>
+        <input type="date" name="ban_until" />
+        <div class="muted" style="margin-top: 4px; font-size: 12px;">Leave empty for indefinite ban</div>
+        
+        <button class="btn-block danger" type="submit" onclick="return confirm('Are you sure you want to ban this account?')">
+          Ban Account
+        </button>
+      </form>
+    </div>
+
+    <!-- IP Ban -->
+    <div class="danger-card">
+      <h4>IP Ban (Permanent)</h4>
+      <p class="muted">Bans the user's last known IP address. This is permanent and affects all accounts from this IP.</p>
+      <form method="post" class="ban-form">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="ip_ban"/>
+        
+        <label class="form-label">Last known IP</label>
+        <div class="ip-display">
+          {% if masked_last_ip %}{{ masked_last_ip }}{% elif target.last_ip %}{{ target.last_ip }}{% else %}No IP recorded{% endif %}
+        </div>
+        
+        <label class="form-label">Reason for IP ban</label>
+        <textarea name="ban_reason" rows="3" placeholder="Explain why this IP is being banned..." required></textarea>
+        
+        <button class="btn-block danger" type="submit" onclick="return confirm('IP bans are PERMANENT and affect all users from this IP. Continue?')">
+          Permanent IP Ban
+        </button>
+      </form>
+    </div>
+
+  </div>
+</div>
+
+<style>
+  /* User header */
+  .user-header-card {
+    background: var(--card);
+    padding: 20px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+
+  .user-info {
+    margin-bottom: 16px;
+  }
+
+  .user-flags {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .flag-badge {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .flag-badge.staff { background: #dbeafe; color: #1e40af; }
+  .flag-badge.superuser { background: #fce7f3; color: #9f1239; }
+  .flag-badge.active { background: #d1fae5; color: #065f46; }
+  .flag-badge.inactive { background: #f3f4f6; color: #6b7280; }
+
+  .alert {
+    padding: 12px 16px;
+    border-radius: 8px;
+    border-left: 4px solid;
+  }
+
+  .alert-danger {
+    background: #fef2f2;
+    border-color: var(--danger);
+    color: #991b1b;
+  }
+
+  .alert-success {
+    background: #f0fdf4;
+    border-color: var(--success);
+    color: #166534;
+  }
+
+  /* Main grid layout */
+  .user-content-grid {
+    display: grid;
+    grid-template-columns: 1fr 400px;
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+
+  @media (max-width: 1200px) {
+    .user-content-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Sections */
+  .info-section, .action-section {
+    background: var(--card);
+    padding: 16px;
+    border-radius: 12px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  }
+
+  .info-section h3, .action-section h3 {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-color);
+  }
+
+  .safe-actions {
+    border: 2px solid var(--success);
+  }
+
+  /* Lists */
+  .scrollable-list {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid var(--hover-card);
+    border-radius: 8px;
+    padding: 8px;
+  }
+
+  .list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    border-bottom: 1px solid var(--hover-card);
+    gap: 12px;
+  }
+
+  .list-item:last-child {
+    border-bottom: none;
+  }
+
+  .item-title {
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  /* Devices */
+  .device-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 10px;
+    border-bottom: 1px solid var(--hover-card);
+    gap: 12px;
+  }
+
+  .device-item:last-child {
+    border-bottom: none;
+  }
+
+  .device-info {
+    flex: 1;
+  }
+
+  /* Badges */
+  .badges-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Data rows */
+  .data-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--hover-card);
+  }
+
+  .data-row:last-child {
+    border-bottom: none;
+  }
+
+  /* Buttons */
+  .btn-block {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    border: 0;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+    text-decoration: none;
+    color: #fff;
+    background: linear-gradient(180deg, #1070ff, #0b5ed7);
+    transition: all 0.2s;
+  }
+
+  .btn-block:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(16, 112, 255, 0.3);
+  }
+
+  .btn-block.ghost {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+  }
+
+  .btn-block.warning {
+    background: linear-gradient(180deg, #f59e0b, #d97706);
+  }
+
+  .btn-small {
+    padding: 6px 12px;
+    border: 0;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    background: var(--accent);
+    color: white;
+    text-decoration: none;
+    display: inline-block;
+  }
+
+  .btn-small.danger {
+    background: var(--danger);
+  }
+
+  /* Danger Zone */
+  .danger-zone {
+    border: 2px solid var(--danger);
+    padding: 24px;
+    border-radius: 12px;
+    margin-top: 32px;
+  }
+
+  .danger-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 20px;
+  }
+
+  .danger-card {
+    background: var(--card);
+    padding: 20px;
+    border-radius: 10px;
+    border: 1px solid #fecaca;
+  }
+
+  .danger-card h4 {
+    margin: 0 0 8px 0;
+    color: var(--danger);
+    font-size: 16px;
+  }
+
+  .danger-card p {
+    margin: 0 0 16px 0;
+    font-size: 13px;
+  }
+
+  /* Forms */
+  .ban-form label, .form-label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-color);
+  }
+
+  .ban-form textarea,
+  .ban-form input[type="date"] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    font-family: inherit;
+    font-size: 14px;
+  }
+
+  .ip-display {
+    background: var(--hover-card);
+    padding: 10px;
+    border-radius: 6px;
+    font-family: 'Courier New', monospace;
+    margin-bottom: 12px;
+    font-weight: 600;
+  }
+
+  .btn-block.danger {
+    background: linear-gradient(180deg, #ef4444, #dc2626);
+  }
+
+  .btn-block.danger:hover {
+    background: linear-gradient(180deg, #dc2626, #b91c1c);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+  }
+</style>
+
 {% endblock %}
