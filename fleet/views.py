@@ -2380,8 +2380,6 @@ def duty_add(request, operator_slug):
                 
                 if not isinstance(first_stop_data, dict) or not isinstance(last_stop_data, dict):
                     continue
-                
-                print(first_stop_data)
 
                 first_stop_name = first_stop_data.get('stopname', 'Start')
                 last_stop_name = last_stop_data.get('stopname', 'End')
