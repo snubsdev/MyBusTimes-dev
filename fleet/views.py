@@ -2381,6 +2381,8 @@ def duty_add(request, operator_slug):
                 if not isinstance(first_stop_data, dict) or not isinstance(last_stop_data, dict):
                     continue
                 
+                print(first_stop_data)
+
                 first_stop_name = first_stop_data.get('stopname', 'Start')
                 last_stop_name = last_stop_data.get('stopname', 'End')
                 first_times = first_stop_data.get('times', [])
@@ -3006,8 +3008,8 @@ def create_duty_from_timetable_api(request, operator_slug):
             route_link=selected_route,
             start_time=trip.get('start_time'),
             end_time=trip.get('end_time'),
-            start_at=trip.get('start_stop', ''),
-            end_at=trip.get('end_stop', ''),
+            start_at=trip.get('origin', ''),
+            end_at=trip.get('destination', ''),
             inbound=(trip.get('direction') == 'inbound')
         )
         trips_created += 1
