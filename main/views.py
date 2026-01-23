@@ -95,6 +95,9 @@ def community_hub(request):
 def resources(request):
     return render(request, 'resources.html')
 
+def appeal_ban(request):
+    return HttpResponse("No")
+
 @csrf_exempt
 def get_user_profile(request):
     if request.method == 'OPTIONS':
