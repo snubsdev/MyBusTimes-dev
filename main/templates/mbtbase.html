@@ -212,7 +212,7 @@
         <h2>Device Banned</h2>
         <p>Your device has been banned. If you believe this is a mistake, please contact support.</p>
         {% if device_ban_reason %}
-          <p><strong>Reason:</strong> {{ device_ban_reason }}</p>
+          <p><strong>Reason:</strong> {{ device_ban_reason|linebreaks }}</p>
         {% endif %}
         {% elif ip_banned == True %}
         <h2>IP Banned</h2>
@@ -220,7 +220,7 @@
         {% elif user_banned == True %}
         <h2>Account Banned</h2>
         <p>Your account has been banned. If you believe this is a mistake, please contact
-          support.<br><br><strong>Reason:</strong><br>{{ ban_reason }}</p>
+          support.<br><br><strong>Reason:</strong><br>{{ ban_reason|linebreaks }}</p>
         {% else %}
         <h2>Banned</h2>
         <p>You have been banned. If you believe this is a mistake, please contact support.</p>
