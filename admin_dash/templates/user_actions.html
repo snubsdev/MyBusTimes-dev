@@ -49,15 +49,53 @@
     
     <!-- Badges Section -->
     <section class="info-section">
-      <h3>Badges</h3>
-      <div class="badges-list">
-        {% for b in badges %}
-        <span class="badge-pill">{{ b.badge_name }}</span>
-        {% empty %}
-        <div class="muted">No badges earned</div>
-        {% endfor %}
-      </div>
+        <h3>Badges</h3>
+        <div class="badges-list">
+          {% for b in badges %}
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="badge-pill">{{ b.badge_name }}</span>
+            <form method="post" style="margin:0;">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="remove_badge" />
+              <input type="hidden" name="badge_id" value="{{ b.id }}" />
+              <button class="btn-small" type="submit" onclick="return confirm('Remove this badge?')">Remove</button>
+            </form>
+          </div>
+          {% empty %}
+          <div class="muted">No badges earned</div>
+          {% endfor %}
+        </div>
+
+        <div style="margin-top:12px;">
+          <form method="post" style="display:flex;gap:8px;align-items:center;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="add_badge" />
+            <select name="badge_id" style="padding:8px;border-radius:8px;border:1px solid #e6e9ee;background:var(--card);color:var(--text-color);min-width:180px;">
+              <option value="">Select badge to add</option>
+              {% for b in all_badges %}
+                {% if b not in badges %}
+                  <option value="{{ b.id }}">{{ b.badge_name }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+            <button class="btn-small" type="submit">Add Badge</button>
+          </form>
+        </div>
     </section>
+
+      <!-- Admin Notes -->
+      <section class="info-section">
+        <h3>Admin Notes</h3>
+        <div class="muted" style="margin-bottom:8px;">Visible to admins only</div>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="save_admin_notes" />
+          <textarea name="admin_notes" rows="6" style="width:100%;padding:8px;border-radius:6px;">{{ target.admin_notes }}</textarea>
+          <div style="margin-top:8px;">
+            <button class="btn-small" type="submit">Save Notes</button>
+          </div>
+        </form>
+      </section>
 
     <!-- Team Info -->
     <section class="info-section">
@@ -200,12 +238,28 @@
       <h3>Banned IPs</h3>
       <div class="scrollable-list">
         {% if banned_ips %}
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div class="muted">Showing {{ banned_ips|length }} banned IP(s)</div>
+          <form method="post" style="margin:0;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="ip_unban_all" />
+            <button class="btn-small" type="submit" onclick="return confirm('Unban ALL IPs for this user?')">Unban All IPs</button>
+          </form>
+        </div>
         {% for ip in banned_ips %}
         <div class="list-item" style="flex-direction: column; align-items: flex-start;">
           <div class="item-title">
             {% if ip.masked_ip %}{{ ip.masked_ip }}{% elif ip.ip_address %}{{ ip.ip_address }}{% else %}—{% endif %}
           </div>
           <div class="muted">Banned: {{ ip.banned_at }}{% if ip.reason %} • {{ ip.reason }}{% endif %}</div>
+          <div style="margin-top:8px; display:flex; gap:8px;">
+            <form method="post" style="margin:0;">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="ip_unban" />
+              <input type="hidden" name="ban_id" value="{{ ip.id }}" />
+              <button class="btn-small" type="submit" onclick="return confirm('Unban this IP?')">Unban</button>
+            </form>
+          </div>
         </div>
         {% endfor %}
         {% else %}
@@ -227,6 +281,14 @@
     <div class="danger-card">
       <h4>Ban User Account</h4>
       <p class="muted">Prevents user from logging in. Can be temporary or permanent.</p>
+      {% if target.banned %}
+      <form method="post" class="ban-form" style="margin-top:8px;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="unban_user"/>
+        <div class="muted" style="margin-bottom:8px">This account is currently banned. You can lift the ban below.</div>
+        <button class="btn-block" type="submit" onclick="return confirm('Lift ban for this user?')">Unban User</button>
+      </form>
+      {% else %}
       <form method="post" class="ban-form">
         {% csrf_token %}
         <input type="hidden" name="action" value="ban_user"/>
@@ -242,6 +304,7 @@
           Ban Account
         </button>
       </form>
+      {% endif %}
     </div>
 
     <!-- IP Ban -->

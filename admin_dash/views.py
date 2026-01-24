@@ -491,6 +491,7 @@ def user_actions_view(request, user_id):
 
     # Data for UI
     badges = target.badges.all()
+    all_badges = badge.objects.all()
     tickets = Ticket.objects.filter(user=target).order_by('-created_at')
     stripe_sub = None
     try:
@@ -586,6 +587,10 @@ def user_actions_view(request, user_id):
 
         # Normal account ban (sets user.banned and banned_date/reason)
         if action == "ban_user":
+            # Prevent admins from banning their own account
+            if request.user.id == target.id:
+                messages.error(request, "You cannot ban your own account.")
+                return redirect(f"/admin/user/{user_id}/actions/")
             reason = request.POST.get("ban_reason", "").strip() or None
             until = request.POST.get("ban_until")
             try:
@@ -603,6 +608,10 @@ def user_actions_view(request, user_id):
 
         # IP ban: add last_ip to BannedIps and set user as banned with far future date
         if action == "ip_ban":
+            # Prevent admins from IP-banning their own account
+            if request.user.id == target.id:
+                messages.error(request, "You cannot IP-ban your own account.")
+                return redirect(f"/admin/user/{user_id}/actions/")
             reason = request.POST.get("ban_reason", "").strip() or None
             last_ip = getattr(target, "last_ip", None)
             if last_ip:
@@ -630,9 +639,16 @@ def user_actions_view(request, user_id):
             reason = request.POST.get('ban_reason', '').strip() or None
             if fingerprint:
                 try:
-                    DeviceBan.objects.create(fingerprint=fingerprint, reason=reason, related_user=target)
+                    DeviceBan.objects.update_or_create(
+                        fingerprint=fingerprint,
+                        defaults={
+                            'reason': reason,
+                            'related_user': target,
+                            'active': True,
+                        }
+                    )
                 except Exception:
-                    # ignore duplicates or other errors
+                    # ignore unexpected errors
                     pass
             return redirect(f"/admin/user/{user_id}/actions/")
         # Unban device: mark DeviceBan.active=False for given fingerprint
@@ -645,6 +661,82 @@ def user_actions_view(request, user_id):
                     DeviceBan.objects.filter(fingerprint=fingerprint, active=True).update(active=False)
                 except Exception:
                     pass
+            return redirect(f"/admin/user/{user_id}/actions/")
+        # Unban user: clear banned flag and ban metadata
+        if action == "unban_user":
+            if not has_permission(request.user, 'user_ban'):
+                return redirect('/admin/permission-denied/')
+            try:
+                target.banned = False
+                target.banned_reason = None
+                target.banned_date = None
+                target.save()
+            except Exception:
+                pass
+            return redirect(f"/admin/user/{user_id}/actions/")
+
+        # Unban a single IP ban entry (by ban id)
+        if action == "ip_unban":
+            if not has_permission(request.user, 'user_ban'):
+                return redirect('/admin/permission-denied/')
+            ban_id = request.POST.get('ban_id')
+            try:
+                if ban_id:
+                    BannedIps.objects.filter(id=ban_id).delete()
+            except Exception:
+                pass
+            return redirect(f"/admin/user/{user_id}/actions/")
+
+        # Unban all IPs related to this user
+        if action == "ip_unban_all":
+            if not has_permission(request.user, 'user_ban'):
+                return redirect('/admin/permission-denied/')
+            try:
+                BannedIps.objects.filter(related_user=target).delete()
+            except Exception:
+                pass
+            return redirect(f"/admin/user/{user_id}/actions/")
+        # Save admin notes
+        if action == "save_admin_notes":
+            if not has_permission(request.user, 'user_edit'):
+                return redirect('/admin/permission-denied/')
+            try:
+                notes = request.POST.get('admin_notes', '').strip() or None
+                target.admin_notes = notes
+                target.save()
+                messages.success(request, "Admin notes updated.")
+            except Exception:
+                messages.error(request, "Failed to update admin notes.")
+            return redirect(f"/admin/user/{user_id}/actions/")
+
+        # Add badge to user
+        if action == "add_badge":
+            if not has_permission(request.user, 'user_edit'):
+                return redirect('/admin/permission-denied/')
+            b_id = request.POST.get('badge_id')
+            try:
+                if b_id:
+                    b = badge.objects.filter(id=b_id).first()
+                    if b:
+                        target.badges.add(b)
+                        messages.success(request, f"Badge '{b.badge_name}' added.")
+            except Exception:
+                messages.error(request, "Failed to add badge.")
+            return redirect(f"/admin/user/{user_id}/actions/")
+
+        # Remove badge from user
+        if action == "remove_badge":
+            if not has_permission(request.user, 'user_edit'):
+                return redirect('/admin/permission-denied/')
+            b_id = request.POST.get('badge_id')
+            try:
+                if b_id:
+                    b = badge.objects.filter(id=b_id).first()
+                    if b:
+                        target.badges.remove(b)
+                        messages.success(request, f"Badge '{b.badge_name}' removed.")
+            except Exception:
+                messages.error(request, "Failed to remove badge.")
             return redirect(f"/admin/user/{user_id}/actions/")
         
     print("badges:", badges)
@@ -683,6 +775,7 @@ def user_actions_view(request, user_id):
         "target": target,
         "admin_change_url": admin_change_url,
         "badges": badges,
+        "all_badges": all_badges,
         "tickets": tickets,
         "stripe_sub": stripe_sub,
         "forum_messages": forum_messages,
@@ -697,6 +790,11 @@ def ban_user(request, user_id):
         return redirect('/admin/permission-denied/')
     
     user = CustomUser.objects.get(id=user_id)
+
+    # Prevent banning your own account via this endpoint
+    if request.user.id == user.id:
+        messages.error(request, "You cannot ban your own account.")
+        return redirect('/admin/users-management/')
 
     if user.banned == True:
         user.banned = False
@@ -733,6 +831,10 @@ def submit_ban_user(request, user_id):
         return redirect('/admin/permission-denied/')
     
     user = CustomUser.objects.get(id=user_id)
+    # Prevent banning your own account
+    if request.user.id == user.id:
+        messages.error(request, "You cannot ban your own account.")
+        return redirect('/admin/users-management/')
     user.banned = True
     user.save()
     return redirect('/admin/users-management/')
@@ -742,6 +844,10 @@ def submit_ip_ban_user(request, user_id):
         return redirect('/admin/permission-denied/')
     
     user = CustomUser.objects.get(id=user_id)
+    # Prevent IP-banning your own account
+    if request.user.id == user.id:
+        messages.error(request, "You cannot IP-ban your own account.")
+        return redirect('/admin/users-management/')
     user.banned = True
     user.save()
 
