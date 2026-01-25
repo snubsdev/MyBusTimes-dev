@@ -1703,6 +1703,32 @@ def flip_all_trip_directions(request, operator_slug, vehicle_id, selected_date):
     messages.success(request, "All trip directions flipped successfully.")
     return redirect(f'/operator/{operator_slug}/vehicles/{vehicle_id}/trips/manage/?date={selected_date}')
 
+
+def remove_todays_trips(request, operator_slug, vehicle_id, selected_date):
+    operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
+    vehicle = get_object_or_404(fleet, id=vehicle_id, operator=operator)
+
+    userPerms = get_helper_permissions(request.user, operator)
+
+    if request.user != operator.owner and 'Delete Trips' not in userPerms and not request.user.is_superuser:
+        return redirect(f'/operator/{operator_slug}/vehicles/{vehicle_id}/')
+
+    start_of_day = datetime.combine(datetime.fromisoformat(selected_date).date(), time.min)
+    end_of_day = datetime.combine(datetime.fromisoformat(selected_date).date(), time.max)
+
+    deleted_trips = Trip.objects.filter(
+        trip_vehicle=vehicle,
+        trip_start_at__range=(start_of_day, end_of_day)
+    ).count()
+
+    Trip.objects.filter(
+        trip_vehicle=vehicle,
+        trip_start_at__range=(start_of_day, end_of_day)
+    ).delete()
+
+    messages.success(request, f"{deleted_trips} trip(s) deleted successfully.")
+    return redirect(f'/operator/{operator_slug}/vehicles/{vehicle_id}/trips/manage/?date={selected_date}')
+
 #def send_discord_webhook_embed(
 #    title: str,
 #    description: str,
