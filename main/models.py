@@ -214,10 +214,10 @@ class BannedIps(models.Model):
         return f"{self.ip_address} - {self.reason or 'No reason provided'}"
     
 class region(models.Model):
-    region_name = models.CharField(max_length=100, unique=True)
-    region_code = models.CharField(max_length=3, unique=True)
-    region_country = models.CharField(max_length=100, default='England')
-    in_the = models.BooleanField(default=False)
+    region_name = models.CharField(max_length=100, unique=True, db_index=True)
+    region_code = models.CharField(max_length=3, unique=True, db_index=True)
+    region_country = models.CharField(max_length=100, default='England', db_index=True)
+    in_the = models.BooleanField(default=False, db_index=True)
 
     history = HistoricalRecords()
 

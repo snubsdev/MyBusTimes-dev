@@ -283,13 +283,15 @@ def for_sale_count_api(request):
     })
 
 def index(request):
-    # Load mod.json messages
     message = get_random_message()
     
-    # Get all regions from DB
-    regions = region.objects.all().order_by('region_country', 'region_name')
-    breadcrumbs = [{'name': 'Home', 'url': '/'}]
+    # Cache regions for 1 hour
+    regions = cache.get('all_regions')
+    if regions is None:
+        regions = list(region.objects.all().order_by('region_country', 'region_name'))
+        cache.set('all_regions', regions, 3600)
     
+    breadcrumbs = [{'name': 'Home', 'url': '/'}]
     context = {
         'breadcrumbs': breadcrumbs,
         'message': message,
