@@ -130,9 +130,22 @@ class UpdateLastActiveMiddleware:
                     banned = True
 
                 if not banned and ip_for_storage:
+                    # devices that were seen at this IP
                     fps = list(Device.objects.filter(last_ip=ip_for_storage).values_list('fingerprint', flat=True))
                     if fps and DeviceBan.objects.filter(fingerprint__in=fps, active=True).exists():
                         banned = True
+
+                    # also check devices with same IP + similar User-Agent (covers different explicit fingerprints)
+                    if not banned:
+                        ua = request.META.get('HTTP_USER_AGENT', '')
+                        if ua:
+                            try:
+                                ua_match = ua[:150]
+                                fps2 = list(Device.objects.filter(last_ip=ip_for_storage, user_agent__startswith=ua_match).values_list('fingerprint', flat=True))
+                                if fps2 and DeviceBan.objects.filter(fingerprint__in=fps2, active=True).exists():
+                                    banned = True
+                            except Exception:
+                                pass
 
                 if banned:
                     return HttpResponseForbidden('Device banned')

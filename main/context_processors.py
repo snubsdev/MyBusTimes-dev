@@ -290,6 +290,19 @@ def theme_settings(request):
                             device_banned = True
                             device_ban_reason = db.reason
                             banned = True
+
+                    # also consider devices with same IP and matching User-Agent
+                    if not device_banned:
+                        ua = request.META.get('HTTP_USER_AGENT', '')
+                        if ua:
+                            ua_match = ua[:150]
+                            fps2 = list(Device.objects.filter(last_ip=ip, user_agent__startswith=ua_match).values_list('fingerprint', flat=True))
+                            if fps2:
+                                db = DeviceBan.objects.filter(fingerprint__in=fps2, active=True).first()
+                                if db:
+                                    device_banned = True
+                                    device_ban_reason = db.reason
+                                    banned = True
                 except Exception:
                     pass
     except Exception:
