@@ -83,7 +83,7 @@
 <script>
   document.addEventListener('DOMContentLoaded', function () {
     // Initialize Select2 for category selects with AJAX search
-    const operatorId = '{{ operator.id }}';
+    const operatorId = '{{ operator.id|escapejs }}';
     function initCategorySelect($select) {
       $($select).select2({
         placeholder: '(None)',

@@ -810,7 +810,7 @@
             return `
               <div class="preview-duty" data-trips="${encodedTrips}">
                 <div style="flex:1; display:flex; gap:0.75rem; align-items:center;">
-                  <span class="preview-duty-name">${name}</span>
+                  <span class="preview-duty-name">${escapeHtml(name)}</span>
                   <span class="preview-duty-times">${timesDisplay}</span>
                 </div>
                 <span class="preview-duty-trips">${tripCount} trips${tripSummary ? ` (${tripSummary})` : ''}</span>
@@ -820,6 +820,12 @@
             `;
           }).join('');
           
+          function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+          }
+
           previewList.innerHTML = dutiesHtml;
           // Attach click handlers to each rendered duty to toggle trip details
           document.querySelectorAll('.preview-duty').forEach(el => {
@@ -854,8 +860,8 @@
                     details.innerHTML = unique.map(t => {
                       const time = t.start_time || t.departure_time || t.time || '';
                       const end = t.end_time || t.arrival_time || '';
-                      const dir = t.direction ? ` <strong>${t.direction}</strong>` : '';
-                      const routeText = (t.origin && t.destination) ? ` — ${t.origin} → ${t.destination}` : '';
+                      const dir = t.direction ? ` <strong>${escapeHtml(t.direction)}</strong>` : '';
+                      const routeText = (t.origin && t.destination) ? ` — ${escapeHtml(t.origin)} → ${escapeHtml(t.destination)}` : '';
                       const timeText = time ? `${time}${end ? ` → ${end}` : ''}` : '';
                       return `<div style="padding:4px 0; font-size:0.85rem; color:var(--text-color); opacity:0.9;">${timeText}${dir}${routeText}</div>`;
                     }).join('');

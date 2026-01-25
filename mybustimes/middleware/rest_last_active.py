@@ -1,5 +1,6 @@
 import ipaddress
 import uuid
+import hashlib
 from django.utils import timezone
 from django.conf import settings
 from django.http import HttpResponseForbidden
@@ -39,17 +40,50 @@ def get_device_fingerprint(request):
     # Prefer explicit header (X-Device-Fingerprint)
     fp = request.META.get('HTTP_X_DEVICE_FINGERPRINT')
     if fp:
-        return fp.strip(), False
-
+        fp = fp.strip()[:64]  # Limit length to prevent abuse
+        if fp:
+            return fp, False
     # Then cookie
     cookie_fp = request.COOKIES.get('mbt_device_fp')
     if cookie_fp:
-        return cookie_fp, False
+        cookie_fp = cookie_fp.strip()[:64]
+        if cookie_fp:
+            return cookie_fp, False
 
     # Otherwise generate a new fingerprint for the device and mark it so we can set cookie later
     new_fp = uuid.uuid4().hex
     request._generated_device_fp = new_fp
     return new_fp, True
+
+
+def derive_device_fingerprint(request):
+    """Create a best-effort derived fingerprint from stable request headers.
+
+    This is a fallback used when no explicit device fingerprint cookie/header
+    is present so bans can still apply across some browser changes.
+    """
+    parts = []
+    ua = request.META.get('HTTP_USER_AGENT', '')
+    if ua:
+        parts.append(ua)
+    al = request.META.get('HTTP_ACCEPT_LANGUAGE', '')
+    if al:
+        parts.append(al)
+    acc = request.META.get('HTTP_ACCEPT', '')
+    if acc:
+        parts.append(acc)
+    sec_ua = request.META.get('HTTP_SEC_CH_UA', '')
+    if sec_ua:
+        parts.append(sec_ua)
+    sec_mobile = request.META.get('HTTP_SEC_CH_UA_MOBILE', '')
+    if sec_mobile:
+        parts.append(sec_mobile)
+
+    if not parts:
+        return None
+
+    data = "|".join(parts).encode('utf-8')
+    return 'derived-' + hashlib.sha256(data).hexdigest()
 
 class ResetProMiddleware:
     def __init__(self, get_response):
@@ -72,19 +106,38 @@ class UpdateLastActiveMiddleware:
 
     def __call__(self, request):
         # Attach or generate device fingerprint and check bans before handling request
-        device_fp, _created = get_device_fingerprint(request)
+        device_fp, was_generated = get_device_fingerprint(request)
+        # Best-effort derived fingerprint from headers (fallback)
+        derived_fp = derive_device_fingerprint(request)
         request.device_fingerprint = device_fp
+        request.derived_device_fp = derived_fp
 
         # Determine a storable client IP (ignore Cloudflare edge IPs)
         ip_for_storage = get_real_ip(request)
         if not ip_for_storage or is_cloudflare_ip(ip_for_storage):
             ip_for_storage = None
 
-        # If this fingerprint is banned and active, block the request immediately
-        # BUT allow access to the API admin to avoid locking out admins
+        # If this fingerprint (or derived fingerprint, or any device seen at
+        # this IP) is banned and active, block the request immediately. Don't
+        # apply to api-admin to avoid locking out admins.
         if not request.path.startswith('/api-admin/'):
-            if device_fp and DeviceBan.objects.filter(fingerprint=device_fp, active=True).exists():
-                return HttpResponseForbidden('Device banned')
+            try:
+                banned = False
+                if device_fp and DeviceBan.objects.filter(fingerprint=device_fp, active=True).exists():
+                    banned = True
+
+                if not banned and derived_fp and DeviceBan.objects.filter(fingerprint=derived_fp, active=True).exists():
+                    banned = True
+
+                if not banned and ip_for_storage:
+                    fps = list(Device.objects.filter(last_ip=ip_for_storage).values_list('fingerprint', flat=True))
+                    if fps and DeviceBan.objects.filter(fingerprint__in=fps, active=True).exists():
+                        banned = True
+
+                if banned:
+                    return HttpResponseForbidden('Device banned')
+            except Exception:
+                pass
 
         response = self.get_response(request)
 
@@ -96,10 +149,20 @@ class UpdateLastActiveMiddleware:
             secure_flag = getattr(settings, 'SESSION_COOKIE_SECURE', False)
             response.set_cookie('mbt_device_fp', gen, max_age=max_age, secure=secure_flag, httponly=True, samesite='Lax')
 
-        # Record device usage (non-blocking)
+        # Record device usage (non-blocking). Prefer explicit fingerprint but
+        # fall back to derived fingerprint so we still track and can match bans
         try:
-            if device_fp:
-                dev, _ = Device.objects.get_or_create(fingerprint=device_fp)
+            chosen_fp = None
+            # Only use explicit fingerprint if it came from header/cookie, not generated
+            if device_fp and not was_generated:
+                 chosen_fp = device_fp
+            elif derived_fp:
+                 chosen_fp = derived_fp
+            else:
+                chosen_fp = device_fp  # Use generated fingerprint
+
+            if chosen_fp:
+                dev, _ = Device.objects.get_or_create(fingerprint=chosen_fp)
                 dev.last_seen = timezone.now()
                 if ip_for_storage:
                     dev.last_ip = ip_for_storage

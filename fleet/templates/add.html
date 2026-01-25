@@ -351,9 +351,8 @@
     $('#type').on('select2:open', function() {
       $('.select2-dropdown').css('border-radius', '0 0 .5em .5em');
     });
-
     $('#operator').on('change', function () {
-      $('#vehicle_category').val(null).trigger('change');
+      $('#vehicle_category').val('').trigger('change');
     });
   });
 </script>

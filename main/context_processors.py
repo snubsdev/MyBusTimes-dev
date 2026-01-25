@@ -7,6 +7,7 @@ from mybustimes import settings
 from django.shortcuts import render
 from django.db.models import Q
 import json
+from mybustimes.middleware.rest_last_active import derive_device_fingerprint
 
 User = get_user_model()
 
@@ -261,12 +262,36 @@ def theme_settings(request):
             device_ban_reason = None
         else:
             device_fp = getattr(request, 'device_fingerprint', None) or request.COOKIES.get('mbt_device_fp')
+            derived_fp = getattr(request, 'derived_device_fp', None) or derive_device_fingerprint(request)
+
+            # 1) explicit fingerprint check
             if device_fp:
                 db = DeviceBan.objects.filter(fingerprint=device_fp, active=True).first()
                 if db:
                     device_banned = True
                     device_ban_reason = db.reason
                     banned = True
+
+            # 2) derived fingerprint check
+            if not device_banned and derived_fp:
+                db = DeviceBan.objects.filter(fingerprint=derived_fp, active=True).first()
+                if db:
+                    device_banned = True
+                    device_ban_reason = db.reason
+                    banned = True
+
+            # 3) check devices seen previously at this IP
+            if not device_banned and ip:
+                try:
+                    fps = list(Device.objects.filter(last_ip=ip).values_list('fingerprint', flat=True))
+                    if fps:
+                        db = DeviceBan.objects.filter(fingerprint__in=fps, active=True).first()
+                        if db:
+                            device_banned = True
+                            device_ban_reason = db.reason
+                            banned = True
+                except Exception:
+                    pass
     except Exception:
         device_fp = None
         device_banned = False
