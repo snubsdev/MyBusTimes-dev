@@ -98,12 +98,25 @@
         <!--<li class="chip"><a href="https://ticketer.mybustimes.cc">Ticketer (Alpha Demo)</a></li>-->
         <li class="chip for-sale-chip">
           <a href="/for_sale/">For Sale Vehicles</a>
-          <span class="dot-badge">{{ for_sale_vehicles }}</span>
+          <span class="dot-badge" id="for-sale-count">...</span>
         </li>
         <li class="chip"><a href="/displays/">Bus Displays</a></li>
       </ul>
     </div>
   </div>
+  <script>
+  // Fetch for-sale count after page loads
+  fetch('/api/for-sale-count/')
+      .then(response => response.json())
+      .then(data => {
+          // Update your UI element with the count
+          const countElement = document.getElementById('for-sale-count');
+          if (countElement) {
+              countElement.textContent = data.formatted;
+          }
+      })
+      .catch(error => console.error('Error fetching for-sale count:', error));
+  </script>
   <div class="pane">
     <h2>&nbsp;</h2>
     <ul class="chips">
