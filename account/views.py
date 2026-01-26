@@ -535,7 +535,7 @@ class stripe_webhook(APIView):
                 defaults={
                     "user": user,
                     "start_date": timezone.now(),
-                    "end_date": user.ad_free_until,
+                    "end_date": user.ad_free_until + timedelta(days=7), # grace period
                     "plan": effective_plan,
                     "is_trial": False,
                 }
@@ -547,7 +547,7 @@ class stripe_webhook(APIView):
                 user=user,
                 stripe_subscription_id=None,
                 start_date=timezone.now(),
-                end_date=user.ad_free_until,
+                end_date=user.ad_free_until + timedelta(days=7), # grace period
                 plan=effective_plan,
                 is_trial=False,
             )
@@ -627,7 +627,7 @@ class stripe_webhook(APIView):
                 user=user,
                 stripe_subscription_id=subscription_id,
                 start_date=timezone.now(),
-                end_date=ad_free_until,
+                end_date=ad_free_until + timedelta(days=7), # grace period
                 plan=plan_level or user.sub_plan or "basic",
                 is_trial=False
             )
@@ -658,7 +658,7 @@ def create_checkout_session(request):
             user=user,
             stripe_subscription_id=None,
             start_date=timezone.now(),
-            end_date=new_ad_free_until,
+            end_date=new_ad_free_until + timedelta(days=7), # grace period
             plan=product_type,
             is_trial=True
         )
