@@ -68,7 +68,11 @@
   <script src="{% static 'js/jquery-3.6.0.min.js' %}"></script>
   <script src="{% static 'js/select2.min.js' %}" defer></script>
   <script src="{% static 'js/service-updates.7.js' %}" defer></script>
-
+  <style>
+    .in-page-ad {
+        display: none;
+    }
+  </style>
   {% if google_ads_enabled %}
     {% include "extra/adfirst.html" %}
   {% endif %}
@@ -173,9 +177,9 @@
       </ol>
     </div>
     {% if ads_enabled %}
-    <div class="top-ad-container in-page-ad" style="position:sticky;top:0px;z-index:101;height:100px;">
-      <div id="AFM_top_ad" class="top-ad-border" style="margin:auto;"></div>
-    </div>
+        <div class="top-ad-container in-page-ad ad" style="position:sticky;top:0px;z-index:101;height:100px;">
+            <div id="AFM_top_ad" class="top-ad-border" style="margin:auto;"></div>
+        </div>
     {% endif %}
     <div class="content">
       {% if messages %}
