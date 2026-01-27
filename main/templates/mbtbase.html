@@ -267,9 +267,6 @@
         {% if t.pk|stringformat:"s" == request.COOKIES.themeID %}selected{% endif %} {% endif %}>{{ t.theme_name }}
       </option>
       {% endfor %}
-      {% if google_ads_enabled %}
-      {% include "extra/google-extra.html" %}
-      {% endif %}
     </select>
     <br>
     <input type="checkbox" id="dark-mode-toggle" name="dark_mode" {% if themeDark == 'True' %}checked{% endif %}><label
@@ -313,15 +310,6 @@
       style="max-width: 1em;max-height:1em;margin-left: .2em;margin-bottom: 0;"><img
       src="https://mirrors.creativecommons.org/presskit/icons/sa.svg" alt=""
       style="max-width: 1em;max-height:1em;margin-left: .2em;margin-bottom: 0;">
-    {% if google_ads_enabled == True %}
-    <div class="ad-box-no-auto">
-      <ins class="adsbygoogle" style="display:block" data-ad-format="autorelaxed"
-        data-ad-client="ca-pub-8764676296426896" data-ad-slot="2329788431"></ins>
-      <script>
-        (adsbygoogle = window.adsbygoogle || []).push({});
-      </script>
-    </div>
-    {% endif %}
   </footer>
   {% include "extra/word.html" %}
   <p style="position: absolute;left: 0; background: var(--brand-color);padding: 5px;border-radius: 0px 10px 0px 0px;">
