@@ -614,24 +614,63 @@ class stripe_webhook(APIView):
         print("✔ User updated:", user.username, user.sub_plan, user.ad_free_until)
 
 
-        # Update or create subscription record
-        if subscription_id:
-            StripeSubscription.objects.update_or_create(
-                subscription_id=subscription_id,
-                defaults={"end_date": ad_free_until.date(), "user": user}
-            )
-            print("✔ Updated StripeSubscription end_date")
+        # Determine an effective subscription id to use (either from the event
+        # or from an existing StripeSubscription found via customer_id).
+        effective_subscription_id = subscription_id
+        if not effective_subscription_id and sub_obj and getattr(sub_obj, 'subscription_id', None):
+            effective_subscription_id = sub_obj.subscription_id
+            print("ℹ Using subscription_id from StripeSubscription record:", effective_subscription_id)
 
-            # Create new ActiveSubscription record for this payment period
-            ActiveSubscription.objects.get_or_create(
-                user=user,
-                stripe_subscription_id=subscription_id,
-                start_date=timezone.now(),
-                end_date=ad_free_until + timedelta(days=7), # grace period
-                plan=plan_level or user.sub_plan or "basic",
-                is_trial=False
+        # Update or create subscription record. Prefer using subscription_id
+        # when available, otherwise fall back to customer_id so we still record
+        # end_date against the customer's subscription record.
+        if effective_subscription_id:
+            StripeSubscription.objects.update_or_create(
+                subscription_id=effective_subscription_id,
+                defaults={
+                    "end_date": ad_free_until.date(),
+                    "user": user,
+                    "customer_id": customer_id,
+                },
             )
-            print("✔ Created ActiveSubscription record for invoice payment")
+            print("✔ Updated StripeSubscription end_date (by subscription_id)")
+        elif customer_id:
+            # No subscription id available in the webhook; update/create by
+            # customer_id so the record still gets its end_date and owner set.
+            StripeSubscription.objects.update_or_create(
+                customer_id=customer_id,
+                defaults={
+                    "end_date": ad_free_until.date(),
+                    "user": user,
+                },
+            )
+            print("✔ Updated StripeSubscription end_date (by customer_id)")
+
+        # Create or update ActiveSubscription for this payment period. If we
+        # have an effective subscription id use it; otherwise create a
+        # subscriptionless ActiveSubscription (e.g. one-off payment).
+        active_defaults = {
+            "start_date": timezone.now(),
+            "end_date": ad_free_until + timedelta(days=7),  # grace period
+            "plan": plan_level or user.sub_plan or "basic",
+            "is_trial": False,
+        }
+
+        if effective_subscription_id:
+            ActiveSubscription.objects.update_or_create(
+                stripe_subscription_id=effective_subscription_id,
+                defaults={"user": user, **active_defaults},
+            )
+            print("✔ Updated/created ActiveSubscription record for invoice payment")
+        else:
+            # subscriptionless invoice (one-off payment) — create an entry
+            # tied to the user without a stripe id.
+            ActiveSubscription.objects.create(
+                user=user,
+                stripe_subscription_id="Renewed for invoice " + invoice.get("id"),
+                **active_defaults,
+            )
+            print("✔ Created ActiveSubscription record (no subscription id) for invoice payment")
 
         return Response(status=200)
     
