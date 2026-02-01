@@ -22,7 +22,7 @@
     left: 0;
   }
 
-  #directionToggle, #stopsToggle, #allRoutesToggle {
+  #directionToggle, #stopsToggle, #routesToggle {
     position: fixed;
     bottom: 10px;
     z-index: 1000;
@@ -42,8 +42,12 @@
     left: 140px;
   }
 
-  #allRoutesToggle {
-    left: 270px;
+  #routesToggle {
+    left: 400px;
+  }
+
+  #routesToggle {
+    left: 400px;
   }
 
   .vehicle-marker {
@@ -75,7 +79,7 @@
 
 <button id="directionToggle">Show Outbound</button>
 <button id="stopsToggle">Show Stops</button>
-<button id="allRoutesToggle">Show All Routes</button>
+<button id="routesToggle">Show Routes</button>
 
 <div id="map"></div>
 
@@ -84,7 +88,8 @@ const savedView = JSON.parse(localStorage.getItem('mbt_map_view') || 'null');
 const operatorId = "{{ operator.id }}";
 let currentDirection = "inbound";
 let showStops = false;
-let showAllRoutes = false;
+let showRoutes = false;
+let showRoutes = false;
 
 {% if themeDark == 'True' %}
   tilesJSON = 'https://tiles.snubs.dev/styles/dark/style.json';
@@ -182,11 +187,11 @@ async function loadOperatorRoutes() {
   stopMarkers.forEach(m => m.remove());
   stopMarkers = [];
 
-  // fetch operator routes
-  // fetch operator routes (or all routes if toggled)
-  let url = `/api/operator/route/?stops_have_cords=true`;
-  if (!showAllRoutes) url += `&route_operators=${operatorId}`;
-  const res = await fetch(url);
+  // If routes are hidden, stop here (layers/markers already cleared)
+  if (!showRoutes) return;
+
+  // fetch operator routes (operator filter always applied)
+  const res = await fetch(`/api/operator/route/?route_operators=${operatorId}&stops_have_cords=true`);
   const data = await res.json();
   const routes = data.results ?? [];
 
@@ -412,17 +417,19 @@ document.getElementById("stopsToggle").addEventListener("click", async () => {
   await loadOperatorRoutes();
 });
 
-document.getElementById("allRoutesToggle").addEventListener("click", async () => {
-  showAllRoutes = !showAllRoutes;
-  document.getElementById("allRoutesToggle").innerText = showAllRoutes ? "Show Only Operator Routes" : "Show All Routes";
+
+
+document.getElementById("routesToggle").addEventListener("click", async () => {
+  showRoutes = !showRoutes;
+  document.getElementById("routesToggle").innerText = showRoutes ? "Hide Routes" : "Show Routes";
 
   await loadOperatorRoutes();
 });
 
 
 map.on('load', async () => {
-    await loadOperatorBT(); 
-    await loadOperatorRoutes();
+  await loadOperatorBT();
+  if (showRoutes) await loadOperatorRoutes();
   });
 
 map.on("moveend", loadOperatorBT);
