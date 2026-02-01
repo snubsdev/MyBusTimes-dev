@@ -663,6 +663,17 @@ class stripe_webhook(APIView):
         user.save(update_fields=["ad_free_until", "sub_plan"])
         print("✔ User updated:", user.username, user.sub_plan, user.ad_free_until)
 
+        # Determine sensible `start_date` for the StripeSubscription record
+        # Prefer the invoice line period start, fall back to invoice top-level
+        # `period_start`, otherwise use today to satisfy the NOT NULL constraint.
+        try:
+            period_start_ts = first_line.get("period", {}).get("start") or invoice.get("period_start")
+            if period_start_ts:
+                start_date_date = datetime.datetime.fromtimestamp(period_start_ts, tz=datetime.timezone.utc).date()
+            else:
+                start_date_date = timezone.now().date()
+        except Exception:
+            start_date_date = timezone.now().date()
 
         # Determine an effective subscription id to use (either from the event
         # or from an existing StripeSubscription found via customer_id).
@@ -678,6 +689,7 @@ class stripe_webhook(APIView):
             StripeSubscription.objects.update_or_create(
                 subscription_id=effective_subscription_id,
                 defaults={
+                    "start_date": start_date_date,
                     "end_date": ad_free_until.date(),
                     "user": user,
                     "customer_id": customer_id,
@@ -690,6 +702,7 @@ class stripe_webhook(APIView):
             StripeSubscription.objects.update_or_create(
                 customer_id=customer_id,
                 defaults={
+                    "start_date": start_date_date,
                     "end_date": ad_free_until.date(),
                     "user": user,
                 },
