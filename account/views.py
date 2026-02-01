@@ -560,8 +560,36 @@ class stripe_webhook(APIView):
         print("👉 Handling invoice.payment_succeeded")
         print("Invoice top-level metadata:", invoice.get("metadata"))
 
+        print(" ")
+        print("==============================")
+        print("Full invoice payload:", invoice)
+        print("==============================")
+        print(" ")
+
         customer_id = invoice.get("customer")
         subscription_id = invoice.get("subscription")
+
+        # If Stripe didn't set the top-level `subscription` field, try to
+        # extract it from known nested locations (invoice parent or first
+        # line item's parent). This covers payloads where subscription id
+        # appears under `parent.subscription_details.subscription` or
+        # `lines.data[0].parent.subscription_item_details.subscription`.
+        if not subscription_id:
+            try:
+                # parent.subscription_details.subscription
+                subscription_id = invoice.get("parent", {}).get("subscription_details", {}).get("subscription")
+                if not subscription_id:
+                    # lines -> first item -> parent -> subscription_item_details -> subscription
+                    first_line_parent = invoice.get("lines", {}).get("data", [])[0].get("parent", {})
+                    subscription_id = first_line_parent.get("subscription") or first_line_parent.get("subscription_item_details", {}).get("subscription") or first_line_parent.get("subscription_item", None)
+                if subscription_id:
+                    print("ℹ Extracted subscription_id from nested invoice data:", subscription_id)
+            except Exception:
+                pass
+        # Extra debug: some invoice payloads may include customer_email or
+        # other identifiers — log them to help diagnose missing links.
+        customer_email = invoice.get("customer_email") or invoice.get("billing_reason")
+        print("Invoice customer_id:", customer_id, "subscription_id:", subscription_id, "customer_email:", customer_email)
 
         # Find user
         user = None
@@ -572,11 +600,33 @@ class stripe_webhook(APIView):
                 user = sub_obj.user
                 print("✔ Found user via subscription_id:", user.username)
 
+        # Fallback: user might have the subscription id stored directly on
+        # the CustomUser record (legacy flows). Try that as well.
+        if not user and subscription_id:
+            try:
+                user_fallback = CustomUser.objects.filter(stripe_subscription_id=subscription_id).first()
+                if user_fallback:
+                    user = user_fallback
+                    print("✔ Found user via CustomUser.stripe_subscription_id:", user.username)
+            except Exception:
+                pass
+
         if not user and customer_id:
             sub_obj = StripeSubscription.objects.filter(customer_id=customer_id).order_by("-id").first()
             if sub_obj:
                 user = sub_obj.user
                 print("✔ Found user via customer_id:", user.username)
+
+        # Another fallback: try to match by customer email if present on the
+        # invoice payload (some Stripe setups include this).
+        if not user and customer_email:
+            try:
+                user_email_match = CustomUser.objects.filter(email__iexact=customer_email).first()
+                if user_email_match:
+                    user = user_email_match
+                    print("✔ Found user via invoice customer_email:", user.username)
+            except Exception:
+                pass
 
         if not user:
             print("❌ No linked user found for invoice")
