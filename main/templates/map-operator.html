@@ -22,7 +22,7 @@
     left: 0;
   }
 
-  #directionToggle, #stopsToggle {
+  #directionToggle, #stopsToggle, #allRoutesToggle {
     position: fixed;
     bottom: 10px;
     z-index: 1000;
@@ -40,6 +40,10 @@
 
   #stopsToggle {
     left: 140px;
+  }
+
+  #allRoutesToggle {
+    left: 270px;
   }
 
   .vehicle-marker {
@@ -71,6 +75,7 @@
 
 <button id="directionToggle">Show Outbound</button>
 <button id="stopsToggle">Show Stops</button>
+<button id="allRoutesToggle">Show All Routes</button>
 
 <div id="map"></div>
 
@@ -79,6 +84,7 @@ const savedView = JSON.parse(localStorage.getItem('mbt_map_view') || 'null');
 const operatorId = "{{ operator.id }}";
 let currentDirection = "inbound";
 let showStops = false;
+let showAllRoutes = false;
 
 {% if themeDark == 'True' %}
   tilesJSON = 'https://tiles.snubs.dev/styles/dark/style.json';
@@ -177,7 +183,10 @@ async function loadOperatorRoutes() {
   stopMarkers = [];
 
   // fetch operator routes
-  const res = await fetch(`/api/operator/route/?route_operators=${operatorId}&stops_have_cords=true`);
+  // fetch operator routes (or all routes if toggled)
+  let url = `/api/operator/route/?stops_have_cords=true`;
+  if (!showAllRoutes) url += `&route_operators=${operatorId}`;
+  const res = await fetch(url);
   const data = await res.json();
   const routes = data.results ?? [];
 
@@ -399,6 +408,13 @@ document.getElementById("directionToggle").addEventListener("click", async () =>
 document.getElementById("stopsToggle").addEventListener("click", async () => {
   showStops = !showStops;
   document.getElementById("stopsToggle").innerText = showStops ? "Hide Stops" : "Show Stops";
+
+  await loadOperatorRoutes();
+});
+
+document.getElementById("allRoutesToggle").addEventListener("click", async () => {
+  showAllRoutes = !showAllRoutes;
+  document.getElementById("allRoutesToggle").innerText = showAllRoutes ? "Show Only Operator Routes" : "Show All Routes";
 
   await loadOperatorRoutes();
 });
