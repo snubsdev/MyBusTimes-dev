@@ -66,13 +66,15 @@ class routeStops(View):
             return JsonResponse({
                 'has_snapped_route': False,
                 'stops': [],
-                'snapped_route': []
+                'snapped_route': [],
+                'route_colour': route_instance.route_details.get('route_colour', '#2f80ed')  # Default to blue
             })
 
         # Base output (existing behaviour preserved)
         output = {
             'has_snapped_route': bool(route_stop.snapped_route),
             'stops': route_stop.stops,
+            'route_colour': route_instance.route_details.get('route_colour', '#2f80ed')  # Default to blue
         }
 
         # Add snapped route if present
