@@ -330,12 +330,19 @@ function renderBTMarkers() {
     let heading = (v.heading ?? 0) + 270;
     const vehicleColour = v.vehicle?.colour || '#000';
 
-    let css = v.vehicle?.right_css || null;
+    const left_css = v.vehicle?.left_css || null;
+    const right_css = v.vehicle?.right_css || null;
 
-    if (heading > 180 && heading < 360) {
-      css = v.vehicle?.right_css || null;
+    heading = heading + 180;
+    const rotation = heading;
+    heading = heading + 90;
+
+    let css = left_css;
+
+    if (rotation > 180 && rotation < 360) {
+      css = right_css;
     } else {
-      css = v.vehicle?.left_css || null;
+      css = left_css;
     }
     
     let textColour = v.vehicle?.text_colour || (v.vehicle?.white_text ? "#fff" : "#000");
