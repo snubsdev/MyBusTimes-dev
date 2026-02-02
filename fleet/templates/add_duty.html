@@ -304,6 +304,7 @@
   background: var(--background-color);
   border: 1px solid var(--border-color);
   border-radius: 0.5rem;
+  cursor: pointer;
 }
 
 .preview-duty-name {
@@ -517,9 +518,10 @@
         
         <div class="gen-form-group">
           <label>Naming Pattern</label>
-          <input type="text" class="naming-pattern-input" id="naming-pattern" placeholder="XX/01" value="XX/01">
+          <input type="text" class="naming-pattern-input" id="naming-pattern" placeholder="routeNum/XX" value="routeNum/XX">
           <small>XX = board number</small>
           <div class="pattern-examples">
+            <span class="pattern-example" onclick="setPattern('routeNum/XX')">routeNum/XX</span>
             <span class="pattern-example" onclick="setPattern('XX/01')">XX/01</span>
             <span class="pattern-example" onclick="setPattern('XX01')">XX01</span>
             <span class="pattern-example" onclick="setPattern('01XX')">01XX</span>
@@ -773,6 +775,9 @@
           
           // data.trips is now an array of vehicle blocks - store for generation
           const vehicleBlocks = data.trips;
+          console.log('preview vehicleBlocks', vehicleBlocks);
+          // log each vehicle's trips for debugging duplicates
+          (vehicleBlocks || []).forEach((v, idx) => console.log('vehicle', idx, 'start', v.start_time, 'end', v.end_time, 'trip_count', v.trip_count, 'trips', v.trips));
           vehicleBlocksData = vehicleBlocks;
           let totalTrips = 0;
           
@@ -796,17 +801,82 @@
               tripSummary = summaryParts.join(', ');
             }
             
+            // handle end crossing midnight for display
+            const endFmt = formatTimeWithDay(vehicle.start_time, vehicle.end_time);
+            const timesDisplay = `${vehicle.start_time} → ${endFmt.displayEnd}`;
+
+            // encode trips into a data attribute so we can render details on click
+            const encodedTrips = encodeURIComponent(JSON.stringify(vehicle.trips || []));
             return `
-              <div class="preview-duty">
-                <span class="preview-duty-name">${name}</span>
-                <span class="preview-duty-times">${vehicle.start_time} → ${vehicle.end_time}</span>
+              <div class="preview-duty" data-trips="${encodedTrips}">
+                <div style="flex:1; display:flex; gap:0.75rem; align-items:center;">
+                  <span class="preview-duty-name">${escapeHtml(name)}</span>
+                  <span class="preview-duty-times">${timesDisplay}</span>
+                </div>
                 <span class="preview-duty-trips">${tripCount} trips${tripSummary ? ` (${tripSummary})` : ''}</span>
                 <span class="preview-duty-duration">${duration}</span>
+                <div class="preview-duty-details" style="display: none; width: 100%; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border-color);"></div>
               </div>
             `;
           }).join('');
           
+          function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+          }
+
           previewList.innerHTML = dutiesHtml;
+          // Attach click handlers to each rendered duty to toggle trip details
+          document.querySelectorAll('.preview-duty').forEach(el => {
+            el.addEventListener('click', function () {
+              const details = el.querySelector('.preview-duty-details');
+              if (!details) return;
+
+              // If empty, render trip list
+              if (details.innerHTML.trim() === '') {
+                try {
+                  const raw = el.dataset.trips || '%5B%5D';
+                  const trips = JSON.parse(decodeURIComponent(raw)) || [];
+                  console.log('raw trips for duty', trips);
+                  // Deduplicate trips by trip_id or by start|end|direction
+                  const seen = new Set();
+                  const unique = [];
+                  trips.forEach((t, i) => {
+                    const start = (t.start_time || t.departure_time || t.time || '').trim();
+                    const end = (t.end_time || t.arrival_time || '').trim();
+                    const dir = (t.direction || '').trim();
+                    const key = `${t.trip_id || ''}|${start}|${end}|${dir}`;
+                    console.log('trip', i, 'key', key, 'raw', t);
+                    if (!seen.has(key)) {
+                      seen.add(key);
+                      unique.push(t);
+                    } else {
+                      console.log('duplicate trip key skipped', key, t);
+                    }
+                  });
+                  if (unique.length > 0) {
+                    console.log('unique trips after dedupe', unique);
+                    details.innerHTML = unique.map(t => {
+                      const time = t.start_time || t.departure_time || t.time || '';
+                      const end = t.end_time || t.arrival_time || '';
+                      const dir = t.direction ? ` <strong>${escapeHtml(t.direction)}</strong>` : '';
+                      const routeText = (t.origin && t.destination) ? ` — ${escapeHtml(t.origin)} → ${escapeHtml(t.destination)}` : '';
+                      const timeText = time ? `${time}${end ? ` → ${end}` : ''}` : '';
+                      return `<div style="padding:4px 0; font-size:0.85rem; color:var(--text-color); opacity:0.9;">${timeText}${dir}${routeText}</div>`;
+                    }).join('');
+                  } else {
+                    details.innerHTML = '<div style="opacity:0.7; padding:4px 0;">No trip details</div>';
+                  }
+                } catch (err) {
+                  details.innerHTML = '<div style="opacity:0.7; padding:4px 0;">Unable to parse trip details</div>';
+                }
+              }
+
+              // Toggle visibility
+              details.style.display = details.style.display === 'none' ? 'block' : 'none';
+            });
+          });
           previewCount.textContent = `${vehicleBlocks.length} ${vehicleBlocks.length === 1 ? 'vehicle' : 'vehicles'} · ${totalTrips} trips`;
           btnGenerate.disabled = selectedDays.length === 0;
         })
@@ -825,15 +895,41 @@
         });
     }
 
+    function parseTimeToMinutes(t) {
+      if (!t || t.trim() === '') return null;
+      const parts = t.split(':');
+      if (parts.length !== 2) return null;
+      const h = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      if (Number.isNaN(h) || Number.isNaN(m)) return null;
+      return h * 60 + m;
+    }
+
+    function formatTimeWithDay(start, end) {
+      // Returns { displayEnd, wrapped } where wrapped=true if end is next day
+      const s = parseTimeToMinutes(start);
+      const e = parseTimeToMinutes(end);
+      if (s === null || e === null) return { displayEnd: end || '--', wrapped: false };
+      if (e < s) {
+        return { displayEnd: `${end} (+1d)`, wrapped: true };
+      }
+      return { displayEnd: end, wrapped: false };
+    }
+
     function calculateDuration(start, end) {
       if (!start || !end) return '--';
-      const [sh, sm] = start.split(':').map(Number);
-      const [eh, em] = end.split(':').map(Number);
-      let mins = (eh * 60 + em) - (sh * 60 + sm);
-      if (mins < 0) mins += 24 * 60;
+      const s = parseTimeToMinutes(start);
+      const e = parseTimeToMinutes(end);
+      if (s === null || e === null) return '--';
+      let mins = e - s;
+      let wrapped = false;
+      if (mins < 0) {
+        mins += 24 * 60;
+        wrapped = true;
+      }
       const hours = Math.floor(mins / 60);
       const minutes = mins % 60;
-      return `${hours}h ${String(minutes).padStart(2, '0')}m`;
+      return `${hours}h ${String(minutes).padStart(2, '0')}m` + (wrapped ? ' (+next day)' : '');
     }
 
     // Store vehicle blocks for generation

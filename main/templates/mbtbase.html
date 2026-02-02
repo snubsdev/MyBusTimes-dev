@@ -68,24 +68,15 @@
   <script src="{% static 'js/jquery-3.6.0.min.js' %}"></script>
   <script src="{% static 'js/select2.min.js' %}" defer></script>
   <script src="{% static 'js/service-updates.7.js' %}" defer></script>
-
+  <style>
+    .in-page-ad {
+        display: none;
+    }
+  </style>
   {% if google_ads_enabled %}
     {% include "extra/adfirst.html" %}
   {% endif %}
 
-  {% if ad_enabled %}
-  <style>
-    .in-page-ad {
-      display: block;
-    }
-  </style>
-  {% else %}
-  <style>
-    .in-page-ad {
-      display: none;
-    }
-  </style>
-  {% endif %}
   {% include "extra/js.html" %}
 
   {% block extra_js %}{% endblock %}
@@ -141,10 +132,10 @@
             {% endif %}
           </li>
           {% if user.is_superuser %}
-          <li><a href="/api-admin/">Admin API Portal</a></li>
+          <li><a href="/api-admin/">Admin Portal</a></li>
           {% endif %}
           {% if admin %}
-          <li><a href="/admin/">Admin Portal</a></li>
+          <li><a href="/admin/">Staff Portal</a></li>
           {% endif %}
 
           <li><a href="/forum/">Forum</a></li>
@@ -186,9 +177,9 @@
       </ol>
     </div>
     {% if ads_enabled %}
-    <div class="top-ad-container in-page-ad" style="position:sticky;top:0px;z-index:101;height:100px;">
-      <div id="AFM_top_ad" class="top-ad-border" style="margin:auto;"></div>
-    </div>
+      <div class="top-ad-container top-ad-border" id="AFM_top_ad_container" style="position:sticky;top:0px;=:index 0;height:100px;width:100%;max-width: 728px;margin: 0 auto;display: block;">
+        <div id="AFM_top_ad" style="margin:auto;"></div>
+      </div>
     {% endif %}
     <div class="content">
       {% if messages %}
@@ -208,13 +199,19 @@
       {% endblock content %}
       {% else %}
       <div class="alert alert-danger">
-        {% if ip_banned == True %}
+        {% if device_banned == True %}
+        <h2>Device Banned</h2>
+        <p>Your device has been banned. If you believe this is a mistake, please contact support.</p>
+        {% if device_ban_reason %}
+          <p><strong>Reason:</strong> {{ device_ban_reason|linebreaks }}</p>
+        {% endif %}
+        {% elif ip_banned == True %}
         <h2>IP Banned</h2>
         <p>Your IP address has been banned. If you believe this is a mistake, please contact support.</p>
         {% elif user_banned == True %}
         <h2>Account Banned</h2>
         <p>Your account has been banned. If you believe this is a mistake, please contact
-          support.<br><br><strong>Reason:</strong><br>{{ ban_reason }}</p>
+          support.<br><br><strong>Reason:</strong><br>{{ ban_reason|linebreaks }}</p>
         {% else %}
         <h2>Banned</h2>
         <p>You have been banned. If you believe this is a mistake, please contact support.</p>
@@ -270,9 +267,6 @@
         {% if t.pk|stringformat:"s" == request.COOKIES.themeID %}selected{% endif %} {% endif %}>{{ t.theme_name }}
       </option>
       {% endfor %}
-      {% if google_ads_enabled %}
-      {% include "extra/google-extra.html" %}
-      {% endif %}
     </select>
     <br>
     <input type="checkbox" id="dark-mode-toggle" name="dark_mode" {% if themeDark == 'True' %}checked{% endif %}><label
@@ -316,15 +310,6 @@
       style="max-width: 1em;max-height:1em;margin-left: .2em;margin-bottom: 0;"><img
       src="https://mirrors.creativecommons.org/presskit/icons/sa.svg" alt=""
       style="max-width: 1em;max-height:1em;margin-left: .2em;margin-bottom: 0;">
-    {% if google_ads_enabled == True %}
-    <div class="ad-box-no-auto">
-      <ins class="adsbygoogle" style="display:block" data-ad-format="autorelaxed"
-        data-ad-client="ca-pub-8764676296426896" data-ad-slot="2329788431"></ins>
-      <script>
-        (adsbygoogle = window.adsbygoogle || []).push({});
-      </script>
-    </div>
-    {% endif %}
   </footer>
   {% include "extra/word.html" %}
   <p style="position: absolute;left: 0; background: var(--brand-color);padding: 5px;border-radius: 0px 10px 0px 0px;">

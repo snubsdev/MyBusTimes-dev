@@ -4,7 +4,7 @@ from django.utils.timezone import now
 import hashlib
 from .models import *
 from tracking.models import Tracking, Trip
-from routes.models import route
+from routes.models import route, board_category
 from django.utils import timezone
 from datetime import timedelta
 import re
@@ -213,6 +213,7 @@ class fleetSerializer(serializers.ModelSerializer):
     livery_id = serializers.PrimaryKeyRelatedField(queryset=liverie.objects.all(), source='livery', write_only=True, required=False)
     operator_id = serializers.PrimaryKeyRelatedField(queryset=MBTOperator.objects.all(), source='operator', write_only=True, required=False)
     loan_operator_id = serializers.PrimaryKeyRelatedField(queryset=MBTOperator.objects.all(), source='loan_operator', write_only=True, required=False, allow_null=True)
+    vehicle_category = serializers.PrimaryKeyRelatedField(queryset=board_category.objects.all())
 
     advanced_details = serializers.JSONField(required=False)
 
@@ -330,7 +331,7 @@ class fleetSerializer(serializers.ModelSerializer):
             'colour', 'branding', 'prev_reg', 'depot', 'name',
             'features', 'notes', 'length', 'last_modified_by', 'latest_trip', 'last_tracking',
             'next_vehicle', 'previous_vehicle', 'flickr_link',
-            'last_trip_display', 'advanced_details'
+            'last_trip_display', 'advanced_details', 'vehicle_category',
         ]
 
     def get_latest_trip(self, obj):

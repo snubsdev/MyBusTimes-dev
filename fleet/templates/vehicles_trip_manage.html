@@ -35,11 +35,11 @@
 {% endif %}
 
 <div class="mass-actions" style="display: flex;">
-    <form style="width: 50%;" action="{% url 'remove_other_trips' operator_slug=operator.operator_slug vehicle_id=vehicle.id %}" method="post">
+    <form style="width: 33%;" action="{% url 'remove_other_trips' operator_slug=operator.operator_slug vehicle_id=vehicle.id %}" method="post">
         {% csrf_token %}
         <button class="btn">Remove Other Operators' Trips</button>
     </form>
-    <form style="display: block;width: 50%;" action="{% url 'remove_all_trips' operator_slug=operator.operator_slug vehicle_id=vehicle.id %}" method="post">
+    <form style="display: block;width: 33%;" action="{% url 'remove_all_trips' operator_slug=operator.operator_slug vehicle_id=vehicle.id %}" method="post">
         {% csrf_token %}
         <button class="delete-btn btn">Remove All Trips</button>
     </form>
@@ -49,6 +49,10 @@
     <form style="width: 50%;" action="{% url 'flip_all_trip_directions' operator_slug=operator.operator_slug vehicle_id=vehicle.id selected_date=selected_date %}" method="post">
         {% csrf_token %}
         <button class="btn">Flip all trip directions</button>
+    </form>
+        <form style="width: 33%;" action="{% url 'remove_todays_trips' operator_slug=operator.operator_slug vehicle_id=vehicle.id selected_date=selected_date %}" method="post">
+        {% csrf_token %}
+        <button class="delete-btn btn">Clear Current Dates Trips</button>
     </form>
 </div>
 

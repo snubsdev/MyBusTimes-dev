@@ -4,6 +4,28 @@ from django.contrib.auth.admin import UserAdmin
 from django.contrib.admin.models import LogEntry
 from .models import *
 
+
+@admin.register(DeviceBan)
+class DeviceBanAdmin(SimpleHistoryAdmin):
+    list_display = ('fingerprint', 'banned_at', 'reason', 'related_user')
+    search_fields = ('fingerprint', 'reason')
+    list_filter = ('banned_at',)
+    raw_id_fields = ('related_user',)
+
+@admin.register(Device)
+class DeviceAdmin(SimpleHistoryAdmin):
+    list_display = ('fingerprint', 'last_seen', 'last_user', 'last_ip')
+    search_fields = ('fingerprint', 'last_ip', 'last_user__username')
+    list_filter = ('last_seen',)
+    raw_id_fields = ('last_user',)
+
+@admin.register(DeviceUsage)
+class DeviceUsageAdmin(SimpleHistoryAdmin):
+    list_display = ('device', 'user', 'last_seen', 'usage_count')
+    search_fields = ('device__fingerprint', 'user__username')
+    list_filter = ('last_seen',)
+    raw_id_fields = ('device', 'user')
+
 @admin.register(LogEntry)
 class LogEntryAdmin(admin.ModelAdmin):
     list_display = ['action_time', 'user', 'content_type', 'object_repr', 'action_flag', 'change_message']
@@ -72,7 +94,7 @@ class CustomUserAdmin(SimpleHistoryAdmin, UserAdmin):
         (None, {'fields': ('username', 'password')}),
         ('Personal info', {
             'fields': (
-                'email', 'discord_username', 'pfp', 'had_pro_trial', 'ad_free_until', 'sub_plan', 'first_name', 'last_name'
+                'email', 'discord_username', 'pfp', 'had_pro_trial', 'first_name', 'last_name'
             )
         }),
         ('Ban Info', {

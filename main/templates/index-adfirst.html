@@ -37,7 +37,7 @@
           {% endif %}
         </li>
         {% if admin %}
-        <li class="chip"><a href="/admin/">Admin Portal</a></li>
+        <li class="chip"><a href="/admin/">Staff Portal</a></li>
         {% endif %}
         <li class="chip"><a href="/operator/create/">Create A Company</a></li>
         <li class="chip"><a href="/create/livery">Create A Livery</a></li>
@@ -55,7 +55,7 @@
     <h2>&nbsp;</h2>
     <ul class="chips">
      {% if user.is_superuser %}
-        <li class="chip"><a href="/api-admin/">Admin API Portal</a></li>
+        <li class="chip"><a href="/api-admin/">Admin Portal</a></li>
         {% endif %}
       <li class="chip"><a href="/forum/">Forums</a></li>
       <li class="chip"><a href="/wiki/">Wiki</a></li>
@@ -73,11 +73,9 @@
   Note: MyBusTimes is a fictional and community-run transport database.<br>
   All data shown here is user generated and not real world data <a href="/about">more info</a>.
 </p>
-<div class="in-page-ad" id="body-ad-1">
-  <div class="incontent-ad-container" style="height:100px;">
+<div class="incontent-ad-container in-page-ad" style="height:100px;">
     <div id="AFM_inContent_ad" style="margin:auto;"></div>
   </div>
-</div>
 <div id="regions-container">
   {% regroup regions by region_country as country_list %}
 

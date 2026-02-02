@@ -42,6 +42,10 @@
     left: 140px;
   }
 
+  #routesToggle {
+    left: 270px;
+  }
+
   .vehicle-marker {
     text-align: center;
     color: #000;
@@ -71,6 +75,7 @@
 
 <button id="directionToggle">Show Outbound</button>
 <button id="stopsToggle">Show Stops</button>
+<button id="routesToggle">Show Routes</button>
 
 <div id="map"></div>
 
@@ -79,6 +84,7 @@ const savedView = JSON.parse(localStorage.getItem('mbt_map_view') || 'null');
 const operatorId = "{{ operator.id }}";
 let currentDirection = "inbound";
 let showStops = false;
+let showRoutes = false; // Routes are hidden by default
 
 {% if themeDark == 'True' %}
   tilesJSON = 'https://tiles.snubs.dev/styles/dark/style.json';
@@ -190,6 +196,19 @@ async function loadOperatorRoutes() {
   if (!bounds.isEmpty()) {
     map.fitBounds(bounds, { padding: 60 });
   }
+}
+
+function clearRoutes() {
+  // remove existing route layers and sources
+  for (const id of routeLayers) {
+    if (map.getLayer(id)) map.removeLayer(id);
+    if (map.getSource(id)) map.removeSource(id);
+  }
+  routeLayers = [];
+
+  // remove stops
+  stopMarkers.forEach(m => m.remove());
+  stopMarkers = [];
 }
 
 //
@@ -311,12 +330,12 @@ function renderBTMarkers() {
     let heading = v.heading ?? 0;
     const vehicleColour = v.vehicle?.colour || '#000';
 
+    const left_css = v.vehicle?.left_css || null;
+    const right_css = v.vehicle?.right_css || null;
+
     heading = heading + 180;
     const rotation = heading;
     heading = heading + 90;
-
-    const left_css = v.vehicle?.left_css || null;
-    const right_css = v.vehicle?.right_css || null;
 
     let css = left_css;
 
@@ -399,7 +418,7 @@ document.getElementById("directionToggle").addEventListener("click", async () =>
   document.getElementById("directionToggle").innerText =
     currentDirection === "inbound" ? "Show Outbound" : "Show Inbound";
 
-  await loadOperatorRoutes();
+  if (showRoutes) await loadOperatorRoutes();
   await loadOperatorBT();
 });
 
@@ -407,13 +426,24 @@ document.getElementById("stopsToggle").addEventListener("click", async () => {
   showStops = !showStops;
   document.getElementById("stopsToggle").innerText = showStops ? "Hide Stops" : "Show Stops";
 
-  await loadOperatorRoutes();
+  if (showRoutes) await loadOperatorRoutes();
+});
+
+document.getElementById("routesToggle").addEventListener("click", async () => {
+  showRoutes = !showRoutes;
+  document.getElementById("routesToggle").innerText = showRoutes ? "Hide Routes" : "Show Routes";
+
+  if (showRoutes) {
+    await loadOperatorRoutes();
+  } else {
+    clearRoutes();
+  }
 });
 
 
 map.on('load', async () => {
-    await loadOperatorBT(); 
-    await loadOperatorRoutes();
+  await loadOperatorBT();
+  if (showRoutes) await loadOperatorRoutes();
   });
 
 map.on("moveend", loadOperatorBT);

@@ -260,6 +260,7 @@ class fleet(models.Model):
 
     history = HistoricalRecords()
 
+    vehicle_category = models.ForeignKey('routes.board_category', on_delete=models.SET_NULL, blank=True, null=True, related_name='fleet_vehicle_category', db_index=True)
     sim_lat = models.FloatField(blank=True, null=True)
     sim_lon = models.FloatField(blank=True, null=True)
     sim_heading = models.FloatField(blank=True, null=True)

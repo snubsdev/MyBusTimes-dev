@@ -296,6 +296,7 @@ def transfer_vehicles(modeladmin, request, queryset):
 class FleetAdmin(SimpleHistoryAdmin):
     search_fields = ["fleet_number", "reg", "operator__operator_name"]
     list_display = (
+        "fleet_number_sort",
         "fleet_number",
         "operator",
         "reg",
@@ -310,7 +311,7 @@ class FleetAdmin(SimpleHistoryAdmin):
         FleetOperatorFilter,
         FleetLiveryFilter,
     )
-    autocomplete_fields = ["operator", "loan_operator", "livery", "vehicleType", "last_modified_by", "current_trip"]
+    autocomplete_fields = ["operator", "loan_operator", "livery", "vehicleType", "last_modified_by", "current_trip", "vehicle_category"]
     actions = [
         deduplicate_fleet,
         mark_as_for_sale,
@@ -321,7 +322,7 @@ class FleetAdmin(SimpleHistoryAdmin):
         mark_as_in_service,
         mark_as_not_in_service,
     ]
-    ordering = ("operator__operator_name", "fleet_number")
+    ordering = ("fleet_number_sort",)
     list_per_page = 100
     date_hierarchy = None  # fleets usually don’t have datetime, but kept here for consistency
 

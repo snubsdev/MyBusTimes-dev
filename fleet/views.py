@@ -928,7 +928,18 @@ def vehicles(request, operator_slug, depot=None, withdrawn=False):
         vehicle_id = request.POST.get("vehicle_id")
         operator_id = request.POST.get("operator_id")
 
-        vehicle = get_object_or_404(fleet, id=vehicle_id)
+        # Validate vehicle id before querying to avoid ValueError when it's empty
+        if not vehicle_id:
+            messages.error(request, "No vehicle selected.")
+            return redirect(request.path)
+
+        try:
+            vehicle_pk = int(vehicle_id)
+        except (TypeError, ValueError):
+            messages.error(request, "Invalid vehicle selected.")
+            return redirect(request.path)
+
+        vehicle = get_object_or_404(fleet, id=vehicle_pk)
         current_operator = vehicle.operator
         new_operator = get_object_or_404(MBTOperator, id=operator_id)
 
@@ -1335,6 +1346,25 @@ def vehicle_edit(request, operator_slug, vehicle_id):
         else:
             vehicle.livery = None
 
+        # Vehicle category (ensure it belongs to the current operator)
+        try:
+            from routes.models import board_category as BoardCategory
+            vc_id = request.POST.get('vehicle_category')
+            if vc_id:
+                try:
+                    cat = BoardCategory.objects.get(id=vc_id)
+                    # Ensure category operator matches vehicle.operator
+                    if cat.operator and vehicle.operator and cat.operator.id == vehicle.operator.id:
+                        vehicle.vehicle_category = cat
+                    else:
+                        vehicle.vehicle_category = None
+                except BoardCategory.DoesNotExist:
+                    vehicle.vehicle_category = None
+            else:
+                vehicle.vehicle_category = None
+        except Exception:
+            # If anything goes wrong, don't block saving
+            pass
 
         # Features JSON string stored in hidden input - parse and save as a comma-separated string or JSON field
         features_json = request.POST.get('features', '[]')
@@ -1382,12 +1412,20 @@ def vehicle_edit(request, operator_slug, vehicle_id):
         else:
             hide_sell_button = False
 
+        # Categories for this operator
+        try:
+            from routes.models import board_category as BoardCategory
+            category_list = BoardCategory.objects.filter(operator=vehicle.operator)
+        except Exception:
+            category_list = []
+
         context = {
             'hide_sell_button': hide_sell_button,
             'fleetData': vehicle,
             'operatorData': operators,
             'typeData': types,
             'liveryData': liveries_list,
+            'categoryData': category_list,
             'features': features_list,
             'userData': user_data,
             'breadcrumbs': breadcrumbs,
@@ -1665,6 +1703,32 @@ def flip_all_trip_directions(request, operator_slug, vehicle_id, selected_date):
     messages.success(request, "All trip directions flipped successfully.")
     return redirect(f'/operator/{operator_slug}/vehicles/{vehicle_id}/trips/manage/?date={selected_date}')
 
+
+def remove_todays_trips(request, operator_slug, vehicle_id, selected_date):
+    operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
+    vehicle = get_object_or_404(fleet, id=vehicle_id, operator=operator)
+
+    userPerms = get_helper_permissions(request.user, operator)
+
+    if request.user != operator.owner and 'Delete Trips' not in userPerms and not request.user.is_superuser:
+        return redirect(f'/operator/{operator_slug}/vehicles/{vehicle_id}/')
+
+    start_of_day = datetime.combine(datetime.fromisoformat(selected_date).date(), time.min)
+    end_of_day = datetime.combine(datetime.fromisoformat(selected_date).date(), time.max)
+
+    deleted_trips = Trip.objects.filter(
+        trip_vehicle=vehicle,
+        trip_start_at__range=(start_of_day, end_of_day)
+    ).count()
+
+    Trip.objects.filter(
+        trip_vehicle=vehicle,
+        trip_start_at__range=(start_of_day, end_of_day)
+    ).delete()
+
+    messages.success(request, f"{deleted_trips} trip(s) deleted successfully.")
+    return redirect(f'/operator/{operator_slug}/vehicles/{vehicle_id}/trips/manage/?date={selected_date}')
+
 #def send_discord_webhook_embed(
 #    title: str,
 #    description: str,
@@ -1862,7 +1926,13 @@ def generate_vehicle_card(fleet_number, reg, vehicle_type, status):
     return img
 
 def vehicle_card_image(request, vehicle_id):
-    vehicle = get_object_or_404(fleet, id=vehicle_id)
+    # Validate vehicle id before querying the DB
+    try:
+        vehicle_pk = int(vehicle_id)
+    except (TypeError, ValueError):
+        return JsonResponse({'success': False, 'error': "Invalid vehicle id."}, status=400)
+
+    vehicle = get_object_or_404(fleet, id=vehicle_pk)
 
     # Safely get the vehicle type name
     vehicle_type_name = getattr(vehicle.vehicleType, 'type_name', 'N/A')
@@ -1882,7 +1952,13 @@ def vehicle_card_image(request, vehicle_id):
 
 
 def vehicle_status_preview(request, vehicle_id):
-    vehicle = get_object_or_404(fleet, id=vehicle_id)
+    # Validate vehicle id before querying the DB
+    try:
+        vehicle_pk = int(vehicle_id)
+    except (TypeError, ValueError):
+        return JsonResponse({'success': False, 'error': "Invalid vehicle id."}, status=400)
+
+    vehicle = get_object_or_404(fleet, id=vehicle_pk)
 
     if not vehicle.for_sale:
         link = "Sold" if vehicle.for_sale else "Not for Sale"
@@ -1938,10 +2014,35 @@ def duties(request, operator_slug):
     group_by = request.GET.get('group_by', 'category')
 
     # Get categories for this operator
-    categories = board_category.objects.filter(
+    qs = board_category.objects.filter(
         operator=operator,
         board_type=board_type
     ).prefetch_related('subcategories')
+
+    # Numeric-aware sort key (same as routes)
+    def parse_name_key(name):
+        rn = (name or '').upper()
+
+        normal = re.match(r'^([0-9]+)$', rn)
+        xprefix = re.match(r'^X([0-9]+)$', rn)
+        suffix = re.match(r'^([0-9]+)([A-Z]+)$', rn)
+        other = re.match(r'^([A-Z]+)([0-9]+)$', rn)
+
+        if normal:
+            return (0, int(normal.group(1)), "")
+        if suffix:
+            return (1, int(suffix.group(1)), suffix.group(2))
+        if xprefix:
+            return (2, int(xprefix.group(1)), "X")
+        if other:
+            return (3, other.group(1), int(other.group(2)))
+        return (4, rn, 0)
+
+    try:
+        categories = list(qs)
+        categories.sort(key=lambda c: parse_name_key(c.name))
+    except Exception:
+        categories = qs.order_by('name')
 
     if group_by == 'category':
         # Group duties by category
@@ -1959,8 +2060,11 @@ def duties(request, operator_slug):
             else:
                 uncategorized.append(d)
         
-        # Sort categories alphabetically
-        grouped_duties_ordered = dict(sorted(grouped_duties.items()))
+        # Sort categories using numeric-aware ordering like routes
+        grouped_duties_ordered = dict(sorted(
+            grouped_duties.items(),
+            key=lambda kv: parse_name_key(kv[0].split(' > ')[-1])
+        ))
         if uncategorized:
             grouped_duties_ordered['Uncategorized'] = uncategorized
     else:
@@ -2302,7 +2406,7 @@ def duty_add(request, operator_slug):
                 
                 if not isinstance(first_stop_data, dict) or not isinstance(last_stop_data, dict):
                     continue
-                
+
                 first_stop_name = first_stop_data.get('stopname', 'Start')
                 last_stop_name = last_stop_data.get('stopname', 'End')
                 first_times = first_stop_data.get('times', [])
@@ -2642,7 +2746,6 @@ def duty_add_trip(request, operator_slug, duty_id):
         }
         return render(request, 'add_duty_trip.html', context)
     
-
 def get_timetable_trips(request, route_id):
     """
     Return a list of vehicle blocks (duties) calculated from timetable entries.
@@ -2663,6 +2766,9 @@ def get_timetable_trips(request, route_id):
     
     # Get all timetable entries for this route
     all_trips = []
+    
+    # Use a set to track unique trips and prevent duplicates
+    seen_trips = set()
     
     timetables = timetableEntry.objects.filter(route=r)
     
@@ -2706,11 +2812,22 @@ def get_timetable_trips(request, route_id):
             continue
         
         for i, start_time in enumerate(first_times):
-            if not start_time:
+            # Skip empty strings and None values
+            if not start_time or start_time.strip() == '':
                 continue
             end_time = last_times[i] if i < len(last_times) else None
-            if not end_time:
+            if not end_time or end_time.strip() == '':
                 continue
+            
+            # Create unique identifier for this trip
+            trip_direction = 'inbound' if is_inbound else 'outbound'
+            trip_key = f"{start_time}|{end_time}|{trip_direction}|{first_stop_name}|{last_stop_name}"
+            
+            # Skip if we've already seen this exact trip
+            if trip_key in seen_trips:
+                continue
+            
+            seen_trips.add(trip_key)
             
             # Use logical location: outbound ends at 'far', inbound ends at 'home'
             # This allows proper chaining regardless of actual stop names
@@ -2726,9 +2843,9 @@ def get_timetable_trips(request, route_id):
                 'end_time': end_time,
                 'start_location': start_loc,
                 'end_location': end_loc,
-                'start_stop': first_stop_name,
-                'end_stop': last_stop_name,
-                'direction': 'inbound' if is_inbound else 'outbound',
+                'origin': first_stop_name,
+                'destination': last_stop_name,
+                'direction': trip_direction,
                 'start_minutes': time_to_minutes(start_time),
                 'end_minutes': time_to_minutes(end_time)
             })
@@ -2736,53 +2853,60 @@ def get_timetable_trips(request, route_id):
     # Sort all trips by start time
     all_trips.sort(key=lambda x: x['start_minutes'])
     
-    # Vehicle blocking algorithm - assign trips to vehicles
+    # Debug: Print all trips
+    print(f"\n===== ALL TRIPS FOR ROUTE {r.route_num} (direction={direction}) =====")
+    print(f"Total trips found: {len(all_trips)}")
+    for idx, trip in enumerate(all_trips):
+        print(f"Trip {idx}: {trip['start_time']} → {trip['end_time']} | {trip['direction']} | {trip['origin']} → {trip['destination']} | start_loc={trip['start_location']}, end_loc={trip['end_location']}")
+    print("=" * 80)
+    
+    # Vehicle blocking algorithm - minimize number of vehicles by maximizing trips per vehicle
+    # Strategy: Always try to assign to the FIRST vehicle that can do it, no matter the wait time
     vehicles = []  # List of vehicle blocks, each is {'trips': [], 'end_minutes': int, 'end_location': str}
     
     # For single-direction mode, we need to account for deadhead time back to start
-    # Estimate based on trip duration (roughly same time to get back)
     single_direction_mode = direction in ['inbound', 'outbound']
     
     for trip in all_trips:
-        # Find a vehicle that can do this trip
-        # Must have finished previous trip and be at the right location (or have time to deadhead back)
-        best_vehicle = None
-        best_wait_time = float('inf')
+        # Try to assign to existing vehicles first, starting from vehicle 0
+        assigned = False
         
         for v in vehicles:
+            can_do_trip = False
+            
             if single_direction_mode:
                 # In single direction mode, estimate deadhead time as the trip duration
-                # Vehicle needs time to get back to start point
+                # Vehicle needs time to get back to start point after completing the trip
                 last_trip = v['trips'][-1] if v['trips'] else None
                 if last_trip:
                     trip_duration = last_trip['end_minutes'] - last_trip['start_minutes']
                     deadhead_time = trip_duration  # Assume similar time to deadhead back
+                    # Vehicle becomes available at: end time + deadhead time
                     available_time = v['end_minutes'] + deadhead_time
                 else:
                     available_time = v['end_minutes']
                 
-                # Check if vehicle can make it back in time for the next trip
+                # Check if vehicle can complete deadhead and be ready for next trip
+                # No maximum wait time - accept any gap
                 if available_time <= trip['start_minutes']:
-                    wait_time = trip['start_minutes'] - v['end_minutes']
-                    if wait_time < best_wait_time:
-                        best_vehicle = v
-                        best_wait_time = wait_time
+                    can_do_trip = True
             else:
                 # In both directions mode, check location matching
+                # No maximum wait time - accept any gap
                 if v['end_minutes'] <= trip['start_minutes']:
                     if v['end_location'] == trip['start_location']:
-                        wait_time = trip['start_minutes'] - v['end_minutes']
-                        if wait_time < best_wait_time:
-                            best_vehicle = v
-                            best_wait_time = wait_time
+                        can_do_trip = True
+            
+            if can_do_trip:
+                # Assign trip to this vehicle
+                v['trips'].append(trip)
+                v['end_minutes'] = trip['end_minutes']
+                v['end_location'] = trip['end_location']
+                assigned = True
+                break  # Stop at first vehicle that can do it
         
-        if best_vehicle:
-            # Assign trip to existing vehicle
-            best_vehicle['trips'].append(trip)
-            best_vehicle['end_minutes'] = trip['end_minutes']
-            best_vehicle['end_location'] = trip['end_location']
-        else:
-            # Need a new vehicle
+        if not assigned:
+            # Need a new vehicle - no existing vehicle can do this trip
             vehicles.append({
                 'trips': [trip],
                 'end_minutes': trip['end_minutes'],
@@ -2795,19 +2919,29 @@ def get_timetable_trips(request, route_id):
         if v['trips']:
             first_trip = v['trips'][0]
             last_trip = v['trips'][-1]
+            
+            # Double-check for any duplicate trips within this vehicle block
+            unique_trips = []
+            trip_keys_in_block = set()
+            
+            for t in v['trips']:
+                t_key = f"{t['start_time']}|{t['end_time']}|{t['direction']}"
+                if t_key not in trip_keys_in_block:
+                    trip_keys_in_block.add(t_key)
+                    unique_trips.append(t)
+            
             result.append({
                 'vehicle_num': i + 1,
                 'start_time': first_trip['start_time'],
                 'end_time': last_trip['end_time'],
-                'trip_count': len(v['trips']),
-                'trips': v['trips']
+                'trip_count': len(unique_trips),
+                'trips': unique_trips
             })
     
     # Sort by first trip start time
     result.sort(key=lambda x: time_to_minutes(x['start_time']))
     
     return JsonResponse({"trips": result, "vehicle_count": len(result)})
-
 
 def time_to_minutes(time_str):
     """Convert HH:MM to minutes since midnight."""
@@ -2898,8 +3032,8 @@ def create_duty_from_timetable_api(request, operator_slug):
             route_link=selected_route,
             start_time=trip.get('start_time'),
             end_time=trip.get('end_time'),
-            start_at=trip.get('start_stop', ''),
-            end_at=trip.get('end_stop', ''),
+            start_at=trip.get('origin', ''),
+            end_at=trip.get('destination', ''),
             inbound=(trip.get('direction') == 'inbound')
         )
         trips_created += 1
@@ -3284,10 +3418,35 @@ def duty_edit(request, operator_slug, duty_id):
     days = dayType.objects.all()
     
     # Get categories for this operator and board type
-    categories = board_category.objects.filter(
+    qs = board_category.objects.filter(
         operator=operator,
         board_type=board_type
-    ).select_related('parent_category')
+    ).prefetch_related('subcategories')
+
+    # Numeric-aware sort key (same as routes)
+    def parse_name_key(name):
+        rn = (name or '').upper()
+
+        normal = re.match(r'^([0-9]+)$', rn)
+        xprefix = re.match(r'^X([0-9]+)$', rn)
+        suffix = re.match(r'^([0-9]+)([A-Z]+)$', rn)
+        other = re.match(r'^([A-Z]+)([0-9]+)$', rn)
+
+        if normal:
+            return (0, int(normal.group(1)), "")
+        if suffix:
+            return (1, int(suffix.group(1)), suffix.group(2))
+        if xprefix:
+            return (2, int(xprefix.group(1)), "X")
+        if other:
+            return (3, other.group(1), int(other.group(2)))
+        return (4, rn, 0)
+
+    try:
+        categories = list(qs)
+        categories.sort(key=lambda c: parse_name_key(c.name))
+    except Exception:
+        categories = qs.order_by('name')
 
     if request.method == "POST":
         duty_name = request.POST.get('duty_name')
@@ -3362,11 +3521,36 @@ def board_categories(request, operator_slug):
     userPerms = get_helper_permissions(request.user, operator)
 
     # Get top-level categories (no parent) for this operator
-    categories = board_category.objects.filter(
+    qs = board_category.objects.filter(
         operator=operator,
         board_type=board_type,
         parent_category__isnull=True
     ).prefetch_related('subcategories')
+
+    # Numeric-aware ordering (same system as routes)
+    try:
+        def parse_name_key(name):
+            rn = (name or '').upper()
+
+            normal = re.match(r'^([0-9]+)$', rn)
+            xprefix = re.match(r'^X([0-9]+)$', rn)
+            suffix = re.match(r'^([0-9]+)([A-Z]+)$', rn)
+            other = re.match(r'^([A-Z]+)([0-9]+)$', rn)
+
+            if normal:
+                return (0, int(normal.group(1)), "")
+            if suffix:
+                return (1, int(suffix.group(1)), suffix.group(2))
+            if xprefix:
+                return (2, int(xprefix.group(1)), "X")
+            if other:
+                return (3, other.group(1), int(other.group(2)))
+            return (4, rn, 0)
+
+        categories = list(qs)
+        categories.sort(key=lambda c: parse_name_key(c.name))
+    except Exception:
+        categories = qs.order_by('name')
 
     breadcrumbs = [
         {'name': 'Home', 'url': '/'},
@@ -3962,6 +4146,23 @@ def vehicle_add(request, operator_slug):
         except json.JSONDecodeError:
             features_selected = []
 
+        try:
+            from routes.models import board_category as BoardCategory
+            vc_id = request.POST.get('vehicle_category')
+            if vc_id:
+                try:
+                    cat = BoardCategory.objects.get(id=vc_id)
+                    if cat.operator and vehicle.operator and cat.operator.id == vehicle.operator.id:
+                        vehicle.vehicle_category = cat
+                    else:
+                        vehicle.vehicle_category = None
+                except BoardCategory.DoesNotExist:
+                    vehicle.vehicle_category = None
+            else:
+                vehicle.vehicle_category = None
+        except Exception:
+            pass
+
         vehicle.features = features_selected
         vehicle.save()
 
@@ -3985,6 +4186,12 @@ def vehicle_add(request, operator_slug):
 
         tabs = []
 
+        try:
+            from routes.models import board_category as BoardCategory
+            category_list = BoardCategory.objects.filter(operator=operator)
+        except Exception:
+            category_list = []
+
         context = {
             'operator_current': operator,
             'fleetData': vehicle,
@@ -3994,6 +4201,7 @@ def vehicle_add(request, operator_slug):
             'features': features_list,
             'userData': user_data,
             'breadcrumbs': breadcrumbs,
+            'category_list': category_list,
             'tabs': tabs,
             'allowed_operators': allowed_operators,
         }
@@ -4057,6 +4265,7 @@ def vehicle_mass_add(request, operator_slug):
         depot = request.POST.get('depot', '').strip()
         name = request.POST.get('name', '').strip()
         notes = request.POST.get('notes', '').strip()
+        
         summary = request.POST.get('summary', '').strip()
 
         custom = request.POST.get('custom', '').strip()
@@ -4097,6 +4306,23 @@ def vehicle_mass_add(request, operator_slug):
             features_selected = json.loads(request.POST.get('features', '[]'))
         except json.JSONDecodeError:
             features_selected = []
+
+        try:
+            from routes.models import board_category as BoardCategory
+            vc_id = request.POST.get('vehicle_category')
+            if vc_id:
+                try:
+                    cat = BoardCategory.objects.get(id=vc_id)
+                    if cat.operator and vehicle.operator and cat.operator.id == vehicle.operator.id:
+                        vehicle.vehicle_category = cat
+                    else:
+                        vehicle.vehicle_category = None
+                except BoardCategory.DoesNotExist:
+                    vehicle.vehicle_category = None
+            else:
+                vehicle.vehicle_category = None
+        except Exception:
+            pass
 
         created_count = 0
         for i in range(1, number_of_vehicles + 1):
@@ -4155,6 +4381,12 @@ def vehicle_mass_add(request, operator_slug):
 
         tabs = []
 
+        try:
+            from routes.models import board_category as BoardCategory
+            category_list = BoardCategory.objects.filter(operator=operator)
+        except Exception:
+            category_list = []
+
         context = {
             'fleetData': vehicle,
             'operator_current': operator,
@@ -4164,6 +4396,7 @@ def vehicle_mass_add(request, operator_slug):
             'features': features_list,
             'userData': user_data,
             'breadcrumbs': breadcrumbs,
+            'categoryData': category_list,
             'tabs': tabs,
         }
         return render(request, 'mass_add.html', context)
@@ -4344,6 +4577,24 @@ def vehicle_mass_edit(request, operator_slug):
             except liverie.DoesNotExist:
                 vehicle.livery = None
 
+            # Vehicle category (shared field in the form) — ensure it belongs to the operator
+            try:
+                from routes.models import board_category as BoardCategory
+                vc_id = request.POST.get('vehicle_category')
+                if vc_id:
+                    try:
+                        cat = BoardCategory.objects.get(id=vc_id)
+                        if cat.operator and vehicle.operator and cat.operator.id == vehicle.operator.id:
+                            vehicle.vehicle_category = cat
+                        else:
+                            vehicle.vehicle_category = None
+                    except BoardCategory.DoesNotExist:
+                        vehicle.vehicle_category = None
+                else:
+                    vehicle.vehicle_category = None
+            except Exception:
+                pass
+
             try:
                 features_selected = json.loads(request.POST.get('features', '[]'))
                 vehicle.features = features_selected
@@ -4424,6 +4675,13 @@ def vehicle_mass_edit(request, operator_slug):
         else:
             hide_sell_button = False
         # GET: pre-fill form with first vehicle for shared fields
+        # categories for this operator
+        try:
+            from routes.models import board_category as BoardCategory
+            category_list = BoardCategory.objects.filter(operator=operator)
+        except Exception:
+            category_list = []
+
         context = {
             'hide_sell_button': hide_sell_button,
             'fleetData': vehicles[0],  # Used for shared fields
@@ -4431,6 +4689,7 @@ def vehicle_mass_edit(request, operator_slug):
             'operatorData': allowed_operators,
             'typeData': types,
             'liveryData': liveries_list,
+            'categoryData': category_list,
             'features': features_list,
             'userData': [request.user],
             'vehicle_count': len(vehicles),
@@ -4481,6 +4740,132 @@ def vehicle_select_mass_edit(request, operator_slug):
         'vehicles': vehicles,
     }
     return render(request, 'mass_edit_select.html', context)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def duty_select_mass_edit(request, operator_slug):
+    response = feature_enabled(request, "mass_edit_boards")
+    if response:
+        return response
+
+    operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
+    userPerms = get_helper_permissions(request.user, operator)
+
+    if request.user != operator.owner and 'Mass Edit Boards' not in userPerms and not request.user.is_superuser:
+        messages.error(request, "You do not have permission to mass edit boards for this operator.")
+        return redirect(f'/operator/{operator_slug}/')
+
+    def alphanum_key(name):
+        return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', name or '')]
+
+    duties_qs = list(duty.objects.filter(duty_operator=operator))
+    duties_qs.sort(key=lambda d: alphanum_key(d.duty_name))
+
+    if request.method == "POST":
+        selected_ids = request.POST.getlist('selected_duties')
+        if not selected_ids:
+            messages.error(request, "You must select at least one board.")
+            return redirect(request.path)
+
+        id_string = ",".join(selected_ids)
+        return redirect(f'/operator/{operator_slug}/duties/mass-edit/?ids={id_string}')
+
+    context = {
+        'operator': operator,
+        'duties': duties_qs,
+    }
+    return render(request, 'mass_edit_select_boards.html', context)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def duty_mass_edit(request, operator_slug):
+    response = feature_enabled(request, "mass_edit_boards")
+    if response:
+        return response
+
+    operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
+    userPerms = get_helper_permissions(request.user, operator)
+    if request.user != operator.owner and 'Mass Edit Boards' not in userPerms and not request.user.is_superuser:
+        messages.error(request, "You do not have permission to mass edit boards for this operator.")
+        return redirect(f'/operator/{operator_slug}/duties/')
+
+    ids = request.GET.get('ids', '')
+    duty_ids = [int(x) for x in ids.split(',') if x.strip().isdigit()]
+    duties = list(duty.objects.filter(id__in=duty_ids, duty_operator=operator))
+
+    if not duties:
+        messages.error(request, "No valid boards selected for editing.")
+        return redirect(f'/operator/{operator_slug}/duties/')
+
+    # Categories for this operator (numeric-aware ordered)
+    try:
+        qs_categories = board_category.objects.filter(operator=operator)
+        def _parse_name_key(name):
+            rn = (name or '').upper()
+            normal = re.match(r'^([0-9]+)$', rn)
+            xprefix = re.match(r'^X([0-9]+)$', rn)
+            suffix = re.match(r'^([0-9]+)([A-Z]+)$', rn)
+            other = re.match(r'^([A-Z]+)([0-9]+)$', rn)
+            if normal:
+                return (0, int(normal.group(1)), "")
+            if suffix:
+                return (1, int(suffix.group(1)), suffix.group(2))
+            if xprefix:
+                return (2, int(xprefix.group(1)), "X")
+            if other:
+                return (3, other.group(1), int(other.group(2)))
+            return (4, rn, 0)
+
+        category_list = list(qs_categories)
+        category_list.sort(key=lambda c: _parse_name_key(c.name))
+    except Exception:
+        category_list = board_category.objects.filter(operator=operator).order_by('name')
+
+    if request.method == 'POST':
+        updated = 0
+        for i, bd in enumerate(duties, start=1):
+            name = request.POST.get(f'duty_name_{i}', bd.duty_name).strip()
+            cat_id = request.POST.get(f'category_{i}')
+            board_type_val = request.POST.get(f'board_type_{i}', bd.board_type)
+
+            bd.duty_name = name
+
+            if cat_id:
+                try:
+                    c = board_category.objects.get(id=cat_id)
+                    if c.operator and bd.duty_operator and c.operator.id == bd.duty_operator.id:
+                        bd.category = c
+                    else:
+                        bd.category = None
+                except board_category.DoesNotExist:
+                    bd.category = None
+            else:
+                bd.category = None
+
+            if board_type_val in ['duty', 'running-boards']:
+                bd.board_type = board_type_val
+
+            bd.save()
+            updated += 1
+
+        messages.success(request, f"{updated} board(s) updated successfully.")
+        return redirect(f'/operator/{operator_slug}/duties/select-mass-edit')
+
+    context = {
+        'duties': duties,
+        'categoryData': category_list,
+        'breadcrumbs': [
+            {'name': 'Home', 'url': '/'},
+            {'name': operator.operator_name, 'url': f'/operator/{operator_slug}/'},
+            {'name': 'Duties', 'url': f'/operator/{operator_slug}/duties/'},
+            {'name': 'Mass Edit Boards', 'url': request.path},
+        ],
+        'tabs': generate_tabs('duties', operator),
+        'operator': operator,
+    }
+    return render(request, 'mass_edit_boards.html', context)
  
 @login_required
 @require_http_methods(["GET", "POST"])
@@ -6380,11 +6765,32 @@ def mass_log_trips(request, operator_slug):
 
     if request.method == "POST":
         vehicle_id = request.POST.get("vehicle")
+
+        if request.POST.get("vehicle"):
+            vehicle_id = request.POST.get("vehicle")
+        elif request.POST.get("running_board_vehicle"):
+            vehicle_id = request.POST.get("running_board_vehicle")
+        elif request.POST.get("duty_vehicle"):
+            vehicle_id = request.POST.get("duty_vehicle")
+        else:
+            vehicle_id = None
+
         duty_id = request.POST.get("duty")
         running_board_id = request.POST.get("running_board")
         start_at = request.POST.get("start_at")
 
-        vehicle = get_object_or_404(fleet, id=vehicle_id)
+        # Validate vehicle id from POST before querying
+        if not vehicle_id:
+            messages.error(request, "No vehicle selected.")
+            return redirect(request.path)
+
+        try:
+            vehicle_pk = int(vehicle_id)
+        except (TypeError, ValueError):
+            messages.error(request, "Invalid vehicle selected.")
+            return redirect(request.path)
+
+        vehicle = get_object_or_404(fleet, id=vehicle_pk)
 
         # Handle Duty or Running Board logging
         if duty_id:
@@ -6693,15 +7099,15 @@ def mass_assign_boards(request, operator_slug):
     # ----------------------------------------------------------------------
     duties_list = duty.objects.filter(
         duty_operator=operator, board_type='duty'
-    ).order_by('duty_name')
+    ).select_related('category').prefetch_related('duty_trips').order_by('duty_name')
 
     running_list = duty.objects.filter(
         duty_operator=operator, board_type='running-boards'
-    ).order_by('duty_name')
+    ).select_related('category').prefetch_related('duty_trips').order_by('duty_name')
 
     vehicles = fleet.objects.filter(
         Q(operator=operator) | Q(loan_operator=operator), in_service=True
-    ).order_by('fleet_number_sort')
+    ).select_related('vehicle_category').order_by('fleet_number_sort')
 
     breadcrumbs = [
         {'name': 'Home', 'url': '/'},
@@ -6784,3 +7190,63 @@ def route_update_delete(request, operator_slug, route_id, update_id):
         'route_id': route_id,
         'operator_slug': operator_slug
     })
+
+@login_required
+@require_http_methods(["GET"])
+def boards_api(request, operator_slug):
+    """
+    API for Select2 to load boards (duties and running boards) for mass assign.
+    """
+    operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
+
+    # Permissions
+    userPerms = get_helper_permissions(request.user, operator)
+    if (
+        request.user != operator.owner
+        and 'Mass Log Trips' not in userPerms
+        and not request.user.is_superuser
+    ):
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+
+    board_type = request.GET.get('type', '').strip()
+    search = request.GET.get('q', '').strip()
+    category = request.GET.get('category', '').strip()
+    excluded = request.GET.get('excluded', '').strip()
+
+    if board_type == 'running':
+        board_type = 'running-boards'
+
+    queryset = duty.objects.filter(
+        duty_operator=operator,
+    ).select_related('category')
+
+    if board_type:
+        queryset = queryset.filter(board_type=board_type)
+
+    if category:
+        queryset = queryset.filter(category__id=category)
+
+    if search:
+        queryset = queryset.filter(duty_name__icontains=search)
+
+    # Exclude any IDs passed from the client (comma-separated)
+    if excluded:
+        try:
+            ids = [int(x) for x in excluded.split(',') if x.strip().isdigit()]
+            if ids:
+                queryset = queryset.exclude(id__in=ids)
+        except Exception:
+            pass
+
+    queryset = queryset.order_by('duty_name')
+
+    results = []
+    for board in queryset:
+        results.append({
+            'id': board.id,
+            'text': board.duty_name,
+            'category': board.category.name if board.category else 'No Category',
+            'type': board.board_type
+        })
+
+    return JsonResponse({'results': results})

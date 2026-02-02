@@ -1,5 +1,5 @@
 from datetime import datetime
-from main.models import theme, ad, google_ad, featureToggle, BannedIps, ActiveSubscription
+from main.models import theme, ad, google_ad, featureToggle, BannedIps, ActiveSubscription, DeviceBan, Device
 from django.utils import timezone
 from datetime import timedelta
 from django.contrib.auth import get_user_model
@@ -7,6 +7,7 @@ from mybustimes import settings
 from django.shortcuts import render
 from django.db.models import Q
 import json
+from mybustimes.middleware.rest_last_active import derive_device_fingerprint
 
 User = get_user_model()
 
@@ -249,6 +250,66 @@ def theme_settings(request):
 
     banned = user_has_banned_ip or user_account_banned
 
+    # Device ban checks (if middleware attached fingerprint)
+    device_fp = None
+    device_banned = False
+    device_ban_reason = None
+    try:
+        # Do not surface device bans on admin API pages to avoid locking out admins
+        if request.path.startswith('/api-admin/') or request.path.startswith('/admin/'):
+            device_fp = getattr(request, 'device_fingerprint', None) or request.COOKIES.get('mbt_device_fp')
+            device_banned = False
+            device_ban_reason = None
+        else:
+            device_fp = getattr(request, 'device_fingerprint', None) or request.COOKIES.get('mbt_device_fp')
+            derived_fp = getattr(request, 'derived_device_fp', None) or derive_device_fingerprint(request)
+
+            # 1) explicit fingerprint check
+            if device_fp:
+                db = DeviceBan.objects.filter(fingerprint=device_fp, active=True).first()
+                if db:
+                    device_banned = True
+                    device_ban_reason = db.reason
+                    banned = True
+
+            # 2) derived fingerprint check
+            if not device_banned and derived_fp:
+                db = DeviceBan.objects.filter(fingerprint=derived_fp, active=True).first()
+                if db:
+                    device_banned = True
+                    device_ban_reason = db.reason
+                    banned = True
+
+            # 3) check devices seen previously at this IP
+            if not device_banned and ip:
+                try:
+                    fps = list(Device.objects.filter(last_ip=ip).values_list('fingerprint', flat=True))
+                    if fps:
+                        db = DeviceBan.objects.filter(fingerprint__in=fps, active=True).first()
+                        if db:
+                            device_banned = True
+                            device_ban_reason = db.reason
+                            banned = True
+
+                    # also consider devices with same IP and matching User-Agent
+                    if not device_banned:
+                        ua = request.META.get('HTTP_USER_AGENT', '')
+                        if ua:
+                            ua_match = ua[:150]
+                            fps2 = list(Device.objects.filter(last_ip=ip, user_agent__startswith=ua_match).values_list('fingerprint', flat=True))
+                            if fps2:
+                                db = DeviceBan.objects.filter(fingerprint__in=fps2, active=True).first()
+                                if db:
+                                    device_banned = True
+                                    device_ban_reason = db.reason
+                                    banned = True
+                except Exception:
+                    pass
+    except Exception:
+        device_fp = None
+        device_banned = False
+        device_ban_reason = None
+
     if user.is_authenticated and (user.is_superuser or user.is_staff):
         admin = True
     else:
@@ -296,6 +357,9 @@ def theme_settings(request):
         'mbt_ads_enabled': mbt_ads_enabled,
         'ads_enabled': ads_enabled,
         'admin': admin,
+        'device_banned': device_banned,
+        'device_ban_reason': device_ban_reason,
+        'device_fp': device_fp,
         'CF_SITE_KEY': CF_SITE_KEY,
         'STRIPE_BILLING_PORTAL_URL': STRIPE_BILLING_PORTAL_URL,
         'favicon_ico': favicon_ico,

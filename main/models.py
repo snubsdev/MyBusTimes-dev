@@ -214,10 +214,10 @@ class BannedIps(models.Model):
         return f"{self.ip_address} - {self.reason or 'No reason provided'}"
     
 class region(models.Model):
-    region_name = models.CharField(max_length=100, unique=True)
-    region_code = models.CharField(max_length=3, unique=True)
-    region_country = models.CharField(max_length=100, default='England')
-    in_the = models.BooleanField(default=False)
+    region_name = models.CharField(max_length=100, unique=True, db_index=True)
+    region_code = models.CharField(max_length=3, unique=True, db_index=True)
+    region_country = models.CharField(max_length=100, default='England', db_index=True)
+    in_the = models.BooleanField(default=False, db_index=True)
 
     history = HistoricalRecords()
 
@@ -347,5 +347,54 @@ class CommunityImages(models.Model):
 
     def __str__(self):
         return f"Image {self.id} uploaded by {self.uploaded_by.username}"
+
+
+class DeviceBan(models.Model):
+    fingerprint = models.CharField(max_length=128, unique=True)
+    reason = models.TextField(blank=True, null=True)
+    banned_at = models.DateTimeField(auto_now_add=True)
+    active = models.BooleanField(default=True)
+    related_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='device_bans'
+    )
+
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return f"{self.fingerprint} - {'Active' if self.active else 'Inactive'}"
+
+class Device(models.Model):
+    fingerprint = models.CharField(max_length=128, unique=True)
+    first_seen = models.DateTimeField(auto_now_add=True)
+    last_seen = models.DateTimeField(auto_now=True)
+    last_ip = models.GenericIPAddressField(blank=True, null=True)
+    last_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='devices')
+    user_agent = models.TextField(blank=True, null=True)
+    seen_count = models.PositiveIntegerField(default=0)
+
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return self.fingerprint
+
+
+class DeviceUsage(models.Model):
+    device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name='usages')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='device_usages')
+    first_seen = models.DateTimeField(auto_now_add=True)
+    last_seen = models.DateTimeField(auto_now=True)
+    usage_count = models.PositiveIntegerField(default=0)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        unique_together = ('device', 'user')
+
+    def __str__(self):
+        return f"{self.device.fingerprint} - {self.user.username}"
 
 User = get_user_model()

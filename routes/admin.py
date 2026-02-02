@@ -25,6 +25,10 @@ def deduplicate_routes(modeladmin, request, queryset):
     modeladmin.message_user(request, f"{len(duplicates)} duplicate routes removed.")
 
 
+class board_categoryAdmin(SimpleHistoryAdmin):
+    search_fields = ['name']
+    list_display = ['name', 'operator']
+
 class routeTypeAdmin(SimpleHistoryAdmin):
     search_fields = ['name']
     list_display = ['name', 'description']
@@ -118,5 +122,6 @@ admin.site.register(timetableEntry, timetableEntryAdmin)
 admin.site.register(routeStop, routeStopsAdmin)
 admin.site.register(duty, dutyAdmin)
 admin.site.register(dutyTrip, dutyAdminTrip)
+admin.site.register(board_category, board_categoryAdmin)
 
 admin.site.site_header = "MyBusTimes Admin"

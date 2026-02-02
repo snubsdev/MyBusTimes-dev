@@ -1,5 +1,7 @@
 from django.shortcuts import render
 from rest_framework import generics, permissions, viewsets, status, filters
+import re
+from rest_framework.pagination import LimitOffsetPagination
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
@@ -115,6 +117,68 @@ class dayTypeListView(generics.ListCreateAPIView):
     permission_classes = [ReadOnly]
     filter_backends = (DjangoFilterBackend,)
     filterset_class = dayTypeFilter
+
+class boardCategoryListView(generics.ListAPIView):
+    """API endpoint for board categories.
+
+    Supports filtering by operator (operator=id) and search on name (search=term).
+    Results are ordered by name for predictable display.
+    """
+    serializer_class = boardCategorySerializer
+    permission_classes = [ReadOnly]
+    pagination_class = LimitOffsetPagination
+    filter_backends = (DjangoFilterBackend, filters.SearchFilter)
+    filterset_fields = ['operator']
+    search_fields = ['name']
+
+    def get_queryset(self):
+        qs = board_category.objects.all()
+        operator = self.request.query_params.get('operator')
+        if operator:
+            qs = qs.filter(operator__id=operator)
+
+        # Let DRF/DjangoFilterBackend/SearchFilter do their work first, then sort in Python if needed
+        # This ensures we always return a QuerySet for filtering/searching, and only sort after filtering
+        qs = qs.order_by('name')  # fallback ordering for DB
+        return qs
+
+    def filter_queryset(self, queryset):
+        # Use default filtering/searching first
+        queryset = super().filter_queryset(queryset)
+
+        # Now apply numeric-aware ordering in Python
+        def parse_name_key(name):
+            route_num = (name or '').upper()
+
+            normal = re.match(r'^([0-9]+)$', route_num)
+            xprefix = re.match(r'^X([0-9]+)$', route_num)
+            suffix = re.match(r'^([0-9]+)([A-Z]+)$', route_num)
+            other = re.match(r'^([A-Z]+)([0-9]+)$', route_num)
+
+            if normal:
+                return (int(normal.group(1)), 0, route_num)
+            elif suffix:
+                return (int(suffix.group(1)), 1, route_num)
+            elif xprefix:
+                return (int(xprefix.group(1)), 2, route_num)
+            elif other:
+                match = re.match(r"([A-Za-z]+)([0-9]+)", route_num)
+                if match:
+                    prefix, number = match.groups()
+                    number = int(number)
+                else:
+                    prefix, number = route_num, float('inf')
+                return (float('inf'), 3, prefix, number)
+            else:
+                return (float('inf'), 4, route_num)
+
+        try:
+            items = list(queryset)
+            items.sort(key=lambda c: parse_name_key(c.name))
+            return items
+        except Exception:
+            print("Error sorting board categories, falling back to name ordering")
+            return queryset
 
 class stopRouteSearchView(APIView):
     def get(self, request):

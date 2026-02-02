@@ -41,6 +41,8 @@ urlpatterns = [
     path('<str:operator_slug>/duties/edit/<int:duty_id>/', duty_edit, name='edit-duty'),
     path('<str:operator_slug>/duties/edit/<int:duty_id>/trips/', duty_edit_trips, name='edit-duty-trips'),
     path('<str:operator_slug>/duties/<int:duty_id>/', duty_detail, name='duty_detail'),
+    path('<str:operator_slug>/duties/mass-edit/', duty_mass_edit, name='mass_edit_boards'),
+    path('<str:operator_slug>/duties/select-mass-edit/', duty_select_mass_edit, name='mass_edit_duties_select'),
 
     # Running boards
     path('<str:operator_slug>/running-boards/', duties, name='operator-duties'),
@@ -104,6 +106,7 @@ urlpatterns = [
     path('<str:operator_slug>/vehicles/<int:vehicle_id>/trips/<int:trip_id>/edit/', vehicles_trip_edit, name='vehicles_trip_edit'),
     path('<str:operator_slug>/vehicles/<int:vehicle_id>/trips/<int:trip_id>/delete/', vehicles_trip_delete, name='vehicles_trip_delete'),
     path('<str:operator_slug>/vehicles/<int:vehicle_id>/trips/flip_all_trip_directions/<str:selected_date>/', flip_all_trip_directions, name='flip_all_trip_directions'),
+    path('<str:operator_slug>/vehicles/<int:vehicle_id>/trips/remove_todays_trips/<str:selected_date>/', remove_todays_trips, name='remove_todays_trips'),
     path('<str:operator_slug>/vehicles/<int:vehicle_id>/trips/remove_other_trips/', remove_other_trips, name='remove_other_trips'),
     path('<str:operator_slug>/vehicles/<int:vehicle_id>/trips/remove_all_trips/', remove_all_trips, name='remove_all_trips'),
 
@@ -128,4 +131,5 @@ urlpatterns = [
     path('<str:operator_slug>/vehicles/mass-log-trips', mass_log_trips, name='operator_mass_log_trips'),
     path('<str:operator_slug>/vehicles/mass-assign', mass_assign_boards, name='operator_mass_assign_boards'),
     path('<str:operator_slug>/vehicles/mass-assign/api/', mass_assign_single_vehicle_api, name='mass_assign_single_vehicle_api'),
+    path('<str:operator_slug>/boards-api/', boards_api, name='boards_api'),
 ]

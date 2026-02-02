@@ -14,7 +14,6 @@ DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
 SECRET_KEY = os.environ["SECRET_KEY"]
 ALLOWED_HOSTS = ['*']
 
-
 DISCORD_GUILD_ID = os.environ["DISCORD_GUILD_ID"]
 DISCORD_BOT_TOKEN = os.environ["DISCORD_BOT_API_TOKEN"]
 

@@ -96,6 +96,15 @@
       {% endfor %}
     </select>
 
+    <label for="vehicle_category">Category:</label>
+    <select name="vehicle_category" id="vehicle_category">
+      <option value=""></option>
+      {% for cat in categoryData %}
+      <option value="{{ cat.id }}" {% if fleetData.vehicle_category and cat.id == fleetData.vehicle_category.id %}selected{% endif %}>
+        {{ cat.name }}
+      </option>
+      {% endfor %}
+    </select>
 
     <script>
       document.getElementById('length').addEventListener('input', function (e) {
@@ -357,6 +366,42 @@
     $('#type').next('.select2-container').find('.select2-selection--single').addClass('custom-type-radius');
     $('#type').on('select2:open', function () {
       $('.select2-dropdown').css('border-radius', '0 0 .5em .5em');
+    });
+
+    // Vehicle Category select2 (AJAX searchable, filtered by operator)
+    $('#vehicle_category').select2({
+      placeholder: 'Select a category',
+      allowClear: true,
+      width: '100%',
+      ajax: {
+        url: '/api/board-categories/',
+        dataType: 'json',
+        delay: 250,
+        data: function (params) {
+          return {
+            search: params.term || '',
+            operator: $('#operator').val() || '{{ fleetData.operator.id }}',
+            limit: 100,
+            offset: params.page ? params.page * 100 : 0
+          };
+        },
+        processResults: function (data, params) {
+          params.page = params.page || 0;
+          return {
+            results: data.results.map(function (cat) {
+              return { id: cat.id, text: cat.name };
+            }),
+            pagination: { more: data.next !== null }
+          };
+        },
+        cache: true
+      },
+      minimumInputLength: 0
+    });
+
+    // When operator changes, clear the category selection so user re-selects
+    $('#operator').on('change', function () {
+      $('#vehicle_category').val(null).trigger('change');
     });
   });
 </script>

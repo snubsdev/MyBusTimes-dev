@@ -172,6 +172,19 @@
                 <button type="button" class="btn btn-secondary" onclick="shiftAllStops(5)">+5</button>
               </div>
             </div>
+
+            <div class="divider"><span>Trip-Level Edit</span></div>
+
+            <div class="trip-edit-controls">
+              <label>Remove Trip Across All Stops</label>
+              <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+                <div style="display:flex;gap:0.5rem;align-items:center">
+                  <input type="number" id="trip-index-global" placeholder="Trip number" min="1" style="max-width: 50%;padding:0.5rem;border:1px solid var(--border-color);border-radius:0.5rem;">
+                  <button type="button" class="btn btn-secondary" onclick="removeTripAtIndexGlobal()">Remove</button>
+                </div>
+              </div>
+              <small style="display:block;margin-top:0.5rem;opacity:0.8">Note: indexes are 0-based (first trip = 0). Changes are client-side until you save.</small>
+            </div>
           </div>
         </div>
 
@@ -277,6 +290,64 @@ function shiftTimes(stopIndex, minutes) {
 function shiftAllStops(minutes) {
   document.querySelectorAll('.times-chips').forEach((container, index) => {
     shiftTimes(index, minutes);
+  });
+}
+
+// Trip-level global operations: remove/add trip across all stops
+function removeTripAtIndexGlobal() {
+  const idxVal = document.getElementById('trip-index-global').value;
+  const idx = parseInt(idxVal, 10);
+  if (isNaN(idx) || idx < 0) {
+    alert('Please enter a valid trip index (0-based).');
+    return;
+  }
+  document.querySelectorAll('.times-chips').forEach((container, stopIndex) => {
+    const inputs = container.querySelectorAll('.time-chip-input');
+    if (idx < inputs.length) {
+      inputs[idx].parentElement.remove();
+      updateTimesHidden(stopIndex);
+    }
+  });
+}
+
+function removeTripByTimeGlobal() {
+  const t = document.getElementById('trip-time-global').value;
+  if (!t) {
+    alert('Please select a time to remove.');
+    return;
+  }
+  document.querySelectorAll('.times-chips').forEach((container, stopIndex) => {
+    const inputs = Array.from(container.querySelectorAll('.time-chip-input'));
+    const match = inputs.find(input => input.value === t);
+    if (match) {
+      match.parentElement.remove();
+      updateTimesHidden(stopIndex);
+    }
+  });
+}
+
+function addTripAtIndexGlobal() {
+  const t = document.getElementById('add-trip-time-global').value;
+  const idxVal = document.getElementById('add-trip-index-global').value;
+  const idx = parseInt(idxVal, 10);
+  if (!t || isNaN(idx) || idx < 0) {
+    alert('Please provide a valid time and index (0-based).');
+    return;
+  }
+  document.querySelectorAll('.times-chips').forEach((container, stopIndex) => {
+    const addBtn = container.querySelector('.add-time-btn');
+    const inputs = container.querySelectorAll('.time-chip-input');
+    const chip = document.createElement('div');
+    chip.className = 'time-chip';
+    chip.innerHTML = `\n      <input type="time" value="${t}" class="time-chip-input" onchange="updateTimesHidden(${stopIndex})">\n      <button type="button" class="time-chip-remove" onclick="removeTime(this, ${stopIndex})" title="Remove time">×</button>\n    `;
+    if (idx >= inputs.length) {
+      container.insertBefore(chip, addBtn);
+    } else {
+      container.insertBefore(chip, inputs[idx].parentElement);
+    }
+    const inputEl = chip.querySelector('.time-chip-input');
+    inputEl.addEventListener('change', function() { this.parentElement.classList.toggle('empty-time', !this.value); });
+    updateTimesHidden(stopIndex);
   });
 }
 

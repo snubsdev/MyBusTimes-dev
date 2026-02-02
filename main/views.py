@@ -1,4 +1,5 @@
 #python imports
+from itertools import count
 import json
 import operator
 import random
@@ -29,7 +30,9 @@ from django.http import JsonResponse, HttpResponseBadRequest
 from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.cache import cache_page
 from django.db.models import Q
+from django.core.cache import cache
 from django.utils.timezone import now
 from django.contrib import messages
 from django.views.decorators.http import require_GET
@@ -94,6 +97,9 @@ def community_hub(request):
 
 def resources(request):
     return render(request, 'resources.html')
+
+def appeal_ban(request):
+    return HttpResponse("No")
 
 @csrf_exempt
 def get_user_profile(request):
@@ -251,49 +257,45 @@ def transparency(request):
     }
     return render(request, 'transparency.html', context)
 
-def index(request):
-    # Load mod.json messages as before
-    for_sale_vehicles = fleet.objects.filter(for_sale=True).order_by('fleet_number').count()
 
-    path = "JSON/mod.json"
+def get_random_message():
+    messages = cache.get('mod_messages')
+    if messages is None:
+        with default_storage.open("JSON/mod.json", "r") as f:
+            data = json.load(f)
+        messages = data.get('messages', [])
+        cache.set('mod_messages', messages, 3600)  # Cache for 1 hour
+    return random.choice(messages) if messages else "Welcome!"
 
-    with default_storage.open(path, "r") as f:
-        data = json.load(f)
-    messages = data.get('messages', [])
-    message = random.choice(messages) if messages else "Welcome!"
-
-    # Get all regions from DB, order by country and then name
-    regions = region.objects.all().order_by('region_country', 'region_name')
-
-    breadcrumbs = [{'name': 'Home', 'url': '/'}]
-    if for_sale_vehicles > 9999: 
-        for_sale_vehicles = "10K+"
-    elif for_sale_vehicles > 8999: 
-        for_sale_vehicles = "9K+"
-    elif for_sale_vehicles > 7999: 
-        for_sale_vehicles = "8K+"
-    elif for_sale_vehicles > 6999: 
-        for_sale_vehicles = "7K+"
-    elif for_sale_vehicles > 5999: 
-        for_sale_vehicles = "6K+"
-    elif for_sale_vehicles > 4999: 
-        for_sale_vehicles = "5K+"
-    elif for_sale_vehicles > 3999: 
-        for_sale_vehicles = "4K+"
-    elif for_sale_vehicles > 2999: 
-        for_sale_vehicles = "3K+"
-    elif for_sale_vehicles > 1999: 
-        for_sale_vehicles = "2K+"
-    elif for_sale_vehicles > 999: 
-        for_sale_vehicles = "1K+"
-    else:
-        for_sale_vehicles = for_sale_vehicles
+@cache_page(60 * 5)  # Cache for 5 minutes
+def for_sale_count_api(request):
+    count = fleet.objects.filter(for_sale=True).count()
     
+    # Format the count
+    if count > 999:
+        formatted = f"{count // 1000}K+"
+    else:
+        formatted = str(count)
+    
+    return JsonResponse({
+        'count': count,
+        'formatted': formatted
+    })
+
+def index(request):
+    message = get_random_message()
+    
+    # Cache regions for 1 hour
+    regions = cache.get('all_regions')
+    if regions is None:
+        regions = list(region.objects.all().order_by('region_country', 'region_name'))
+        cache.set('all_regions', regions, 3600)
+    
+    breadcrumbs = [{'name': 'Home', 'url': '/'}]
     context = {
         'breadcrumbs': breadcrumbs,
         'message': message,
         'regions': regions,
-        'for_sale_vehicles': for_sale_vehicles,
     }
     return render(request, 'index.html', context)
 

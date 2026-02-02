@@ -535,7 +535,7 @@ class stripe_webhook(APIView):
                 defaults={
                     "user": user,
                     "start_date": timezone.now(),
-                    "end_date": user.ad_free_until,
+                    "end_date": user.ad_free_until + timedelta(days=7), # grace period
                     "plan": effective_plan,
                     "is_trial": False,
                 }
@@ -547,7 +547,7 @@ class stripe_webhook(APIView):
                 user=user,
                 stripe_subscription_id=None,
                 start_date=timezone.now(),
-                end_date=user.ad_free_until,
+                end_date=user.ad_free_until + timedelta(days=7), # grace period
                 plan=effective_plan,
                 is_trial=False,
             )
@@ -560,8 +560,36 @@ class stripe_webhook(APIView):
         print("👉 Handling invoice.payment_succeeded")
         print("Invoice top-level metadata:", invoice.get("metadata"))
 
+        print(" ")
+        print("==============================")
+        print("Full invoice payload:", invoice)
+        print("==============================")
+        print(" ")
+
         customer_id = invoice.get("customer")
         subscription_id = invoice.get("subscription")
+
+        # If Stripe didn't set the top-level `subscription` field, try to
+        # extract it from known nested locations (invoice parent or first
+        # line item's parent). This covers payloads where subscription id
+        # appears under `parent.subscription_details.subscription` or
+        # `lines.data[0].parent.subscription_item_details.subscription`.
+        if not subscription_id:
+            try:
+                # parent.subscription_details.subscription
+                subscription_id = invoice.get("parent", {}).get("subscription_details", {}).get("subscription")
+                if not subscription_id:
+                    # lines -> first item -> parent -> subscription_item_details -> subscription
+                    first_line_parent = invoice.get("lines", {}).get("data", [])[0].get("parent", {})
+                    subscription_id = first_line_parent.get("subscription") or first_line_parent.get("subscription_item_details", {}).get("subscription") or first_line_parent.get("subscription_item", None)
+                if subscription_id:
+                    print("ℹ Extracted subscription_id from nested invoice data:", subscription_id)
+            except Exception:
+                pass
+        # Extra debug: some invoice payloads may include customer_email or
+        # other identifiers — log them to help diagnose missing links.
+        customer_email = invoice.get("customer_email") or invoice.get("billing_reason")
+        print("Invoice customer_id:", customer_id, "subscription_id:", subscription_id, "customer_email:", customer_email)
 
         # Find user
         user = None
@@ -572,11 +600,33 @@ class stripe_webhook(APIView):
                 user = sub_obj.user
                 print("✔ Found user via subscription_id:", user.username)
 
+        # Fallback: user might have the subscription id stored directly on
+        # the CustomUser record (legacy flows). Try that as well.
+        if not user and subscription_id:
+            try:
+                user_fallback = CustomUser.objects.filter(stripe_subscription_id=subscription_id).first()
+                if user_fallback:
+                    user = user_fallback
+                    print("✔ Found user via CustomUser.stripe_subscription_id:", user.username)
+            except Exception:
+                pass
+
         if not user and customer_id:
             sub_obj = StripeSubscription.objects.filter(customer_id=customer_id).order_by("-id").first()
             if sub_obj:
                 user = sub_obj.user
                 print("✔ Found user via customer_id:", user.username)
+
+        # Another fallback: try to match by customer email if present on the
+        # invoice payload (some Stripe setups include this).
+        if not user and customer_email:
+            try:
+                user_email_match = CustomUser.objects.filter(email__iexact=customer_email).first()
+                if user_email_match:
+                    user = user_email_match
+                    print("✔ Found user via invoice customer_email:", user.username)
+            except Exception:
+                pass
 
         if not user:
             print("❌ No linked user found for invoice")
@@ -613,25 +663,77 @@ class stripe_webhook(APIView):
         user.save(update_fields=["ad_free_until", "sub_plan"])
         print("✔ User updated:", user.username, user.sub_plan, user.ad_free_until)
 
+        # Determine sensible `start_date` for the StripeSubscription record
+        # Prefer the invoice line period start, fall back to invoice top-level
+        # `period_start`, otherwise use today to satisfy the NOT NULL constraint.
+        try:
+            period_start_ts = first_line.get("period", {}).get("start") or invoice.get("period_start")
+            if period_start_ts:
+                start_date_date = datetime.datetime.fromtimestamp(period_start_ts, tz=datetime.timezone.utc).date()
+            else:
+                start_date_date = timezone.now().date()
+        except Exception:
+            start_date_date = timezone.now().date()
 
-        # Update or create subscription record
-        if subscription_id:
+        # Determine an effective subscription id to use (either from the event
+        # or from an existing StripeSubscription found via customer_id).
+        effective_subscription_id = subscription_id
+        if not effective_subscription_id and sub_obj and getattr(sub_obj, 'subscription_id', None):
+            effective_subscription_id = sub_obj.subscription_id
+            print("ℹ Using subscription_id from StripeSubscription record:", effective_subscription_id)
+
+        # Update or create subscription record. Prefer using subscription_id
+        # when available, otherwise fall back to customer_id so we still record
+        # end_date against the customer's subscription record.
+        if effective_subscription_id:
             StripeSubscription.objects.update_or_create(
-                subscription_id=subscription_id,
-                defaults={"end_date": ad_free_until.date(), "user": user}
+                subscription_id=effective_subscription_id,
+                defaults={
+                    "start_date": start_date_date,
+                    "end_date": ad_free_until.date(),
+                    "user": user,
+                    "customer_id": customer_id,
+                },
             )
-            print("✔ Updated StripeSubscription end_date")
+            print("✔ Updated StripeSubscription end_date (by subscription_id)")
+        elif customer_id:
+            # No subscription id available in the webhook; update/create by
+            # customer_id so the record still gets its end_date and owner set.
+            StripeSubscription.objects.update_or_create(
+                customer_id=customer_id,
+                defaults={
+                    "start_date": start_date_date,
+                    "end_date": ad_free_until.date(),
+                    "user": user,
+                },
+            )
+            print("✔ Updated StripeSubscription end_date (by customer_id)")
 
-            # Create new ActiveSubscription record for this payment period
-            ActiveSubscription.objects.get_or_create(
-                user=user,
-                stripe_subscription_id=subscription_id,
-                start_date=timezone.now(),
-                end_date=ad_free_until,
-                plan=plan_level or user.sub_plan or "basic",
-                is_trial=False
+        # Create or update ActiveSubscription for this payment period. If we
+        # have an effective subscription id use it; otherwise create a
+        # subscriptionless ActiveSubscription (e.g. one-off payment).
+        active_defaults = {
+            "start_date": timezone.now(),
+            "end_date": ad_free_until + timedelta(days=7),  # grace period
+            "plan": plan_level or user.sub_plan or "basic",
+            "is_trial": False,
+        }
+
+        if effective_subscription_id:
+            ActiveSubscription.objects.update_or_create(
+                stripe_subscription_id=effective_subscription_id,
+                defaults={"user": user, **active_defaults},
             )
-            print("✔ Created ActiveSubscription record for invoice payment")
+            print("✔ Updated/created ActiveSubscription record for invoice payment")
+        else:
+            # subscriptionless invoice (one-off payment) — create an entry
+            # tied to the user without a stripe id.
+            ActiveSubscription.objects.create(
+                user=user,
+                stripe_subscription_id="Renewed for invoice " + invoice.get("id"),
+                **active_defaults,
+            )
+            print("✔ Created ActiveSubscription record (no subscription id) for invoice payment")
 
         return Response(status=200)
     
@@ -658,7 +760,7 @@ def create_checkout_session(request):
             user=user,
             stripe_subscription_id=None,
             start_date=timezone.now(),
-            end_date=new_ad_free_until,
+            end_date=new_ad_free_until + timedelta(days=7), # grace period
             plan=product_type,
             is_trial=True
         )

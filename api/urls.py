@@ -12,11 +12,14 @@ from django_ratelimit.decorators import ratelimit
 
 urlpatterns = [
     path("timetable/<int:route_id>/<str:direction>/", get_timetable, name="timetable-api"),
+    path("for-sale-count/", for_sale_count_api, name="for_sale_count_api"),
     path("route/<int:route_id>/timetable-trips/", ratelimit(key='ip', method='GET', rate='10/s')(get_timetable_trips), name="timetable-trips-api"),
     path('check-string/', ratelimit(key='ip', method='GET', rate='5/s')(check_string_view), name='check_string_api'),
     path('online-members/', ratelimit(key='ip', method='GET', rate='5/s')(online_members), name='online-members'),
     path('liveries/', ratelimit(key='ip', method='GET', rate='10/s')(liveriesListView.as_view()), name='liveries-list'),
     path('liveries/<int:pk>/', ratelimit(key='ip', method='GET', rate='10/s')(liveriesDetailView.as_view()), name='liveries-detail'),
+    # Board categories - searchable and filterable by operator
+    path('board-categories/', ratelimit(key='ip', method='GET', rate='10/s')(boardCategoryListView.as_view()), name='board-categories-list'),
     path('type/', ratelimit(key='ip', method='GET', rate='10/s')(typeListView.as_view()), name='type-list'),
     path('type/<int:pk>/', ratelimit(key='ip', method='GET', rate='10/s')(typeDetailView.as_view()), name='type-detail'),
     path('routes/<int:pk>/stops/', ratelimit(key='ip', method='GET', rate='100/s')(routeStops.as_view()), name='route-stops'),

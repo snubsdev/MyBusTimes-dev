@@ -46,11 +46,9 @@
 </div>
 <script src="{% static 'js/status-home.js' %}"></script>
 <br>
-<div class="in-page-ad" id="body-ad-1">
-  <div class="incontent-ad-container" style="height:100px;">
+  <div class="incontent-ad-container in-page-ad" style="height:100px;">
     <div id="AFM_inContent_ad" style="margin:auto;"></div>
   </div>
-</div>
 
 {% if suggested_theme == False %}
   {% if suggested_theme_obj %}
@@ -64,19 +62,12 @@
       </button>
   </div><br>
 
-  <div class="in-page-ad" id="body-ad-1">
-    <div class="incontent-ad-container" style="height:100px;">
-      <div id="AFM_inContent_ad" style="margin:auto;"></div>
-    </div>
+  <div class="incontent-ad-container in-page-ad" style="height:100px;">
+    <div id="AFM_inContent_ad" style="margin:auto;"></div>
   </div>
   <br>
   {% endif %}
 {% endif %}
-<div class="in-page-ad" id="body-ad-1">
-  <div class="incontent-ad-container" style="height:100px;">
-    <div id="AFM_inContent_ad" style="margin:auto;"></div>
-  </div>
-</div>
 <div class="panes">
   <div class="pane">
     <div class="helpful-links">
@@ -90,7 +81,7 @@
           {% endif %}
         </li>
         {% if admin %}
-        <li class="chip"><a href="/admin/">Admin Portal</a></li>
+        <li class="chip"><a href="/admin/">Staff Portal</a></li>
         {% endif %}
         <li class="chip"><a href="/operator/create/">Create A Company</a></li>
         <li class="chip"><a href="/create/livery">Create A Livery</a></li>
@@ -98,17 +89,30 @@
         <!--<li class="chip"><a href="https://ticketer.mybustimes.cc">Ticketer (Alpha Demo)</a></li>-->
         <li class="chip for-sale-chip">
           <a href="/for_sale/">For Sale Vehicles</a>
-          <span class="dot-badge">{{ for_sale_vehicles }}</span>
+          <span class="dot-badge" id="for-sale-count">...</span>
         </li>
         <li class="chip"><a href="/displays/">Bus Displays</a></li>
       </ul>
     </div>
   </div>
+  <script>
+  // Fetch for-sale count after page loads
+  fetch('/api/for-sale-count/')
+      .then(response => response.json())
+      .then(data => {
+          // Update your UI element with the count
+          const countElement = document.getElementById('for-sale-count');
+          if (countElement) {
+              countElement.textContent = data.formatted;
+          }
+      })
+      .catch(error => console.error('Error fetching for-sale count:', error));
+  </script>
   <div class="pane">
     <h2>&nbsp;</h2>
     <ul class="chips">
      {% if user.is_superuser %}
-        <li class="chip"><a href="/api-admin/">Admin API Portal</a></li>
+        <li class="chip"><a href="/api-admin/">Admin Portal</a></li>
         {% endif %}
       <li class="chip"><a href="/forum/">Forums</a></li>
       <li class="chip"><a href="/wiki/">Wiki</a></li>
@@ -126,11 +130,11 @@
   Note: MyBusTimes is a fictional and community-run transport database.<br>
   All data shown here is user generated and not real world data <a href="/about">more info</a>.
 </p>
-<div class="in-page-ad" id="body-ad-1">
-  <div class="incontent-ad-container" style="height:100px;">
+
+  <div class="incontent-ad-container in-page-ad" style="height:100px;">
     <div id="AFM_inContent_ad" style="margin:auto;"></div>
   </div>
-</div>
+
 <div id="regions-container">
   {% regroup regions by region_country as country_list %}
 
