@@ -368,13 +368,13 @@ class DeviceBan(models.Model):
         return f"{self.fingerprint} - {'Active' if self.active else 'Inactive'}"
 
 class Device(models.Model):
-    fingerprint = models.CharField(max_length=128, unique=True)
-    first_seen = models.DateTimeField(auto_now_add=True)
-    last_seen = models.DateTimeField(auto_now=True)
-    last_ip = models.GenericIPAddressField(blank=True, null=True)
-    last_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='devices')
-    user_agent = models.TextField(blank=True, null=True)
-    seen_count = models.PositiveIntegerField(default=0)
+    fingerprint = models.CharField(max_length=128, unique=True, db_index=True)
+    first_seen = models.DateTimeField(auto_now_add=True, db_index=True)
+    last_seen = models.DateTimeField(auto_now=True, db_index=True)
+    last_ip = models.GenericIPAddressField(blank=True, null=True, db_index=True)
+    last_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='devices', db_index=True)
+    user_agent = models.TextField(blank=True, null=True, db_index=True)
+    seen_count = models.PositiveIntegerField(default=0, db_index=True)
 
     history = HistoricalRecords()
 
@@ -383,11 +383,11 @@ class Device(models.Model):
 
 
 class DeviceUsage(models.Model):
-    device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name='usages')
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='device_usages')
-    first_seen = models.DateTimeField(auto_now_add=True)
-    last_seen = models.DateTimeField(auto_now=True)
-    usage_count = models.PositiveIntegerField(default=0)
+    device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name='usages', db_index=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='device_usages', db_index=True)
+    first_seen = models.DateTimeField(auto_now_add=True, db_index=True)
+    last_seen = models.DateTimeField(auto_now=True, db_index=True)
+    usage_count = models.PositiveIntegerField(default=0, db_index=True)
 
     history = HistoricalRecords()
 

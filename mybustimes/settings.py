@@ -161,7 +161,23 @@ else:
 
 MIDDLEWARE.append('main.middleware.CustomErrorMiddleware')
 
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+}
+
 MIDDLEWARE.extend([
+    'mybustimes.middleware.performance_middleware.PerformanceLoggingMiddleware',
+    'mybustimes.middleware.performance_middleware.DatabaseQueryLoggingMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -367,26 +383,6 @@ LOGOUT_REDIRECT_URL = '/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-        },
-    },
-    'root': {
-        'handlers': ['console'],
-        'level': 'ERROR',
-    },
-    'loggers': {
-        'mozilla_django_oidc': {
-            'handlers': ['console'],
-            'level': 'DEBUG',
-        },
-    }
-
-}
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024  # 100MB
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 30000
