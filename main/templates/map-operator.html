@@ -327,7 +327,7 @@ function renderBTMarkers() {
   for (const v of btVehicleData) {
     if (!v.lat || !v.lng) continue;
 
-    let heading = (v.heading ?? 0) + 270;
+    let heading = v.heading ?? 0;
     const vehicleColour = v.vehicle?.colour || '#000';
 
     const left_css = v.vehicle?.left_css || null;
