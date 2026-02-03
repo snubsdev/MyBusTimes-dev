@@ -528,7 +528,18 @@ def operator(request, operator_slug):
     
     # Apply colors to routes (no DB queries here)
     for r in routes:
-        r.colours = get_route_colours(r, transit_authority_details)
+        print("Processing route:", r.route_num)  # Debugging line
+        colours_result = get_route_colours(r, transit_authority_details)
+
+        # `get_route_colours` may return either a string or a (colours, school_service) tuple.
+        if isinstance(colours_result, tuple):
+            r.colours = colours_result[0]
+            r.school_service = colours_result[1]
+        else:
+            r.colours = colours_result
+            r.school_service = None
+
+        print(f"Route {r.route_num} colours: {r.colours}")  # Debugging line
     
     # Get unique linked routes (uses prefetched data - no DB queries!)
     unique_routes = get_unique_linked_routes(routes)

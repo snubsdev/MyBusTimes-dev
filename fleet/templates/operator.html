@@ -60,7 +60,6 @@
   {% with primary=group.primary linked=group.linked %}
   <li class="route" {% if primary.hidden %}style="opacity: 0.5;"{% endif %}>
     <a href="route/{{ primary.id }}">
-
       {% if linked %}
         <strong class="name first is-short" style="{{ primary.colours }}{% if primary.route_num|length > 10 %}; text-wrap: nowrap; font-size: 15px{% endif %}">{{ primary.route_num }}</strong>
         {% for linked_route in linked %}
