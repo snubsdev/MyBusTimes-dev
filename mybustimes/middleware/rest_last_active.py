@@ -153,14 +153,10 @@ class ResetProMiddleware:
 class UpdateLastActiveMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
-        print("[DEBUG] Initializing UpdateLastActiveMiddleware")
 
     def __call__(self, request):
-        print("[DEBUG] Entering __call__ in UpdateLastActiveMiddleware")
         # Process the request and get the response
         response = self.get_response(request)
-        
-        print("[DEBUG] Response obtained in __call__")
         
         # Post-processing: set device fingerprint cookie if generated
         gen = getattr(request, '_generated_device_fp', None)
@@ -170,17 +166,14 @@ class UpdateLastActiveMiddleware:
             secure_flag = getattr(settings, 'SESSION_COOKIE_SECURE', False)
             response.set_cookie('mbt_device_fp', gen, max_age=max_age, secure=secure_flag, httponly=True, samesite='Lax')
         
-        print("[DEBUG] Exiting __call__ in UpdateLastActiveMiddleware")
         return response
 
     def process_view(self, request, view_func, view_args, view_kwargs):
         """Pre-process before view is called. Return None to continue, or HttpResponse to short-circuit."""
-        print("[DEBUG] Entering process_view in UpdateLastActiveMiddleware")
         
         # Update last_active for authenticated users - but only if >1 minute since last update
         # This reduces database writes significantly
         if request.user.is_authenticated:
-            print(f"[DEBUG] User {request.user.username} is authenticated")
             
             # Only update if >60 seconds since last update to reduce DB writes
             should_update = False
@@ -194,33 +187,22 @@ class UpdateLastActiveMiddleware:
             if should_update:
                 request.user.last_active = now()
                 request.user.save(update_fields=['last_active'])
-                print(f"[DEBUG] Updated last_active for user {request.user.username}")
             else:
-                print(f"[DEBUG] Skipped last_active update (recent)")
-
-        # Attach or generate device fingerprint
-        print("[DEBUG] Getting device fingerprint")
+                pass  # Skip update to reduce DB writes
+            
         device_fp, was_generated = get_device_fingerprint(request)
-        print(f"[DEBUG] Device fingerprint: {device_fp}, Was generated: {was_generated}")
-        
-        # Best-effort derived fingerprint from headers (fallback)
-        print("[DEBUG] Deriving device fingerprint")
+
         derived_fp = derive_device_fingerprint(request)
-        print(f"[DEBUG] Derived fingerprint: {derived_fp}")
         
         request.device_fingerprint = device_fp
         request.derived_device_fp = derived_fp
 
-        # Determine a storable client IP (ignore Cloudflare edge IPs)
-        print("[DEBUG] Determining client IP")
         ip_for_storage = get_real_ip(request)
         if not ip_for_storage or is_cloudflare_ip(ip_for_storage):
             ip_for_storage = None
-        print(f"[DEBUG] Client IP for storage: {ip_for_storage}")
 
         # Check for device bans (skip for admin pages)
         if not request.path.startswith('/api-admin/') and not request.path.startswith('/admin/'):
-            print("[DEBUG] Checking for device bans")
             user_agent = request.META.get('HTTP_USER_AGENT', '')
             
             # Use cached ban check to avoid repeated queries
@@ -228,7 +210,6 @@ class UpdateLastActiveMiddleware:
                 return HttpResponseForbidden('Device banned')
 
         # Record device usage with bulk operations and caching
-        print("[DEBUG] Recording device usage")
         try:
             chosen_fp = None
             # Only use explicit fingerprint if it came from header/cookie, not generated
@@ -240,7 +221,6 @@ class UpdateLastActiveMiddleware:
                 chosen_fp = device_fp  # Use generated fingerprint
 
             if chosen_fp:
-                print(f"[DEBUG] Recording usage for fingerprint: {chosen_fp}")
                 
                 # Use get_or_create with defaults to reduce queries
                 dev, created = Device.objects.get_or_create(
@@ -297,7 +277,6 @@ class UpdateLastActiveMiddleware:
         # Update user's last IP only if it changed
         user = request.user
         if user.is_authenticated:
-            print(f"[DEBUG] Updating user's last IP")
             new_ip = get_real_ip(request)
 
             # Do not save Cloudflare edge IPs
@@ -306,10 +285,8 @@ class UpdateLastActiveMiddleware:
 
             # Only update DB if IP actually changed
             if user.last_ip != new_ip:
-                print(f"[DEBUG] Updating last_ip for user {user.username}")
                 user.last_ip = new_ip
                 user.save(update_fields=["last_ip"])
 
-        print("[DEBUG] Exiting process_view in UpdateLastActiveMiddleware")
         # Return None to allow normal view processing
         return None
