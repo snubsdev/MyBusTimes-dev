@@ -162,8 +162,8 @@ else:
 MIDDLEWARE.append('main.middleware.CustomErrorMiddleware')
 
 MIDDLEWARE.extend([
-    'mybustimes.middleware.performance_middleware.PerformanceLoggingMiddleware',
-    'mybustimes.middleware.performance_middleware.DatabaseQueryLoggingMiddleware',
+    #'mybustimes.middleware.performance_middleware.PerformanceLoggingMiddleware',
+    #'mybustimes.middleware.performance_middleware.DatabaseQueryLoggingMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
