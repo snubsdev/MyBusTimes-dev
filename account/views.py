@@ -464,7 +464,7 @@ class stripe_webhook(APIView):
                 })
 
             data = {
-                'channel_id': settings.DISCORD_WEBHOOK_CHANNEL_ID,  # Configure this in settings
+                'channel_id': '1390369327815065692',  # Configure this in settings
                 'embed': embed
             }
 
@@ -728,11 +728,48 @@ class stripe_webhook(APIView):
         if not user.ad_free_until or ad_free_until > user.ad_free_until:
             user.ad_free_until = ad_free_until
 
-        # Extract plan from line item metadata
+        # Extract plan from multiple possible sources
+        plan_level = None
+        
+        # 1. Try line item metadata
         plan_level = line_meta.get("plan_level")
         if plan_level:
+            print("✔ Found plan_level in line metadata:", plan_level)
+        
+        # 2. Try to extract from description (e.g., "MyBusTimes Basic Monthly")
+        if not plan_level:
+            description = first_line.get("description", "")
+            print(f"  Parsing description: {description}")
+            
+            # Extract plan from description like "MyBusTimes Basic Monthly"
+            if "Basic" in description:
+                plan_level = "basic"
+                print("✔ Extracted plan from description: basic")
+            elif "Premium" in description or "Pro" in description:
+                plan_level = "premium"
+                print("✔ Extracted plan from description: premium")
+        
+        # 3. Try to get from Stripe product metadata
+        if not plan_level:
+            try:
+                product_id = first_line.get("pricing", {}).get("price_details", {}).get("product")
+                if product_id:
+                    print(f"  Fetching product metadata for: {product_id}")
+                    product = stripe.Product.retrieve(product_id)
+                    plan_level = product.get("metadata", {}).get("plan_level")
+                    if plan_level:
+                        print("✔ Found plan_level in product metadata:", plan_level)
+            except Exception as e:
+                print(f"⚠ Could not fetch product metadata: {str(e)}")
+        
+        # 4. Set the plan level on the user
+        if plan_level:
             user.sub_plan = plan_level
-            print("✔ Set user.sub_plan from line metadata:", plan_level)
+            print("✔ Set user.sub_plan to:", plan_level)
+        else:
+            # No plan found in any metadata - default to 'basic' for paid subscriptions
+            user.sub_plan = "basic"
+            print("⚠ No plan_level found in metadata, defaulting to 'basic'")
 
         user.save(update_fields=["ad_free_until", "sub_plan"])
         print("✔ User updated:", user.username, user.sub_plan, user.ad_free_until)
@@ -806,10 +843,14 @@ class stripe_webhook(APIView):
             print("✔ Updated StripeSubscription end_date (by customer_id)")
 
         # Create or update ActiveSubscription for this payment period
+        # Use the plan_level we extracted, fallback to user.sub_plan, default to "basic"
+        effective_plan = plan_level or user.sub_plan or "basic"
+        print(f"  Using effective_plan for ActiveSubscription: {effective_plan}")
+        
         active_defaults = {
             "start_date": timezone.now(),
             "end_date": ad_free_until + timedelta(days=7),  # grace period
-            "plan": plan_level or user.sub_plan or "basic",
+            "plan": effective_plan,
             "is_trial": False,
         }
 
@@ -829,7 +870,7 @@ class stripe_webhook(APIView):
             print("✔ Created ActiveSubscription record (no subscription id) for invoice payment")
 
         return Response(status=200)
-    
+
 @api_view(["POST"])
 def create_checkout_session(request):
     stripe.api_key = settings.STRIPE_SECRET_KEY
