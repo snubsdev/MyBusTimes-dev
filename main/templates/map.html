@@ -716,7 +716,7 @@
     });
 
     try {
-      const res = await fetch(`/api/trips/simulated_positions/?${q.toString()}&limit=5000`);
+      const res = await fetch(`/api/trips/simulated_positions/?${q.toString()}&limit=50000`);
       const data = await res.json();
 
       let vehicles = Array.isArray(data.results) ? data.results : (data.features || []);
@@ -737,7 +737,7 @@
     const zoom = map.getZoom();
     const showDetailedIcon = zoom >= DETAIL_ZOOM_THRESHOLD;
 
-    for (const v of btVehicleData.slice(0, 5000)) {
+    for (const v of btVehicleData.slice(0, 50000)) {
       // Check if this operator is hidden
       const vehicleUrl = v.vehicle?.url || '';
       const match = vehicleUrl.match(/\/operator\/([^/]+)\//);
