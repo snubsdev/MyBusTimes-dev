@@ -1255,121 +1255,213 @@ def vehicles(request, operator_slug, depot=None, withdrawn=False):
     return render(request, 'vehicles.html', context)
 
 
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
+from django.core.paginator import Paginator
+from django.db.models import Q, Prefetch, OuterRef, Subquery
+from django.utils import timezone
+
+
 def vehicles_api(request, operator_slug):
-    """API endpoint for vehicle data - called via AJAX after page load."""
+    """Optimized API endpoint for vehicle data."""
     operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
     
+    # Get query parameters
     withdrawn = request.GET.get('withdrawn', '').lower() == 'true'
     depot = request.GET.get('depot')
     page = request.GET.get('page', 1)
 
-    # Base queryset
-    qs = fleet.objects.filter(Q(operator=operator) | Q(loan_operator=operator))
+    # Build queryset with optimized filtering
+    qs = fleet.objects.filter(
+        Q(operator=operator) | Q(loan_operator=operator)
+    ).select_related(
+        'livery',
+        'vehicleType',
+        'loan_operator',
+        'operator'
+    )
+    
     if not withdrawn:
         qs = qs.filter(in_service=True)
     if depot:
         qs = qs.filter(depot=depot)
 
+    # Get total count before pagination
     total_count = qs.count()
 
-    # Define fields
+    # Define only the fields we need
     vehicle_fields = (
         'id', 'fleet_number', 'fleet_number_sort', 'reg', 'prev_reg', 'colour',
-        'branding', 'depot', 'name', 'features', 'last_tracked_date', 'for_sale',
-        'type_details', 'open_top', 'in_service',
-        'livery__name', 'livery__left_css', 'livery__stroke_colour', 'livery__text_colour',
+        'branding', 'depot', 'name', 'features', 'for_sale', 'type_details', 
+        'open_top', 'in_service',
+        'livery__name', 'livery__left_css',
         'vehicleType__type_name',
         'loan_operator__operator_slug',
         'operator__operator_slug', 'operator__operator_code'
     )
 
-    # Paginate
-    paginator = Paginator(qs.order_by('fleet_number_sort').values(*vehicle_fields), 1000)
+    # Paginate efficiently
+    paginator = Paginator(
+        qs.order_by('fleet_number_sort').values(*vehicle_fields), 
+        1000
+    )
     page_obj = paginator.get_page(page)
     vehicles = list(page_obj.object_list)
 
-    # Get latest trips efficiently
-    latest_trips = {}
-    if vehicles:
-        vehicle_ids = [v['id'] for v in vehicles]
-        for trip in (
-            Trip.objects
-            .filter(trip_vehicle_id__in=vehicle_ids, trip_missed=False, trip_start_at__lte=timezone.now())
-            .select_related('trip_route')
-            .only('trip_id', 'trip_vehicle_id', 'trip_start_at', 'trip_route_num', 'trip_route__route_num')
-            .order_by('trip_vehicle_id', '-trip_start_at')
-        ):
-            if trip.trip_vehicle_id not in latest_trips:
-                latest_trips[trip.trip_vehicle_id] = trip
+    # Early return if no vehicles
+    if not vehicles:
+        return JsonResponse({
+            'vehicles': [],
+            'show_livery': False,
+            'show_branding': False,
+            'show_prev_reg': False,
+            'show_name': False,
+            'show_depot': False,
+            'show_features': False,
+            'pagination': _build_pagination_data(page_obj, paginator),
+            'total_count': 0,
+        })
 
-    # Process vehicles
+    # Get latest trips with a single optimized query using subquery
+    vehicle_ids = [v['id'] for v in vehicles]
+    latest_trip_subquery = (
+        Trip.objects
+        .filter(
+            trip_vehicle_id=OuterRef('trip_vehicle_id'),
+            trip_missed=False,
+            trip_start_at__lte=timezone.now()
+        )
+        .order_by('-trip_start_at')
+        .values('trip_id')[:1]
+    )
+    
+    trips = Trip.objects.filter(
+        trip_id__in=Subquery(latest_trip_subquery),
+        trip_vehicle_id__in=vehicle_ids
+    ).select_related('trip_route').only(
+        'trip_id', 'trip_vehicle_id', 'trip_start_at', 
+        'trip_route_num', 'trip_route__route_num'
+    )
+    
+    latest_trips = {trip.trip_vehicle_id: trip for trip in trips}
+
+    # Pre-calculate common values
     now_local = timezone.localtime(timezone.now())
     now_date = now_local.date()
     now_year = now_local.year
     operator_slug_val = operator.operator_slug
-    flickr_base = 'https://www.flickr.com/search/?text='
-    flickr_suffix = '&sort=date-taken-desc'
+    
+    # Track which columns to show
+    show_flags = {
+        'livery': False,
+        'branding': False,
+        'prev_reg': False,
+        'name': False,
+        'depot': False,
+        'features': False
+    }
 
-    show_livery = show_branding = show_prev_reg = False
-    show_name = show_depot = show_features = False
-
+    # Process vehicles in a single pass
     for item in vehicles:
-        # Trip data
+        # Process trip data
         trip = latest_trips.get(item['id'])
         if trip:
-            item['last_trip_route'] = trip.trip_route.route_num if trip.trip_route else trip.trip_route_num
+            item['last_trip_route'] = (
+                trip.trip_route.route_num if trip.trip_route 
+                else trip.trip_route_num
+            )
             local_time = timezone.localtime(trip.trip_start_at)
+            
             if local_time.date() == now_date:
                 item['last_trip_display'] = local_time.strftime('%H:%M')
             else:
                 fmt = '%d %b %Y' if local_time.year != now_year else '%d %b'
                 item['last_trip_display'] = local_time.strftime(fmt).lstrip('0')
+            
             item['last_trip_date'] = trip.trip_start_at.strftime('%Y-%m-%d')
         else:
-            item['last_trip_route'] = item['last_trip_display'] = item['last_trip_date'] = None
+            item['last_trip_route'] = None
+            item['last_trip_display'] = None
+            item['last_trip_date'] = None
 
-        # Loan status
+        # Determine loan status
         loan_slug = item.get('loan_operator__operator_slug')
-        item['onloan'] = bool(loan_slug and item['operator__operator_slug'] == operator_slug_val and loan_slug != operator_slug_val)
+        item['onloan'] = bool(
+            loan_slug and 
+            item['operator__operator_slug'] == operator_slug_val and 
+            loan_slug != operator_slug_val
+        )
 
-        # Flickr link
-        reg = item.get('reg') or ''
-        reg_cut = reg.replace(' ', '') if reg else ''
-        prev_reg = item.get('prev_reg') or ''
-        if prev_reg:
-            item['flickr_link'] = f'{flickr_base}"{reg}"%20or%20{reg_cut}%20or%20"{prev_reg}"%20or%20{prev_reg.replace(" ", "")}{flickr_suffix}'
-        elif reg:
-            item['flickr_link'] = f'{flickr_base}"{reg}"%20or%20{reg_cut}{flickr_suffix}'
-        else:
-            item['flickr_link'] = ''
+        # Build Flickr link
+        item['flickr_link'] = _build_flickr_link(
+            item.get('reg'), 
+            item.get('prev_reg')
+        )
 
-        # Show flags
-        show_livery = show_livery or bool(item.get('livery__name') or item.get('colour'))
-        show_branding = show_branding or bool(item.get('branding') and item.get('livery__name'))
-        show_prev_reg = show_prev_reg or bool(prev_reg)
-        show_name = show_name or bool(item.get('name'))
-        show_depot = show_depot or bool(item.get('depot'))
-        show_features = show_features or bool(item.get('features'))
+        # Update show flags
+        show_flags['livery'] = (
+            show_flags['livery'] or 
+            bool(item.get('livery__name') or item.get('colour'))
+        )
+        show_flags['branding'] = (
+            show_flags['branding'] or 
+            bool(item.get('branding') and item.get('livery__name'))
+        )
+        show_flags['prev_reg'] = show_flags['prev_reg'] or bool(item.get('prev_reg'))
+        show_flags['name'] = show_flags['name'] or bool(item.get('name'))
+        show_flags['depot'] = show_flags['depot'] or bool(item.get('depot'))
+        show_flags['features'] = show_flags['features'] or bool(item.get('features'))
 
     return JsonResponse({
         'vehicles': vehicles,
-        'show_livery': show_livery,
-        'show_branding': show_branding,
-        'show_prev_reg': show_prev_reg,
-        'show_name': show_name,
-        'show_depot': show_depot,
-        'show_features': show_features,
-        'pagination': {
-            'current_page': page_obj.number,
-            'total_pages': paginator.num_pages,
-            'has_previous': page_obj.has_previous(),
-            'has_next': page_obj.has_next(),
-            'previous_page': page_obj.previous_page_number() if page_obj.has_previous() else None,
-            'next_page': page_obj.next_page_number() if page_obj.has_next() else None,
-        },
+        'show_livery': show_flags['livery'],
+        'show_branding': show_flags['branding'],
+        'show_prev_reg': show_flags['prev_reg'],
+        'show_name': show_flags['name'],
+        'show_depot': show_flags['depot'],
+        'show_features': show_flags['features'],
+        'pagination': _build_pagination_data(page_obj, paginator),
         'total_count': total_count,
     })
 
+
+def _build_pagination_data(page_obj, paginator):
+    """Build pagination data dictionary."""
+    return {
+        'current_page': page_obj.number,
+        'total_pages': paginator.num_pages,
+        'has_previous': page_obj.has_previous(),
+        'has_next': page_obj.has_next(),
+        'previous_page': (
+            page_obj.previous_page_number() 
+            if page_obj.has_previous() else None
+        ),
+        'next_page': (
+            page_obj.next_page_number() 
+            if page_obj.has_next() else None
+        ),
+    }
+
+
+def _build_flickr_link(reg, prev_reg):
+    """Build Flickr search link for vehicle registration."""
+    if not reg and not prev_reg:
+        return ''
+    
+    base = 'https://www.flickr.com/search/?text='
+    suffix = '&sort=date-taken-desc'
+    
+    reg = reg or ''
+    reg_cut = reg.replace(' ', '') if reg else ''
+    prev_reg = prev_reg or ''
+    
+    if prev_reg:
+        prev_reg_cut = prev_reg.replace(' ', '')
+        return f'{base}"{reg}"%20or%20{reg_cut}%20or%20"{prev_reg}"%20or%20{prev_reg_cut}{suffix}'
+    elif reg:
+        return f'{base}"{reg}"%20or%20{reg_cut}{suffix}'
+    
+    return ''
 
 def vehicle_detail(request, operator_slug, vehicle_id):
     response = feature_enabled(request, "view_vehicles")
