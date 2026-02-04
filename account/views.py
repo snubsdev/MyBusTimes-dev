@@ -431,6 +431,52 @@ class stripe_webhook(APIView):
     def log(self, *args):
         print("[StripeWebhook DEBUG]", *args)
 
+    def send_error_to_discord(self, error_title, error_message, traceback_str=None):
+        """Send error notifications to Discord with embedded traceback"""
+        try:
+            description = f"```\n{error_message}\n```"
+            
+            embed = {
+                "title": f"🚨 Stripe Webhook Error: {error_title}",
+                "description": description,
+                "color": 0xFF0000,  # Red for errors
+                "fields": [
+                    {
+                        "name": "Time",
+                        "value": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                        "inline": True
+                    }
+                ],
+                "footer": {
+                    "text": "MBT Stripe Webhook System"
+                },
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            # Add traceback as a separate field if provided
+            if traceback_str:
+                # Discord fields have a 1024 char limit, so truncate if needed
+                tb_preview = traceback_str[-1000:] if len(traceback_str) > 1000 else traceback_str
+                embed["fields"].append({
+                    "name": "Traceback",
+                    "value": f"```python\n{tb_preview}\n```",
+                    "inline": False
+                })
+
+            data = {
+                'channel_id': settings.DISCORD_WEBHOOK_CHANNEL_ID,  # Configure this in settings
+                'embed': embed
+            }
+
+            response = requests.post(
+                f"{settings.DISCORD_BOT_API_URL}/send-embed",
+                json=data,
+                timeout=5
+            )
+            response.raise_for_status()
+        except Exception as e:
+            print(f"❌ Failed to send Discord notification: {str(e)}")
+
     def post(self, request):
         stripe.api_key = settings.STRIPE_SECRET_KEY
         payload = request.body
@@ -444,7 +490,9 @@ class stripe_webhook(APIView):
                 payload, sig_header, settings.STRIPE_WEBHOOK_SECRET
             )
         except Exception as e:
-            print("❌ Webhook verification failed:", str(e))
+            error_msg = f"Webhook verification failed: {str(e)}"
+            print(f"❌ {error_msg}")
+            self.send_error_to_discord("Webhook Verification Failed", error_msg)
             return Response(status=400)
 
         event_type = event.get("type")
@@ -462,9 +510,21 @@ class stripe_webhook(APIView):
                 return Response(status=200)
 
         except Exception as e:
-            print("❗ Handler exception:", str(e))
+            error_msg = f"Handler exception for {event_type}: {str(e)}"
+            print(f"❗ {error_msg}")
+            
+            # Get full traceback
             import traceback
+            tb_str = traceback.format_exc()
             traceback.print_exc()
+            
+            # Send to Discord
+            self.send_error_to_discord(
+                f"Handler Failed ({event_type})",
+                error_msg,
+                tb_str
+            )
+            
             return Response(status=500)
 
     def handle_checkout_session_completed(self, session):
@@ -493,14 +553,32 @@ class stripe_webhook(APIView):
                 "product_name": "Ad free",
                 "start_date": timezone.now().date(),
             }
-            sub_obj, created = StripeSubscription.objects.update_or_create(
-                subscription_id=subscription_id,
-                defaults=sub_defaults,
-            )
-            if created:
-                print("✔ Created StripeSubscription record")
-            else:
-                print("✔ Updated StripeSubscription record")
+            
+            # Handle potential duplicates
+            try:
+                sub_obj, created = StripeSubscription.objects.update_or_create(
+                    subscription_id=subscription_id,
+                    defaults=sub_defaults,
+                )
+                if created:
+                    print("✔ Created StripeSubscription record")
+                else:
+                    print("✔ Updated StripeSubscription record")
+            except StripeSubscription.MultipleObjectsReturned:
+                # Fix duplicates by keeping the most recent one
+                print("⚠ Found duplicate StripeSubscription records, cleaning up...")
+                duplicates = StripeSubscription.objects.filter(subscription_id=subscription_id).order_by('-id')
+                keep = duplicates.first()
+                delete_ids = list(duplicates.exclude(id=keep.id).values_list('id', flat=True))
+                
+                StripeSubscription.objects.filter(id__in=delete_ids).delete()
+                print(f"✔ Deleted {len(delete_ids)} duplicate records, kept ID {keep.id}")
+                
+                # Update the kept record
+                for key, value in sub_defaults.items():
+                    setattr(keep, key, value)
+                keep.save()
+                sub_obj = keep
 
         # Save subscription ID
         if subscription_id:
@@ -570,10 +648,7 @@ class stripe_webhook(APIView):
         subscription_id = invoice.get("subscription")
 
         # If Stripe didn't set the top-level `subscription` field, try to
-        # extract it from known nested locations (invoice parent or first
-        # line item's parent). This covers payloads where subscription id
-        # appears under `parent.subscription_details.subscription` or
-        # `lines.data[0].parent.subscription_item_details.subscription`.
+        # extract it from known nested locations
         if not subscription_id:
             try:
                 # parent.subscription_details.subscription
@@ -586,8 +661,7 @@ class stripe_webhook(APIView):
                     print("ℹ Extracted subscription_id from nested invoice data:", subscription_id)
             except Exception:
                 pass
-        # Extra debug: some invoice payloads may include customer_email or
-        # other identifiers — log them to help diagnose missing links.
+
         customer_email = invoice.get("customer_email") or invoice.get("billing_reason")
         print("Invoice customer_id:", customer_id, "subscription_id:", subscription_id, "customer_email:", customer_email)
 
@@ -600,8 +674,7 @@ class stripe_webhook(APIView):
                 user = sub_obj.user
                 print("✔ Found user via subscription_id:", user.username)
 
-        # Fallback: user might have the subscription id stored directly on
-        # the CustomUser record (legacy flows). Try that as well.
+        # Fallback: user might have the subscription id stored directly on CustomUser
         if not user and subscription_id:
             try:
                 user_fallback = CustomUser.objects.filter(stripe_subscription_id=subscription_id).first()
@@ -617,8 +690,7 @@ class stripe_webhook(APIView):
                 user = sub_obj.user
                 print("✔ Found user via customer_id:", user.username)
 
-        # Another fallback: try to match by customer email if present on the
-        # invoice payload (some Stripe setups include this).
+        # Another fallback: try to match by customer email
         if not user and customer_email:
             try:
                 user_email_match = CustomUser.objects.filter(email__iexact=customer_email).first()
@@ -629,7 +701,9 @@ class stripe_webhook(APIView):
                 pass
 
         if not user:
-            print("❌ No linked user found for invoice")
+            error_msg = f"No linked user found for invoice {invoice.get('id')}"
+            print(f"❌ {error_msg}")
+            self.send_error_to_discord("User Not Found", error_msg)
             return Response(status=404)
 
         # Get first invoice line
@@ -663,9 +737,7 @@ class stripe_webhook(APIView):
         user.save(update_fields=["ad_free_until", "sub_plan"])
         print("✔ User updated:", user.username, user.sub_plan, user.ad_free_until)
 
-        # Determine sensible `start_date` for the StripeSubscription record
-        # Prefer the invoice line period start, fall back to invoice top-level
-        # `period_start`, otherwise use today to satisfy the NOT NULL constraint.
+        # Determine start_date for the StripeSubscription record
         try:
             period_start_ts = first_line.get("period", {}).get("start") or invoice.get("period_start")
             if period_start_ts:
@@ -675,30 +747,54 @@ class stripe_webhook(APIView):
         except Exception:
             start_date_date = timezone.now().date()
 
-        # Determine an effective subscription id to use (either from the event
-        # or from an existing StripeSubscription found via customer_id).
+        # Determine effective subscription id
         effective_subscription_id = subscription_id
         if not effective_subscription_id and sub_obj and getattr(sub_obj, 'subscription_id', None):
             effective_subscription_id = sub_obj.subscription_id
             print("ℹ Using subscription_id from StripeSubscription record:", effective_subscription_id)
 
-        # Update or create subscription record. Prefer using subscription_id
-        # when available, otherwise fall back to customer_id so we still record
-        # end_date against the customer's subscription record.
+        # **FIX: Handle duplicate StripeSubscription records**
         if effective_subscription_id:
-            StripeSubscription.objects.update_or_create(
-                subscription_id=effective_subscription_id,
-                defaults={
-                    "start_date": start_date_date,
-                    "end_date": ad_free_until.date(),
-                    "user": user,
-                    "customer_id": customer_id,
-                },
-            )
-            print("✔ Updated StripeSubscription end_date (by subscription_id)")
+            try:
+                StripeSubscription.objects.update_or_create(
+                    subscription_id=effective_subscription_id,
+                    defaults={
+                        "start_date": start_date_date,
+                        "end_date": ad_free_until.date(),
+                        "user": user,
+                        "customer_id": customer_id,
+                    },
+                )
+                print("✔ Updated StripeSubscription end_date (by subscription_id)")
+            except StripeSubscription.MultipleObjectsReturned:
+                # Clean up duplicates
+                print("⚠ Found duplicate StripeSubscription records, cleaning up...")
+                duplicates = StripeSubscription.objects.filter(
+                    subscription_id=effective_subscription_id
+                ).order_by('-id')
+                
+                keep = duplicates.first()
+                delete_ids = list(duplicates.exclude(id=keep.id).values_list('id', flat=True))
+                
+                # Send warning to Discord
+                self.send_error_to_discord(
+                    "Duplicate Subscriptions Detected",
+                    f"Found {duplicates.count()} duplicate StripeSubscription records for subscription_id={effective_subscription_id}. Cleaning up...",
+                )
+                
+                StripeSubscription.objects.filter(id__in=delete_ids).delete()
+                print(f"✔ Deleted {len(delete_ids)} duplicate records, kept ID {keep.id}")
+                
+                # Update the kept record
+                keep.start_date = start_date_date
+                keep.end_date = ad_free_until.date()
+                keep.user = user
+                keep.customer_id = customer_id
+                keep.save()
+                print("✔ Updated StripeSubscription end_date (after cleanup)")
+                
         elif customer_id:
-            # No subscription id available in the webhook; update/create by
-            # customer_id so the record still gets its end_date and owner set.
+            # No subscription id available; update/create by customer_id
             StripeSubscription.objects.update_or_create(
                 customer_id=customer_id,
                 defaults={
@@ -709,9 +805,7 @@ class stripe_webhook(APIView):
             )
             print("✔ Updated StripeSubscription end_date (by customer_id)")
 
-        # Create or update ActiveSubscription for this payment period. If we
-        # have an effective subscription id use it; otherwise create a
-        # subscriptionless ActiveSubscription (e.g. one-off payment).
+        # Create or update ActiveSubscription for this payment period
         active_defaults = {
             "start_date": timezone.now(),
             "end_date": ad_free_until + timedelta(days=7),  # grace period
@@ -726,8 +820,7 @@ class stripe_webhook(APIView):
             )
             print("✔ Updated/created ActiveSubscription record for invoice payment")
         else:
-            # subscriptionless invoice (one-off payment) — create an entry
-            # tied to the user without a stripe id.
+            # Subscriptionless invoice (one-off payment)
             ActiveSubscription.objects.create(
                 user=user,
                 stripe_subscription_id="Renewed for invoice " + invoice.get("id"),
