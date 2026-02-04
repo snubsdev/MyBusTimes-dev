@@ -61,7 +61,7 @@
   }
 
   .stop-marker {
-    z-index: 0; /* ✅ below vehicle markers */
+    z-index: 0;
   }
 
   /* Operator Filter Styles */
@@ -121,7 +121,7 @@
     border: none;
     font-size: 20px;
     cursor: pointer;
-    color: var(--text-color, #333);
+    color: var(--text-color);
     padding: 0;
     line-height: 1;
   }
@@ -255,13 +255,11 @@
   const savedView = JSON.parse(localStorage.getItem('mbt_map_view') || 'null');
   let tilesJSON = 'https://tiles.snubs.dev/styles/light/style.json';
 
-  
   {% if themeDark == 'True' %}
     const style = 'dark';
   {% else %}
     const style = 'light';
   {% endif %}
-
 
   tilesJSON = `https://tiles.snubs.dev/styles/${style}/style.json`;
 
@@ -274,9 +272,7 @@
   });
 
   map.on('style.load', () => {
-    map.setProjection({
-      type: 'globe'
-    });
+    map.setProjection({ type: 'globe' });
   });
 
   // Save user view on move
@@ -291,35 +287,34 @@
 
   map.addControl(new maplibregl.NavigationControl(), 'top-left');
 
-  // Add Operator Filter Control
+  // Operator Filter Control
   class OperatorFilterControl {
     onAdd(map) {
       this._map = map;
       this._container = document.createElement('div');
       this._container.className = 'maplibregl-ctrl maplibregl-ctrl-group';
       this._container.style.position = 'relative';
-      
+
       const button = document.createElement('button');
       button.className = 'operator-filter-btn';
       button.title = 'Filter Operators';
       button.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/></svg>`;
       button.addEventListener('click', toggleOperatorPanel);
-      
-      // Badge for hidden count
+
       this._badge = document.createElement('span');
       this._badge.className = 'hidden-count-badge';
       this._badge.style.display = 'none';
       this._container.appendChild(this._badge);
-      
+
       this._container.appendChild(button);
       return this._container;
     }
-    
+
     onRemove() {
       this._container.parentNode.removeChild(this._container);
       this._map = undefined;
     }
-    
+
     updateBadge(count) {
       if (count > 0) {
         this._badge.textContent = count;
@@ -329,21 +324,20 @@
       }
     }
   }
-  
+
   const operatorFilterControl = new OperatorFilterControl();
   map.addControl(operatorFilterControl, 'top-left');
 
   // Operator Filter State
-  let activeOperators = []; // Operators with vehicles currently on map
+  let activeOperators = [];
   let hiddenOperatorIds = JSON.parse(localStorage.getItem('mbt_hidden_operators') || '[]');
   let operatorSearchTerm = '';
-  
-  // Forward declaration for btToggle (defined later)
+
   function isBtToggleChecked() {
     const toggle = document.getElementById('btToggle');
     return toggle ? toggle.checked : false;
   }
-  
+
   function toggleOperatorPanel() {
     const panel = document.getElementById('operatorFilterPanel');
     panel.classList.toggle('open');
@@ -351,21 +345,20 @@
       renderOperatorList();
     }
   }
-  
+
   document.getElementById('closeOperatorFilter').addEventListener('click', () => {
     document.getElementById('operatorFilterPanel').classList.remove('open');
   });
-  
+
   function buildOperatorListFromVehicles(vehicles) {
-    // Build a map of operators with vehicle counts
     const operatorMap = new Map();
-    
+
     for (const v of vehicles) {
       const operatorSlug = v.vehicle?.operator_slug;
       const operatorName = v.vehicle?.operator_name;
-      
+
       if (!operatorSlug) continue;
-      
+
       if (!operatorMap.has(operatorSlug)) {
         operatorMap.set(operatorSlug, {
           slug: operatorSlug,
@@ -373,54 +366,49 @@
           count: 0
         });
       }
-      
+
       operatorMap.get(operatorSlug).count++;
     }
-    
-    // Convert to array and sort alphabetically by name
+
     activeOperators = Array.from(operatorMap.values())
       .sort((a, b) => a.name.localeCompare(b.name));
-    
-    // Update badge with hidden count
+
     updateHiddenBadge();
-    
-    // Re-render if panel is open
+
     if (document.getElementById('operatorFilterPanel').classList.contains('open')) {
       renderOperatorList();
     }
   }
-  
+
   function renderOperatorList() {
     const listEl = document.getElementById('operatorFilterList');
     const searchTerm = operatorSearchTerm.toLowerCase();
-    
+
     if (activeOperators.length === 0) {
       listEl.innerHTML = '<div class="operator-filter-empty">No operators with active vehicles</div>';
       return;
     }
-    
-    // Filter operators by search term
+
     let filtered = activeOperators;
     if (searchTerm) {
-      filtered = activeOperators.filter(op => 
+      filtered = activeOperators.filter(op =>
         op.name.toLowerCase().includes(searchTerm) ||
         op.slug.toLowerCase().includes(searchTerm)
       );
     }
-    
-    // Sort: hidden first, then alphabetically by name
+
     filtered.sort((a, b) => {
       const aHidden = hiddenOperatorIds.includes(a.slug);
       const bHidden = hiddenOperatorIds.includes(b.slug);
       if (aHidden !== bHidden) return aHidden ? -1 : 1;
       return a.name.localeCompare(b.name);
     });
-    
+
     if (filtered.length === 0) {
       listEl.innerHTML = '<div class="operator-filter-empty">No operators found</div>';
       return;
     }
-    
+
     listEl.innerHTML = filtered.map(op => {
       const isHidden = hiddenOperatorIds.includes(op.slug);
       return `
@@ -430,8 +418,7 @@
         </div>
       `;
     }).join('');
-    
-    // Add click handlers
+
     listEl.querySelectorAll('.operator-filter-item').forEach(item => {
       item.addEventListener('click', (e) => {
         if (e.target.tagName === 'INPUT') return;
@@ -439,13 +426,13 @@
         checkbox.checked = !checkbox.checked;
         handleOperatorToggle(item.dataset.slug, checkbox.checked);
       });
-      
+
       item.querySelector('input').addEventListener('change', (e) => {
-        handleOperatorToggle(item.dataset.slug, e.target.checked);
+        handleOperatorToggle(item.dataset.checked, e.target.checked);
       });
     });
   }
-  
+
   function handleOperatorToggle(operatorSlug, isVisible) {
     if (isVisible) {
       hiddenOperatorIds = hiddenOperatorIds.filter(slug => slug !== operatorSlug);
@@ -454,39 +441,34 @@
         hiddenOperatorIds.push(operatorSlug);
       }
     }
-    
+
     saveHiddenOperators();
     updateHiddenBadge();
-    
-    // Update the item styling
+
     const item = document.querySelector(`.operator-filter-item[data-slug="${operatorSlug}"]`);
     if (item) {
       item.classList.toggle('hidden', !isVisible);
     }
-    
-    // Re-render markers with the filter applied (no need to re-fetch)
+
+    // Re-render BT markers in current mode (DOM or circles)
     renderBTMarkers();
   }
-  
+
   function saveHiddenOperators() {
     localStorage.setItem('mbt_hidden_operators', JSON.stringify(hiddenOperatorIds));
   }
-  
+
   function updateHiddenBadge() {
-    // Count how many of the currently active operators are hidden
     const hiddenActiveCount = activeOperators.filter(op => hiddenOperatorIds.includes(op.slug)).length;
     operatorFilterControl.updateBadge(hiddenActiveCount);
   }
-  
-  // Search input handler
+
   document.getElementById('operatorSearchInput').addEventListener('input', (e) => {
     operatorSearchTerm = e.target.value;
     renderOperatorList();
   });
-  
-  // Show All / Hide All buttons
+
   document.getElementById('showAllOperators').addEventListener('click', () => {
-    // Only remove hidden status for currently active operators
     const activeSlugs = activeOperators.map(op => op.slug);
     hiddenOperatorIds = hiddenOperatorIds.filter(slug => !activeSlugs.includes(slug));
     saveHiddenOperators();
@@ -494,9 +476,8 @@
     renderOperatorList();
     renderBTMarkers();
   });
-  
+
   document.getElementById('hideAllOperators').addEventListener('click', () => {
-    // Add all active operators to hidden list
     for (const op of activeOperators) {
       if (!hiddenOperatorIds.includes(op.slug)) {
         hiddenOperatorIds.push(op.slug);
@@ -507,8 +488,7 @@
     renderOperatorList();
     renderBTMarkers();
   });
-  
-  // Initialize badge on load
+
   updateHiddenBadge();
 
   function timeAgo(dateString) {
@@ -528,11 +508,9 @@
     const cellRotation = (normalisedRotation < 90 || normalisedRotation > 270) ? 0 : 180;
     const backgroundStyle = css ? `background: ${css};` : `background: ${bg};`;
     const html = document.createElement('div');
-    
-    // Ensure carriages is at least 1
+
     const numCarriages = Math.min(16, Math.max(1, parseInt(carriages) || 1));
-    
-    // Build carriage SVGs - last carriage (front) has label, rest are empty
+
     let carriageSvgs = '';
     for (let i = 0; i < numCarriages; i++) {
       const isLastCarriage = i === numCarriages - 1;
@@ -543,11 +521,11 @@
         </svg>
       `;
     }
-    
+
     html.innerHTML = `
       <div style="display:inline-flex; transform: rotate(${rotation}deg); align-items: center;">
         ${carriageSvgs}
-        <span style="display:flex; margin-left: -8px; color:black; ">
+        <span style="display:flex; margin-left: -8px; color:black;">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
             <path d="M8 6.65v10.69c0 .64.76.99 1.24.56l6.11-5.35c.34-.3.34-.83 0-1.13L9.24 6.07C8.76 5.65 8 5.99 8 6.63Z" />
           </svg>
@@ -560,15 +538,16 @@
 
   function createSimpleCircle({ colour = '#000', borderColour = '#000' } = {}) {
     const el = document.createElement('div');
-    el.style.cssText = `width: 10px; height: 10px; background: ${colour}; border-radius: 50%;`;
+    el.style.cssText = `width: 10px; height: 10px; background: ${colour}; border-radius: 50%; border: 1px solid ${borderColour};`;
     return el;
   }
 
   const vehicleMarkers = [];
   const stopMarkers = [];
-  const btMarkers = [];
-  let btVehicleData = []; // Store vehicle data to re-render on zoom change
-  const DETAIL_ZOOM_THRESHOLD = 10; // Zoom level to switch between circle and full icon
+  const btMarkers = [];        // DOM BT markers when in DOM mode
+  let btVehicleData = [];      // store latest BT vehicles
+  const DETAIL_ZOOM_THRESHOLD = 10;
+  const BT_DOM_LIMIT = 1000;   // threshold for DOM vs circles
 
   function clearMarkers(list) {
     while (list.length) {
@@ -583,11 +562,9 @@
       const data = await res.json();
       const vehicles = data.results || data || [];
 
-      // 1️⃣ Track open popup
       const openPopup = document.querySelector('.maplibregl-popup');
       const openVehicleId = openPopup?.__vehicleId || null;
 
-      // 2️⃣ Loop through all vehicles
       for (const v of vehicles) {
         const tracking = v.tracking_data || v.tracking || {};
         const lat = tracking.X ?? tracking.lat ?? tracking.latitude;
@@ -603,18 +580,15 @@
         const liveryCss = veh.livery?.left_css || veh.livery?.css || veh.livery?.colour || null;
         const textColour = veh.livery?.text_colour || '#000';
 
-        // 3️⃣ Marker already exists? Just move and rotate it.
         if (vehicleMarkers[id]) {
           const marker = vehicleMarkers[id];
           const el = marker.getElement();
 
-          // Smoothly interpolate the marker position
           const oldPos = marker.getLngLat();
           const newPos = [lng, lat];
 
-          // Animate the movement
           const startTime = performance.now();
-          const duration = 500; // half a second
+          const duration = 500;
           const animate = (time) => {
             const t = Math.min(1, (time - startTime) / duration);
             const lngInterp = oldPos.lng + (newPos[0] - oldPos.lng) * t;
@@ -624,10 +598,9 @@
           };
           requestAnimationFrame(animate);
 
-          // Update rotation instantly
-          el.querySelector('svg').style.transform = `rotate(${heading}deg)`;
+          const svg = el.querySelector('svg');
+          if (svg) svg.style.transform = `rotate(${heading}deg)`;
         } else {
-          // 4️⃣ Create marker if it doesn’t exist
           const el = createLiveryIcon({
             label: String(routeNum),
             bg: veh.livery?.colour || '#ccc',
@@ -654,7 +627,6 @@
         }
       }
 
-      // 5️⃣ Reopen popup if vehicle still exists
       if (openVehicleId && vehicleMarkers[openVehicleId]) {
         const marker = vehicleMarkers[openVehicleId];
         const popup = marker.getPopup();
@@ -695,7 +667,7 @@
         const el = document.createElement('div');
         el.className = 'stop-marker';
         el.style.cssText = 'width:10px;height:10px;border:3px solid var(--brand-color);border-radius:50%;background:#fff;';
-        const m = new maplibregl.Marker({ element: el })  // ✅ FIXED
+        const m = new maplibregl.Marker({ element: el })
           .setLngLat([lng, lat])
           .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(`<a href="/stop/?name=${encodeURIComponent(name)}">${name}</a>`))
           .addTo(map);
@@ -706,47 +678,51 @@
     }
   }
 
-  async function fetchBTVehicles() {
-    const b = map.getBounds();
-    const q = new URLSearchParams({
-      ymax: b.getNorth(),
-      ymin: b.getSouth(),
-      xmax: b.getEast(),
-      xmin: b.getWest()
+  // ===== BT vehicles: DOM mode + GeoJSON circles =====
+
+  function getFilteredBtVehicles() {
+    return btVehicleData.filter(v => {
+      const vehicleUrl = v.vehicle?.url || '';
+      const match = vehicleUrl.match(/\/operator\/([^/]+)\//);
+      const operatorSlug = match ? match[1] : null;
+      return !(operatorSlug && hiddenOperatorIds.includes(operatorSlug));
     });
-
-    try {
-      const res = await fetch(`/api/trips/simulated_positions/?${q.toString()}&limit=50000`);
-      const data = await res.json();
-
-      let vehicles = Array.isArray(data.results) ? data.results : (data.features || []);
-      btVehicleData = vehicles; // Store for re-rendering on zoom
-      
-      // Build operator list from fetched vehicles
-      buildOperatorListFromVehicles(vehicles);
-      
-      clearMarkers(btMarkers);
-      renderBTMarkers();
-    } catch (e) {
-      console.error('BT vehicle fetch failed', e);
-    }
   }
 
-  function renderBTMarkers() {
+  function btVehiclesToGeoJSON(filteredVehicles) {
+    return {
+      type: 'FeatureCollection',
+      features: filteredVehicles.map(v => ({
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: [v.lng, v.lat]
+        },
+        properties: {
+          vehicleColour: v.vehicle?.colour || '#000',
+          line: v.service?.line_name || '',
+          dest: v.destination || '',
+          vehicleName: v.vehicle?.name || '',
+          updated_at: v.updated_at,
+          serviceLink: v.service?.url || '',
+          vehicleLink: v.vehicle?.url || ''
+        }
+      }))
+    };
+  }
+
+  function updateBtGeojson(filteredVehicles) {
+    const src = map.getSource('btVehicles');
+    if (!src) return;
+    src.setData(btVehiclesToGeoJSON(filteredVehicles));
+  }
+
+  function renderBTDomMarkers(filteredVehicles) {
     clearMarkers(btMarkers);
     const zoom = map.getZoom();
     const showDetailedIcon = zoom >= DETAIL_ZOOM_THRESHOLD;
 
-    for (const v of btVehicleData.slice(0, 50000)) {
-      // Check if this operator is hidden
-      const vehicleUrl = v.vehicle?.url || '';
-      const match = vehicleUrl.match(/\/operator\/([^/]+)\//);
-      const operatorSlug = match ? match[1] : null;
-      
-      if (operatorSlug && hiddenOperatorIds.includes(operatorSlug)) {
-        continue; // Skip hidden operators
-      }
-      
+    for (const v of filteredVehicles.slice(0, 50000)) {
       const lng = v.lng;
       const lat = v.lat;
 
@@ -769,21 +745,17 @@
       const right_css = v.vehicle?.right_css || null;
 
       let css = left_css;
-
       if (rotation > 180 && rotation < 360) {
         css = right_css;
       } else {
         css = left_css;
       }
-      
+
       let textColour = '#000';
-
       if (whiteText) textColour = '#fff';
-
       if (v.vehicle?.text_colour) textColour = v.vehicle.text_colour;
 
       let strokeWidth = "0px";
-
       if (textStroke != false) strokeWidth = "2px";
 
       if (livery == null) {
@@ -795,15 +767,12 @@
         css = v.vehicle.css;
       }
 
-      // Parse custom_features for carriages
       let carriages = 1;
       const customFeatures = v.vehicle?.custom_features;
       if (customFeatures) {
         try {
-          // Handle JSON object, JSON string, or Python-style string dict
           let features = customFeatures;
           if (typeof customFeatures === 'string') {
-            // Replace single quotes with double quotes for Python-style dicts
             features = JSON.parse(customFeatures.replace(/'/g, '"'));
           }
           if (features && features.carriages) {
@@ -814,36 +783,124 @@
         }
       }
 
-      let html = `
-      <a href="${serviceLink}">${line} to ${dest}</a><br>
-      ${vehicleName ? `<a href="${vehicleLink}">${vehicleName}</a>` : ''}<br>
-        <span class="time-ago" data-time="${v.updated_at}">${timeAgo(v.updated_at)}</span>
-        <small style="margin-bottom: 0;">Simulated Location</small>
-      `;
+      const zoomForCarriages = map.getZoom();
+      const displayCarriages = zoomForCarriages > 12 ? carriages : 1;
 
       let el;
       if (showDetailedIcon) {
-        // Only show multiple carriages when zoomed in past level 12
-        const zoom = map.getZoom();
-        const displayCarriages = zoom > 12 ? carriages : 1;
-
         el = createLiveryIcon({
           label: line, css, textColour, rotation: heading, textStroke, strokeWidth, carriages: displayCarriages
         });
       } else {
-        // Simple circle when zoomed out - use vehicle colour
-        el = createSimpleCircle({ colour: vehicleColour, borderColour: '#333' });
+        // "Small circles from the first version": simple coloured dot
+        el = createSimpleCircle({ colour: vehicleColour, borderColour: '#0000' });
       }
+
+      const html = `
+        <a href="${serviceLink}">${line} to ${dest}</a><br>
+        ${vehicleName ? `<a href="${vehicleLink}">${vehicleName}</a>` : ''}<br>
+        <span class="time-ago" data-time="${v.updated_at}">${timeAgo(v.updated_at)}</span>
+        <small style="margin-bottom:0;">Simulated Location</small>
+      `;
 
       const m = new maplibregl.Marker({ element: el })
         .setLngLat([lng, lat])
-        .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(`
-          ${html}
-        `))
+        .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(html))
         .addTo(map);
+
       btMarkers.push(m);
     }
   }
+
+  function renderBTMarkers() {
+    const filtered = getFilteredBtVehicles();
+    const count = filtered.length;
+
+    if (count === 0) {
+      clearMarkers(btMarkers);
+      updateBtGeojson([]);
+      return;
+    }
+
+    if (count < BT_DOM_LIMIT) {
+      // DOM mode (full livery icons / small circles depending on zoom)
+      updateBtGeojson([]);          // hide circle layer
+      renderBTDomMarkers(filtered);
+    } else {
+      // GeoJSON circle mode
+      clearMarkers(btMarkers);
+      updateBtGeojson(filtered);
+    }
+  }
+
+  async function fetchBTVehicles() {
+    const b = map.getBounds();
+    const q = new URLSearchParams({
+      ymax: b.getNorth(),
+      ymin: b.getSouth(),
+      xmax: b.getEast(),
+      xmin: b.getWest()
+    });
+
+    try {
+      const res = await fetch(`/api/trips/simulated_positions/?${q.toString()}&limit=50000`);
+      const data = await res.json();
+
+      const vehicles = Array.isArray(data.results) ? data.results : (data.features || []);
+      btVehicleData = vehicles;
+      buildOperatorListFromVehicles(vehicles);
+      renderBTMarkers();
+    } catch (e) {
+      console.error('BT vehicle fetch failed', e);
+    }
+  }
+
+  map.on('load', () => {
+    // GeoJSON source + circle layer for large datasets
+    map.addSource('btVehicles', {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] }
+    });
+
+    map.addLayer({
+      id: 'btVehicles-layer',
+      type: 'circle',
+      source: 'btVehicles',
+      paint: {
+        'circle-radius': [
+          'interpolate', ['linear'], ['zoom'],
+          5, 4,
+          10, 6,
+          14, 10,
+          18, 14
+        ],
+        'circle-color': ['get', 'vehicleColour'],
+        'circle-stroke-color': '#0000',
+        'circle-stroke-width': 0
+      }
+    }); 
+
+    const btPopup = new maplibregl.Popup({ closeButton: true, closeOnClick: true });
+
+    map.on('click', 'btVehicles-layer', (e) => {
+      const f = e.features[0];
+      const p = f.properties;
+      const html = `
+        <a href="${p.serviceLink}">${p.line} to ${p.dest}</a><br>
+        ${p.vehicleName ? `<a href="${p.vehicleLink}">${p.vehicleName}</a>` : ''}<br>
+        <span class="time-ago" data-time="${p.updated_at}">${timeAgo(p.updated_at)}</span>
+        <small>Simulated Location</small>
+      `;
+      btPopup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+    });
+
+    map.on('mouseenter', 'btVehicles-layer', () => {
+      map.getCanvas().style.cursor = 'pointer';
+    });
+    map.on('mouseleave', 'btVehicles-layer', () => {
+      map.getCanvas().style.cursor = '';
+    });
+  });
 
   const btDiv = document.createElement('div');
   btDiv.className = 'bt-toggle-control';
@@ -852,38 +909,46 @@
   document.body.appendChild(btDiv);
   const btToggle = document.getElementById('btToggle');
   btToggle.addEventListener('change', () => {
-    if (btToggle.checked) fetchBTVehicles();
-    else clearMarkers(btMarkers);
+    if (btToggle.checked) {
+      fetchBTVehicles();
+    } else {
+      btVehicleData = [];
+      clearMarkers(btMarkers);
+      updateBtGeojson([]);
+    }
   });
 
   (async () => {
-    await fetchStops();          // Stops first
-    await refreshMarkers();      // Vehicles next (above)
-    await fetchBTVehicles();     // BT vehicles last (top layer)
+    await fetchStops();
+    await refreshMarkers();
+    if (btToggle.checked) await fetchBTVehicles();
   })();
 
   setInterval(async () => {
-    await fetchStops();          // stops → below
-    await refreshMarkers();      // vehicles → above
-    if (btToggle.checked) await fetchBTVehicles(); // bt vehicles → top
+    await fetchStops();
+    await refreshMarkers();
+    if (btToggle.checked) await fetchBTVehicles();
   }, 30000);
 
   map.on('moveend', async () => {
-    await fetchStops();          // stops → below
-    await refreshMarkers();      // vehicles → above
-    if (btToggle.checked) await fetchBTVehicles(); // bt vehicles → top
+    await fetchStops();
+    await refreshMarkers();
+    if (btToggle.checked) await fetchBTVehicles();
   });
 
-  // Re-render BT markers when zooming past the threshold (without re-fetching data)
+  // Re-render BT DOM markers when zoom crosses detail threshold
   let lastZoomLevel = map.getZoom();
   map.on('zoom', () => {
     const currentZoom = map.getZoom();
-    const crossedThreshold = 
+    const crossedThreshold =
       (lastZoomLevel < DETAIL_ZOOM_THRESHOLD && currentZoom >= DETAIL_ZOOM_THRESHOLD) ||
       (lastZoomLevel >= DETAIL_ZOOM_THRESHOLD && currentZoom < DETAIL_ZOOM_THRESHOLD);
-    
-    if (crossedThreshold && btToggle.checked && btVehicleData.length > 0) {
-      renderBTMarkers();
+
+    if (crossedThreshold && btToggle.checked) {
+      const filtered = getFilteredBtVehicles();
+      if (filtered.length > 0 && filtered.length < BT_DOM_LIMIT) {
+        renderBTDomMarkers(filtered);
+      }
     }
     lastZoomLevel = currentZoom;
   });
@@ -895,6 +960,6 @@
         el.textContent = timeAgo(dateString);
       }
     });
-  }, 1000); 
+  }, 1000);
 </script>
 {% endblock %}
