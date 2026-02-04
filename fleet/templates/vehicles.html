@@ -14,8 +14,8 @@
 {% block extra_css %}
 <style>
     .on_loan { opacity: 0.5; }
-    .popup { z-index: 1000; display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
-    .popup-content { background: white; margin: 20vh auto; padding: 20px; max-width: 400px; border-radius: 8px; }
+    .popup { z-index: 1000; display: none; }
+    .popup-content { margin: auto; margin-top: calc(50vh - 100px); }
     .table-wrapper table { overflow-y: hidden; display: block; }
     
     .loading-skeleton {
@@ -28,57 +28,81 @@
         0% { background-position: 200% 0; }
         100% { background-position: -200% 0; }
     }
+    #loading-indicator {
+        text-align: center;
+        padding: 40px;
+        font-size: 1.1em;
+        color: var(--text-muted, #666);
+    }
     .skeleton-text { height: 16px; display: inline-block; min-width: 30px; }
     .skeleton-row td { padding: 12px 10px; }
     
     @media print {
-        .no-print, td:nth-child(13), th:nth-child(13), .flickr-link, .edit-link { display: none !important; }
+        .no-print, td:nth-child(13), th:nth-child(13), a[href*="flickr.com"] { display: none !important; }
         .table-wrapper { margin: 0; padding: 0; }
         table { width: 100%; border-collapse: collapse; }
         .livery-cell { width: 2.25em; height: 1.5em; display: inline-block; vertical-align: text-top; text-align: center; }
         th, td { border: 1px solid #ccc; padding: 6px; }
+        .flickr-link, .edit-link { display: none !important; }
     }
 
-    {% if operator.show_livery_border %}.icon-border { border: 1px solid var(--text-color); margin: -2px 0 0 -2px; }{% endif %}
+    {% if operator.show_livery_border %}
+    .icon-border {
+        border: 1px solid var(--text-color);
+        margin-top: -2px;
+        margin-left: -2px;
+    }
+    {% endif %}
 </style>
 {% endblock %}
 
 {% block content %}
 <style>
-  .title { display: flex; align-items: center; gap: 10px; }
+  .title { display: flex; }
+  .verf-icon { margin-top: 20px; }
 </style>
 
 <div class="operator-title-info">
   <div class="title">
     <h1>{{ operator.operator_name }}</h1>
     {% if operator.verified %}
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" title="Verified Operator">
-      <path fill-rule="evenodd" clip-rule="evenodd" d="M9.5924 3.20027C9.34888 3.4078 9.22711 3.51158 9.09706 3.59874C8.79896 3.79854 8.46417 3.93721 8.1121 4.00672C7.95851 4.03705 7.79903 4.04977 7.48008 4.07522C6.6787 4.13918 6.278 4.17115 5.94371 4.28923C5.17051 4.56233 4.56233 5.17051 4.28923 5.94371C4.17115 6.278 4.13918 6.6787 4.07522 7.48008C4.04977 7.79903 4.03705 7.95851 4.00672 8.1121C3.93721 8.46417 3.79854 8.79896 3.59874 9.09706C3.51158 9.22711 3.40781 9.34887 3.20027 9.5924C2.67883 10.2043 2.4181 10.5102 2.26522 10.8301C1.91159 11.57 1.91159 12.43 2.26522 13.1699C2.41811 13.4898 2.67883 13.7957 3.20027 14.4076C3.40778 14.6511 3.51158 14.7729 3.59874 14.9029C3.79854 15.201 3.93721 15.5358 4.00672 15.8879C4.03705 16.0415 4.04977 16.201 4.07522 16.5199C4.13918 17.3213 4.17115 17.722 4.28923 18.0563C4.56233 18.8295 5.17051 19.4377 5.94371 19.7108C6.278 19.8288 6.6787 19.8608 7.48008 19.9248C7.79903 19.9502 7.95851 19.963 8.1121 19.9933C8.46417 20.0628 8.79896 20.2015 9.09706 20.4013C9.22711 20.4884 9.34887 20.5922 9.5924 20.7997C10.2043 21.3212 10.5102 21.5819 10.8301 21.7348C11.57 22.0884 12.43 22.0884 13.1699 21.7348C13.4898 21.5819 13.7957 21.3212 14.4076 20.7997C14.6511 20.5922 14.7729 20.4884 14.9029 20.4013C15.201 20.2015 15.5358 20.0628 15.8879 19.9933C16.0415 19.963 16.201 19.9502 16.5199 19.9248C17.3213 19.8608 17.722 19.8288 18.0563 19.7108C18.8295 19.4377 19.4377 18.8295 19.7108 18.0563C19.8288 17.722 19.8608 17.3213 19.9248 16.5199C19.9502 16.201 19.963 16.0415 19.9933 15.8879C20.0628 15.5358 20.2015 15.201 20.4013 14.9029C20.4884 14.7729 20.5922 14.6511 20.7997 14.4076C21.3212 13.7957 21.5819 13.4898 21.7348 13.1699C22.0884 12.43 22.0884 11.57 21.7348 10.8301C21.5819 10.5102 21.3212 10.2043 20.7997 9.5924C20.5922 9.34887 20.4884 9.22711 20.4013 9.09706C20.2015 8.79896 20.0628 8.46417 19.9933 8.1121C19.963 7.95851 19.9502 7.79903 19.9248 7.48008C19.8608 6.6787 19.8288 6.278 19.7108 5.94371C19.4377 5.17051 18.8295 4.56233 18.0563 4.28923C17.722 4.17115 17.3213 4.13918 16.5199 4.07522C16.201 4.04977 16.0415 4.03705 15.8879 4.00672C15.5358 3.93721 15.201 3.79854 14.9029 3.59874C14.7729 3.51158 14.6511 3.40781 14.4076 3.20027C13.7957 2.67883 13.4898 2.41811 13.1699 2.26522C12.43 1.91159 11.57 1.91159 10.8301 2.26522C10.5102 2.4181 10.2043 2.67883 9.5924 3.20027ZM16.3735 9.86314C16.6913 9.5453 16.6913 9.03 16.3735 8.71216C16.0557 8.39433 15.5403 8.39433 15.2225 8.71216L10.3723 13.5624L8.77746 11.9676C8.45963 11.6498 7.94432 11.6498 7.62649 11.9676C7.30866 12.2854 7.30866 12.8007 7.62649 13.1186L9.79678 15.2889C10.1146 15.6067 10.6299 15.6067 10.9478 15.2889L16.3735 9.86314Z" fill="#0c89f7"/>
-      <path d="M16.3735 9.86314C16.6913 9.5453 16.6913 9.03 16.3735 8.71216C16.0557 8.39433 15.5403 8.39433 15.2225 8.71216L10.3723 13.5624L8.77746 11.9676C8.45963 11.6498 7.94432 11.6498 7.62649 11.9676C7.30866 12.2854 7.30866 12.8007 7.62649 13.1186L9.79678 15.2889C10.1146 15.6067 10.6299 15.6067 10.9478 15.2889L16.3735 9.86314Z" fill="var(--text-color)" />
-    </svg>
+    <div class="verf-icon" title="Verified Operator">
+      <svg width="20px" height="20px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" title="Verified Operator">
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M9.5924 3.20027C9.34888 3.4078 9.22711 3.51158 9.09706 3.59874C8.79896 3.79854 8.46417 3.93721 8.1121 4.00672C7.95851 4.03705 7.79903 4.04977 7.48008 4.07522C6.6787 4.13918 6.278 4.17115 5.94371 4.28923C5.17051 4.56233 4.56233 5.17051 4.28923 5.94371C4.17115 6.278 4.13918 6.6787 4.07522 7.48008C4.04977 7.79903 4.03705 7.95851 4.00672 8.1121C3.93721 8.46417 3.79854 8.79896 3.59874 9.09706C3.51158 9.22711 3.40781 9.34887 3.20027 9.5924C2.67883 10.2043 2.4181 10.5102 2.26522 10.8301C1.91159 11.57 1.91159 12.43 2.26522 13.1699C2.41811 13.4898 2.67883 13.7957 3.20027 14.4076C3.40778 14.6511 3.51158 14.7729 3.59874 14.9029C3.79854 15.201 3.93721 15.5358 4.00672 15.8879C4.03705 16.0415 4.04977 16.201 4.07522 16.5199C4.13918 17.3213 4.17115 17.722 4.28923 18.0563C4.56233 18.8295 5.17051 19.4377 5.94371 19.7108C6.278 19.8288 6.6787 19.8608 7.48008 19.9248C7.79903 19.9502 7.95851 19.963 8.1121 19.9933C8.46417 20.0628 8.79896 20.2015 9.09706 20.4013C9.22711 20.4884 9.34887 20.5922 9.5924 20.7997C10.2043 21.3212 10.5102 21.5819 10.8301 21.7348C11.57 22.0884 12.43 22.0884 13.1699 21.7348C13.4898 21.5819 13.7957 21.3212 14.4076 20.7997C14.6511 20.5922 14.7729 20.4884 14.9029 20.4013C15.201 20.2015 15.5358 20.0628 15.8879 19.9933C16.0415 19.963 16.201 19.9502 16.5199 19.9248C17.3213 19.8608 17.722 19.8288 18.0563 19.7108C18.8295 19.4377 19.4377 18.8295 19.7108 18.0563C19.8288 17.722 19.8608 17.3213 19.9248 16.5199C19.9502 16.201 19.963 16.0415 19.9933 15.8879C20.0628 15.5358 20.2015 15.201 20.4013 14.9029C20.4884 14.7729 20.5922 14.6511 20.7997 14.4076C21.3212 13.7957 21.5819 13.4898 21.7348 13.1699C22.0884 12.43 22.0884 11.57 21.7348 10.8301C21.5819 10.5102 21.3212 10.2043 20.7997 9.5924C20.5922 9.34887 20.4884 9.22711 20.4013 9.09706C20.2015 8.79896 20.0628 8.46417 19.9933 8.1121C19.963 7.95851 19.9502 7.79903 19.9248 7.48008C19.8608 6.6787 19.8288 6.278 19.7108 5.94371C19.4377 5.17051 18.8295 4.56233 18.0563 4.28923C17.722 4.17115 17.3213 4.13918 16.5199 4.07522C16.201 4.04977 16.0415 4.03705 15.8879 4.00672C15.5358 3.93721 15.201 3.79854 14.9029 3.59874C14.7729 3.51158 14.6511 3.40781 14.4076 3.20027C13.7957 2.67883 13.4898 2.41811 13.1699 2.26522C12.43 1.91159 11.57 1.91159 10.8301 2.26522C10.5102 2.4181 10.2043 2.67883 9.5924 3.20027ZM16.3735 9.86314C16.6913 9.5453 16.6913 9.03 16.3735 8.71216C16.0557 8.39433 15.5403 8.39433 15.2225 8.71216L10.3723 13.5624L8.77746 11.9676C8.45963 11.6498 7.94432 11.6498 7.62649 11.9676C7.30866 12.2854 7.30866 12.8007 7.62649 13.1186L9.79678 15.2889C10.1146 15.6067 10.6299 15.6067 10.9478 15.2889L16.3735 9.86314Z" fill="#0c89f7"/>
+        <path d="M16.3735 9.86314C16.6913 9.5453 16.6913 9.03 16.3735 8.71216C16.0557 8.39433 15.5403 8.39433 15.2225 8.71216L10.3723 13.5624L8.77746 11.9676C8.45963 11.6498 7.94432 11.6498 7.62649 11.9676C7.30866 12.2854 7.30866 12.8007 7.62649 13.1186L9.79678 15.2889C10.1146 15.6067 10.6299 15.6067 10.9478 15.2889L16.3735 9.86314Z" fill="var(--text-color)" />
+      </svg>
+    </div>
     {% endif %}
   </div>
-  {% if operator.public_notes %}<p style="margin-top: -10px; margin-bottom: -15px;">{{ operator.public_notes }}</p>{% endif %}
+  <p style="margin-top: -10px;margin-bottom: -15px;">{{ operator.public_notes }}</p>
 </div>
 
 {% if depot %}
-<p style="margin-bottom: 0;">Depot: {{ depot }}</p>
+<p style="margin-bottom: 0em;">Depot: {{ depot }}</p>
 <a href="/operator/{{ operator.operator_slug }}/vehicles">View Full Fleet</a>
 {% endif %}
 
-{% if operator.group %}<p>Part of <a href="/group/{{ operator.group.group_name }}">{{ operator.group.group_name }}</a></p>{% endif %}
-{% if operator.organisation %}<p>Part of <a href="/organisation/{{ operator.organisation.organisation_name }}">{{ operator.organisation.organisation_name }}</a></p>{% endif %}
-
+{% if operator.group %}
+<p>Part of <a href="/group/{{ operator.group.group_name }}">{{ operator.group.group_name }}</a></p>
+{% endif %}
+{% if operator.organisation %}
+<p>Part of <a href="/organisation/{{ operator.organisation.organisation_name }}">{{ operator.organisation.organisation_name }}</a></p>
+{% endif %}
 <br>
+
 <div class="incontent-ad-container in-page-ad" style="height:100px;">
     <div id="AFM_inContent_ad" style="margin:auto;"></div>
-</div>
+  </div>
 
 {% include "partials/tabs.html" with tabs=tabs %}
 
 <ul class="horizontal">
     <li><a href="/operator/history?operator={{ operator.id }}&approved=true">Recent Edits</a></li>
-    <li><a href="/operator/{{ operator.operator_slug }}/vehicles{% if request.GET.withdrawn != 'true' %}?withdrawn=true{% endif %}">{% if request.GET.withdrawn == "true" %}Hide{% else %}Show{% endif %} Withdrawn</a></li>
+    {% if request.GET.withdrawn == "true" %}
+    <li><a href="/operator/{{ operator.operator_slug }}/vehicles">Hide Withdrawn</a></li>
+    {% else %}
+    <li><a href="/operator/{{ operator.operator_slug }}/vehicles?withdrawn=true">Show Withdrawn</a></li>
+    {% endif %}
 </ul>
 
 <div id="pagination-top"></div>
@@ -112,7 +136,6 @@
 
 <div id="pagination-bottom"></div>
 
-{% if sales_operator %}
 <div class="popup" id="buyPopup">
     <div class="popup-content">
         <h3 style="margin-top: 0;">Buy Vehicle</h3>
@@ -130,12 +153,9 @@
         </form>
     </div>
 </div>
-{% endif %}
 
 <script>
 (function() {
-    'use strict';
-    
     const CONFIG = {
         operatorSlug: '{{ operator.operator_slug }}',
         salesOperator: {{ sales_operator|yesno:"true,false" }},
@@ -144,212 +164,160 @@
     };
 
     const params = new URLSearchParams(window.location.search);
-    const urlParams = {
-        page: params.get('page') || '1',
-        withdrawn: params.get('withdrawn') || '',
-        depot: params.get('depot') || ''
-    };
+    const currentPage = params.get('page') || 1;
+    const withdrawn = params.get('withdrawn') || '';
+    const depot = params.get('depot') || '';
 
-    // Build API query string
-    const apiQuery = '?page=' + urlParams.page + 
-        (urlParams.withdrawn ? '&withdrawn=' + urlParams.withdrawn : '') +
-        (urlParams.depot ? '&depot=' + encodeURIComponent(urlParams.depot) : '');
+    let apiParams = '?page=' + currentPage;
+    if (withdrawn) apiParams += '&withdrawn=' + withdrawn;
+    if (depot) apiParams += '&depot=' + encodeURIComponent(depot);
 
-    // Cache DOM elements
-    const elements = {
-        tableHead: document.getElementById('table-head'),
-        tableBody: document.getElementById('table-body'),
-        paginationTop: document.getElementById('pagination-top'),
-        paginationBottom: document.getElementById('pagination-bottom')
-    };
-
-    // HTML escaping using template element
-    const escaper = document.createElement('div');
     function escapeHtml(text) {
         if (!text) return '';
-        escaper.textContent = text;
-        return escaper.innerHTML;
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     function buildTableHead(data) {
-        const headers = ['<th colspan="2"></th><th colspan="2">Last Tracked</th><th>Type</th>'];
-        
-        if (CONFIG.salesOperator) headers.unshift('<th></th>');
-        if (data.show_livery) headers.push('<th>Livery</th>');
-        if (data.show_branding) headers.push('<th>Branding</th>');
-        if (data.show_prev_reg) headers.push('<th>Prev Reg</th>');
-        if (data.show_name) headers.push('<th>Name</th>');
-        if (data.show_features) headers.push('<th>Features</th>');
-        if (data.show_depot) headers.push('<th>Depot</th>');
-        headers.push(CONFIG.canEdit ? '<th colspan="2"></th>' : '<th></th>');
-        
-        return '<tr>' + headers.join('') + '</tr>';
+        let html = '<tr>';
+        if (CONFIG.salesOperator) html += '<th></th>';
+        html += '<th colspan="2"></th><th colspan="2">Last Tracked</th><th>Type</th>';
+        if (data.show_livery) html += '<th>Livery</th>';
+        if (data.show_branding) html += '<th>Branding</th>';
+        if (data.show_prev_reg) html += '<th>Prev Reg</th>';
+        if (data.show_name) html += '<th>Name</th>';
+        if (data.show_features) html += '<th>Features</th>';
+        if (data.show_depot) html += '<th>Depot</th>';
+        html += CONFIG.canEdit ? '<th colspan="2"></th>' : '<th></th>';
+        html += '</tr>';
+        return html;
     }
 
     function buildVehicleRow(v, data) {
-        const parts = [];
-        const rowClass = (!v.in_service ? 'withdrawn ' : '') + (v.onloan ? 'on_loan' : '');
-        const detailUrl = '/operator/' + v.operator__operator_slug + '/vehicles/' + v.id + '/' + 
-                         (v.last_trip_date ? '?date=' + v.last_trip_date : '');
+        const rowClass = (!v.in_service ? 'withdrawn ' : '') + (v.onloan ? 'on_loan ' : '');
+        const dateParam = v.last_trip_date ? '?date=' + v.last_trip_date : '';
+        const detailUrl = '/operator/' + v.operator__operator_slug + '/vehicles/' + v.id + '/' + dateParam;
         
-        parts.push('<tr id="' + escapeHtml(v.fleet_number) + '-' + escapeHtml(v.operator__operator_code) + 
-                  '" class="' + rowClass + '">');
+        let html = '<tr id="' + escapeHtml(v.fleet_number) + '-' + escapeHtml(v.operator__operator_code) + '" class="' + rowClass + '">';
         
         if (CONFIG.salesOperator) {
-            parts.push('<td><button onclick="buyVehicle(' + v.id + ')">Buy</button></td>');
+            html += '<td><button onclick="buyVehicle(' + v.id + ')">Buy</button></td>';
         }
         
-        // Fleet number and reg
         if (v.fleet_number) {
-            parts.push('<td' + (!v.reg ? ' colspan="2"' : '') + '><a href="' + detailUrl + '">' + 
-                      escapeHtml(v.fleet_number) + (v.for_sale ? '*' : '') + '</a></td>');
+            html += '<td ' + (!v.reg ? 'colspan="2"' : '') + '><a href="' + detailUrl + '">' + escapeHtml(v.fleet_number) + (v.for_sale ? '*' : '') + '</a></td>';
         }
         if (v.reg) {
-            parts.push('<td class="reg"' + (!v.fleet_number ? ' colspan="2"' : '') + '><a href="' + 
-                      detailUrl + '">' + escapeHtml(v.reg).toUpperCase() + '</a></td>');
+            html += '<td class="reg" ' + (!v.fleet_number ? 'colspan="2"' : '') + '><a href="' + detailUrl + '">' + escapeHtml(v.reg).toUpperCase() + '</a></td>';
         }
         if (!v.reg && !v.fleet_number) {
-            parts.push('<td colspan="2" class="no-reg"></td>');
+            html += '<td colspan="2" class="no-reg"></td>';
         }
         
-        // Trip data
-        parts.push('<td>' + (v.last_trip_route || '') + '</td>');
-        parts.push('<td>' + (v.last_trip_display || '') + '</td>');
+        html += '<td>' + (v.last_trip_route || '') + '</td>';
+        html += '<td>' + (v.last_trip_display || '') + '</td>';
         
-        // Type
         let typeStr = v.vehicleType__type_name || '';
         if (v.type_details && v.type_details !== 'NULL') typeStr += ' ' + v.type_details;
         if (v.open_top) typeStr += ' | Open Top';
-        parts.push('<td>' + escapeHtml(typeStr) + '</td>');
+        html += '<td>' + escapeHtml(typeStr) + '</td>';
         
-        // Livery
         if (data.show_livery) {
             if (v.colour && v.colour !== 'NULL') {
-                parts.push('<td><div class="livery-cell" style="background:' + escapeHtml(v.colour) + 
-                          ';" title="' + escapeHtml(v.branding) + '"><svg class="icon-border" height="24" width="36" style="background:' + 
-                          escapeHtml(v.colour) + '"></svg></div> ' + escapeHtml(v.branding) + '</td>');
+                html += '<td><div class="livery-cell" style="background:' + escapeHtml(v.colour) + ';" title="' + escapeHtml(v.branding) + '"><svg class="icon-border" height="24" width="36" style="background:' + escapeHtml(v.colour) + '"></svg></div> ' + escapeHtml(v.branding) + '</td>';
             } else {
-                parts.push('<td><div class="livery-cell" style="background:' + escapeHtml(v.livery__left_css) + 
-                          ';" title="' + escapeHtml(v.livery__name || '') + '"><svg class="icon-border" height="24" width="36" style="background:' + 
-                          escapeHtml(v.livery__left_css) + '"></svg></div> ' + escapeHtml(v.livery__name || '') + '</td>');
+                html += '<td><div class="livery-cell" style="background:' + escapeHtml(v.livery__left_css) + ';" title="' + escapeHtml(v.livery__name || '') + '"><svg class="icon-border" height="24" width="36" style="background:' + escapeHtml(v.livery__left_css) + '"></svg></div> ' + escapeHtml(v.livery__name || '') + '</td>';
             }
         }
         
-        if (data.show_branding) parts.push('<td>' + (v.livery__name ? escapeHtml(v.branding) : '') + '</td>');
-        if (data.show_prev_reg) parts.push('<td>' + escapeHtml(v.prev_reg || '') + '</td>');
-        if (data.show_name) parts.push('<td>' + escapeHtml(v.name || '') + '</td>');
+        if (data.show_branding) html += '<td>' + (v.livery__name ? escapeHtml(v.branding) : '') + '</td>';
+        if (data.show_prev_reg) html += '<td>' + escapeHtml(v.prev_reg || '') + '</td>';
+        if (data.show_name) html += '<td>' + escapeHtml(v.name || '') + '</td>';
         if (data.show_features) {
             const features = v.features && v.features.length ? v.features.join(', ') : '';
-            parts.push('<td>' + escapeHtml(features) + '</td>');
+            html += '<td>' + escapeHtml(features) + '</td>';
         }
-        if (data.show_depot) {
-            parts.push('<td><a href="?depot=' + encodeURIComponent(v.depot || '') + '">' + 
-                      escapeHtml(v.depot || '') + '</a></td>');
-        }
+        if (data.show_depot) html += '<td><a href="?depot=' + encodeURIComponent(v.depot || '') + '">' + escapeHtml(v.depot || '') + '</a></td>';
 
-        parts.push("<td class='flickr-link'><a target='_blank' href='" + escapeHtml(v.flickr_link) + 
-                  "'>Flickr</a></td>");
+        html += "<td class='flickr-link'><a target='_blank' href='"
+        html += escapeHtml(v.flickr_link)
+        html += "'>Flickr</a></td>";
         
         if (CONFIG.canEdit) {
-            parts.push('<td class="edit-link"><a href="/operator/' + v.operator__operator_slug + 
-                      '/vehicle/edit/' + v.id + '/">Edit</a></td>');
+            html += '<td class="edit-link"><a href="/operator/' + v.operator__operator_slug + '/vehicle/edit/' + v.id + '/">Edit</a></td>';
         }
         
-        parts.push('</tr>');
-        return parts.join('');
+        html += '</tr>';
+        return html;
     }
 
     function buildPagination(p) {
         if (p.total_pages <= 1) return '';
         
-        const parts = ['<div class="pagination">'];
-        const withdrawnParam = urlParams.withdrawn ? '&withdrawn=' + urlParams.withdrawn : '';
+        let html = '<div class="pagination">';
+        const withdrawnParam = withdrawn ? '&withdrawn=' + withdrawn : '';
         
-        if (p.has_previous) {
-            parts.push('<a href="?page=' + p.previous_page + withdrawnParam + '">&laquo; Previous</a>');
-        }
+        if (p.has_previous) html += '<a href="?page=' + p.previous_page + withdrawnParam + '">&laquo; Previous</a>';
         
         for (let i = 1; i <= p.total_pages; i++) {
             if (i === p.current_page) {
-                parts.push('<span class="current">' + i + '</span>');
+                html += '<span class="current">' + i + '</span>';
             } else if (i === 1 || i === p.total_pages || (i >= p.current_page - 2 && i <= p.current_page + 2)) {
-                parts.push('<a href="?page=' + i + withdrawnParam + '">' + i + '</a>');
+                html += '<a href="?page=' + i + withdrawnParam + '">' + i + '</a>';
             } else if (i === p.current_page - 3 || i === p.current_page + 3) {
-                parts.push('<span class="dots">…</span>');
+                html += '<span class="dots">…</span>';
             }
         }
         
-        if (p.has_next) {
-            parts.push('<a href="?page=' + p.next_page + withdrawnParam + '">Next &raquo;</a>');
-        }
+        if (p.has_next) html += '<a href="?page=' + p.next_page + withdrawnParam + '">Next &raquo;</a>';
         
-        // Page jump dropdown
-        parts.push('<form method="get" class="page-jump-form" style="display:inline-block;margin-left:10px;">');
-        parts.push('<label for="page-select">Jump to:</label><select id="page-select" name="page" onchange="this.form.submit()">');
+        html += '<form method="get" class="page-jump-form" style="display:inline-block;margin-left:10px;">';
+        html += '<label for="page-select">Jump to:</label><select id="page-select" name="page" onchange="this.form.submit()">';
         for (let i = 1; i <= p.total_pages; i++) {
-            parts.push('<option value="' + i + '"' + (i === p.current_page ? ' selected' : '') + 
-                      '>Page ' + i + '</option>');
+            html += '<option value="' + i + '"' + (i === p.current_page ? ' selected' : '') + '>Page ' + i + '</option>';
         }
-        parts.push('</select>');
-        if (urlParams.withdrawn) parts.push('<input type="hidden" name="withdrawn" value="' + urlParams.withdrawn + '">');
-        parts.push('</form></div>');
+        html += '</select>';
+        if (withdrawn) html += '<input type="hidden" name="withdrawn" value="' + withdrawn + '">';
+        html += '</form></div>';
         
-        return parts.join('');
+        return html;
     }
 
     function renderData(data) {
-        // Update table header
-        elements.tableHead.innerHTML = buildTableHead(data);
+        document.getElementById('table-head').innerHTML = buildTableHead(data);
         
-        // Update table body using DocumentFragment for better performance
-        const fragment = document.createDocumentFragment();
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = data.vehicles.map(v => buildVehicleRow(v, data)).join('');
-        
-        while (tempDiv.firstChild) {
-            fragment.appendChild(tempDiv.firstChild);
+        const tbody = document.getElementById('table-body');
+        let bodyHtml = '';
+        const vehicles = data.vehicles;
+        for (let i = 0; i < vehicles.length; i++) {
+            bodyHtml += buildVehicleRow(vehicles[i], data);
         }
+        tbody.innerHTML = bodyHtml;
         
-        elements.tableBody.innerHTML = '';
-        elements.tableBody.appendChild(fragment);
-        
-        // Update pagination
         const paginationHtml = buildPagination(data.pagination);
-        elements.paginationTop.innerHTML = paginationHtml;
-        elements.paginationBottom.innerHTML = paginationHtml;
+        document.getElementById('pagination-top').innerHTML = paginationHtml;
+        document.getElementById('pagination-bottom').innerHTML = paginationHtml;
     }
 
-    function showError() {
-        elements.tableBody.innerHTML = 
-            '<tr><td colspan="7" style="text-align:center;color:red;padding:40px;">' +
-            'Failed to load fleet data. Please refresh the page.</td></tr>';
-    }
-
-    // Fetch and render data
-    fetch(CONFIG.apiUrl + apiQuery)
-        .then(r => {
-            if (!r.ok) throw new Error('Network response was not ok');
-            return r.json();
-        })
+    fetch(CONFIG.apiUrl + apiParams)
+        .then(function(r) { return r.json(); })
         .then(renderData)
-        .catch(err => {
+        .catch(function(err) {
             console.error('Failed to load vehicles:', err);
-            showError();
+            document.getElementById('table-body').innerHTML = '<tr><td colspan="7" style="text-align:center;color:red;padding:40px;">Failed to load fleet data. Please refresh the page.</td></tr>';
         });
 
-    // Buy vehicle popup handler
-    if (CONFIG.salesOperator) {
-        window.buyVehicle = function(vehicleId) {
-            document.getElementById('vehicle_id_input').value = vehicleId;
-            document.getElementById('buyPopup').style.display = 'block';
-        };
+    window.buyVehicle = function(vehicleId) {
+        document.getElementById('buyPopup').style.display = 'block';
+        document.getElementById('vehicle_id_input').value = vehicleId;
+    };
 
-        document.getElementById('buyPopup').addEventListener('click', function(e) {
-            if (e.target === this) {
-                this.style.display = 'none';
-            }
-        });
-    }
+    document.getElementById('buyPopup').addEventListener('click', function(e) {
+        if (e.target.classList.contains('popup')) {
+            this.style.display = 'none';
+        }
+    });
 })();
 </script>
 {% endblock %}
