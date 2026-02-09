@@ -2,42 +2,175 @@
 {% load static %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/narrow.css' %}">
 <style> 
-ul.thread-list {
+.forum-shell {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 1.5rem;
+  margin-top: 0.5rem;
+  min-height: calc(100vh - 140px);
+}
+
+.forum-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--background-color);
+}
+
+.forum-hero h2 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.forum-hero small {
+  opacity: 0.7;
+}
+
+.forum-card {
+  border: 1px solid var(--border-color);
+  border-radius: 10px 10px 10px 10px;
+  background: var(--background-color);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  padding: 1rem;
+  overflow-y: scroll;
+  overflow-x: hidden;
+  max-height: calc(100vh - 125px);
+}
+
+.forum-card-header {
+  display: grid;
+  grid-template-columns: 1fr 140px;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-color);
+  opacity: 0.7;
+}
+
+.forum-list {
   list-style: none;
   padding: 0;
   margin: 0;
 }
 
-ul.thread-list li {
-  background: var(--background-color);
-  margin-bottom: 0.75rem;
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--border-color);
-  border-radius: 5px;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.05);
-  transition: background-color 0.2s ease;
+.forum-row {
+  display: grid;
+  grid-template-columns: 1fr 140px;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
 }
 
-ul.thread-list li:hover {
-  background-color: var(--brand-color);
+.forum-row:hover {
+  background: rgba(0, 0, 0, 0.04);
+  transform: translateY(-1px);
 }
 
-.thread-title {
-  font-size: 1.1rem;
+.forum-row:last-child {
+  border-bottom: none;
+}
+
+.forum-title {
   font-weight: 700;
+  font-size: 1.05rem;
 }
 
-.thread-meta {
+.forum-desc {
+  margin-top: 0.3rem;
+  opacity: 0.7;
+  font-size: 0.9rem;
+}
+
+.forum-last {
+  text-align: right;
   font-size: 0.85rem;
-  color: var(--text-color);
-  margin-top: 0.25rem;
   opacity: 0.8;
+}
+
+.forum-sidebar {
+  position: sticky;
+  top: 70px;
+  align-self: start;
+  height: calc(100vh - 90px);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.forum-sidebar .card {
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1rem;
+  background: var(--background-color);
+}
+
+.forum-sidebar .card.recent {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.forum-sidebar h3 {
+  margin-top: 0;
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.forum-sidebar ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.forum-sidebar li {
+  padding: 0.6rem 0;
+  border-bottom: 1px dashed var(--border-color);
+}
+
+.forum-sidebar li:last-child {
+  border-bottom: none;
+}
+
+.forum-sidebar a {
+  color: var(--link-color);
+  font-weight: 600;
 }
 
 .breadcrumb {
   display: none;
+}
+
+@media (max-width: 900px) {
+  .forum-shell {
+    grid-template-columns: 1fr;
+    min-height: unset;
+  }
+
+  .forum-sidebar {
+    position: static;
+    order: 2;
+    height: auto;
+  }
+}
+
+@media (max-width: 600px) {
+  .forum-card-header,
+  .forum-row {
+    grid-template-columns: 1fr;
+  }
+
+  .forum-last {
+    text-align: left;
+  }
 }
 
 </style>
@@ -47,20 +180,71 @@ ul.thread-list li:hover {
 {% block title %}Forum{% endblock %}
 
 {% block content %}
-<h2>Forum</h2>
+<div class="forum-hero">
+  <div>
+    <h2>Forums</h2>
+  </div>
+  {% if user.is_authenticated %}
+  <small>Welcome back, {{ user.username }}.</small>
+  {% endif %}
+</div>
 
-{% if user.is_authenticated %}
-<p>Welcome back, {{ user.username }}!</p>
-{% endif %}
+<div class="forum-shell">
+  <aside class="forum-sidebar">
+    <div class="card recent">
+      <h3>Recently Active Threads</h3>
+      <ul>
+        {% for thread in recent_threads %}
+        <li>
+          <a href="{% url 'thread_detail' thread.id %}">{{ thread.title }}</a>
+          <div class="forum-desc">{{ thread.forum.name|default:"Forums" }}</div>
+        </li>
+        {% empty %}
+        <li>No recent threads yet.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </aside>
 
-<ul class="thread-list">
-    <li class="thread-item" onclick="location.href='{% url 'thread_detail' 5 %}'"><h3>General</h3></li>
-    <li class="thread-item" onclick="location.href='{% url 'thread_detail' 320 %}'"><h3>Feedback</h3></li>
-{% for forum in forums %}
-    <li class="thread-item" onclick="location.href='{% url 'thread_list' forum.name %}'"><h3>{{ forum.name }}</h3></li>
-{% empty %}
-  <li>No forums found.</li>
-{% endfor %}
-</ul>
+  <section>
+    <div class="forum-card">
+      <div class="forum-card-header">
+        <span>Forum</span>
+        <span>Last Active</span>
+      </div>
+      <ul class="forum-list">
+        <li class="forum-row" onclick="location.href='{% url 'thread_detail' 5 %}'">
+          <div>
+            <div class="forum-title">General</div>
+          </div>
+          <div class="forum-last">Featured</div>
+        </li>
+        <li class="forum-row" onclick="location.href='{% url 'thread_detail' 320 %}'">
+          <div>
+            <div class="forum-title">Feedback</div>
+          </div>
+          <div class="forum-last">Featured</div>
+        </li>
+        {% for forum in forums %}
+        <li class="forum-row" onclick="location.href='{% url 'thread_list' forum.name %}'">
+          <div>
+            <div class="forum-title">{{ forum.name }}</div>
+            {% if forum.description %}
+            <div class="forum-desc">{{ forum.description }}</div>
+            {% endif %}
+          </div>
+          <div class="forum-last">Browse</div>
+        </li>
+        {% empty %}
+        <li class="forum-row">
+          <div>
+            <div class="forum-title">No forums found.</div>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </section>
+</div>
 
 {% endblock %}

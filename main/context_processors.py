@@ -255,44 +255,58 @@ def check_device_ban(request, ip):
     
     device_fp = getattr(request, 'device_fingerprint', None) or request.COOKIES.get('mbt_device_fp')
     derived_fp = getattr(request, 'derived_device_fp', None) or derive_device_fingerprint(request)
+    ua = request.META.get('HTTP_USER_AGENT', '')
+    ua_match = ua[:150] if ua else ''
+    cache_key = f'device_ban_ctx:{device_fp}:{derived_fp}:{ip}:{ua_match}'
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
     
     try:
         # Check explicit fingerprint
         if device_fp:
             db = DeviceBan.objects.filter(fingerprint=device_fp, active=True).first()
             if db:
-                return True, db.reason, device_fp
+                result = (True, db.reason, device_fp)
+                cache.set(cache_key, result, 60)
+                return result
         
         # Check derived fingerprint
         if derived_fp:
             db = DeviceBan.objects.filter(fingerprint=derived_fp, active=True).first()
             if db:
-                return True, db.reason, device_fp
+                result = (True, db.reason, device_fp)
+                cache.set(cache_key, result, 60)
+                return result
         
         # Check devices from same IP
-        if ip:
-            fps = list(Device.objects.filter(last_ip=ip).values_list('fingerprint', flat=True))
+        if ip and ip not in ('127.0.0.1', '::1'):
+            fps = list(Device.objects.filter(last_ip=ip).values_list('fingerprint', flat=True)[:100])
             if fps:
                 db = DeviceBan.objects.filter(fingerprint__in=fps, active=True).first()
                 if db:
-                    return True, db.reason, device_fp
+                    result = (True, db.reason, device_fp)
+                    cache.set(cache_key, result, 60)
+                    return result
             
             # Check devices with same IP and User-Agent
-            ua = request.META.get('HTTP_USER_AGENT', '')
-            if ua:
-                ua_match = ua[:150]
+            if ua_match:
                 fps2 = list(Device.objects.filter(
                     last_ip=ip,
                     user_agent__startswith=ua_match
-                ).values_list('fingerprint', flat=True))
+                ).values_list('fingerprint', flat=True)[:100])
                 if fps2:
                     db = DeviceBan.objects.filter(fingerprint__in=fps2, active=True).first()
                     if db:
-                        return True, db.reason, device_fp
+                        result = (True, db.reason, device_fp)
+                        cache.set(cache_key, result, 60)
+                        return result
     except Exception:
         pass
     
-    return False, None, device_fp
+    result = (False, None, device_fp)
+    cache.set(cache_key, result, 60)
+    return result
 
 
 def should_disable_ads(request):
@@ -349,7 +363,12 @@ def theme_settings(request):
     
     # Ban checks
     user_has_banned_ip, user_account_banned = check_ban_status(user, ip)
-    device_banned, device_ban_reason, device_fp = check_device_ban(request, ip)
+    if getattr(request, 'device_ban_checked', False):
+        device_banned = getattr(request, 'device_banned', False)
+        device_ban_reason = getattr(request, 'device_ban_reason', None)
+        device_fp = getattr(request, 'device_fingerprint', None)
+    else:
+        device_banned, device_ban_reason, device_fp = check_device_ban(request, ip)
     
     banned = user_has_banned_ip or user_account_banned or device_banned
     
@@ -379,8 +398,16 @@ def theme_settings(request):
         'burgerMenuLogo': burger_menu_logo,
         'current_year': datetime.now().year,
         'all_themes': all_themes,
-        'online_users_count': get_online_users_count(),
-        'total_users_count': get_total_users_count(),
+        'online_users_count': get_cached_or_query(
+            'online_users_count',
+            lambda: get_online_users_count(),
+            timeout=60
+        ),
+        'total_users_count': get_cached_or_query(
+            'total_users_count',
+            lambda: get_total_users_count(),
+            timeout=300
+        ),
         'live_ads': live_ads_json,
         'google_ads': google_ads_json,
         'google_ads_enabled': google_ads_enabled,

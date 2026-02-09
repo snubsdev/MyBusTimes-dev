@@ -2,6 +2,7 @@ import ipaddress
 import uuid
 import hashlib
 from django.utils import timezone
+from django.db.models import F
 from django.conf import settings
 from django.http import HttpResponseForbidden
 from main.cloudflare_ips import get_cloudflare_networks
@@ -109,7 +110,7 @@ def check_device_ban_cached(device_fp, derived_fp, ip_for_storage, user_agent):
             banned = True
         
         # 3) Check devices from same IP - with select_related and values_list for efficiency
-        if not banned and ip_for_storage:
+        if not banned and ip_for_storage and ip_for_storage not in ('127.0.0.1', '::1'):
             # Get fingerprints from this IP
             fps = list(Device.objects.filter(last_ip=ip_for_storage).values_list('fingerprint', flat=True)[:100])
             
@@ -165,6 +166,82 @@ class UpdateLastActiveMiddleware:
             max_age = 10 * 365 * 24 * 60 * 60
             secure_flag = getattr(settings, 'SESSION_COOKIE_SECURE', False)
             response.set_cookie('mbt_device_fp', gen, max_age=max_age, secure=secure_flag, httponly=True, samesite='Lax')
+
+        # Post-processing: record device usage and update user IP after response
+        try:
+            device_fp = getattr(request, '_device_fp', None)
+            derived_fp = getattr(request, '_derived_fp', None)
+            was_generated = getattr(request, '_device_fp_generated', False)
+            ip_for_storage = getattr(request, '_ip_for_storage', None)
+            user_agent = getattr(request, '_user_agent', '')
+
+            chosen_fp = None
+            if device_fp and not was_generated:
+                chosen_fp = device_fp
+            elif derived_fp:
+                chosen_fp = derived_fp
+            else:
+                chosen_fp = device_fp
+
+            if chosen_fp:
+                dev, created = Device.objects.get_or_create(
+                    fingerprint=chosen_fp,
+                    defaults={
+                        'last_ip': ip_for_storage,
+                        'user_agent': user_agent[:1000],
+                        'last_user': request.user if request.user.is_authenticated else None,
+                        'seen_count': 1
+                    }
+                )
+
+                if not created:
+                    update_fields = []
+
+                    dev.last_seen = timezone.now()
+                    update_fields.append('last_seen')
+
+                    if ip_for_storage and dev.last_ip != ip_for_storage:
+                        dev.last_ip = ip_for_storage
+                        update_fields.append('last_ip')
+
+                    if user_agent and dev.user_agent != user_agent[:1000]:
+                        dev.user_agent = user_agent[:1000]
+                        update_fields.append('user_agent')
+
+                    if request.user.is_authenticated and dev.last_user != request.user:
+                        dev.last_user = request.user
+                        update_fields.append('last_user')
+
+                    if update_fields:
+                        dev.save(update_fields=update_fields)
+
+                    Device.objects.filter(pk=dev.pk).update(
+                        seen_count=F('seen_count') + 1
+                    )
+
+                if request.user.is_authenticated:
+                    du, du_created = DeviceUsage.objects.get_or_create(
+                        device=dev,
+                        user=request.user,
+                        defaults={'usage_count': 1}
+                    )
+                    if not du_created:
+                        du.last_seen = timezone.now()
+                        du.usage_count = du.usage_count + 1
+                        du.save(update_fields=['last_seen', 'usage_count'])
+
+            user = request.user
+            if user.is_authenticated:
+                new_ip = get_real_ip(request)
+
+                if not new_ip or is_cloudflare_ip(new_ip):
+                    new_ip = user.last_ip
+
+                if user.last_ip != new_ip:
+                    user.last_ip = new_ip
+                    user.save(update_fields=["last_ip"])
+        except Exception as e:
+            print(f"[DEBUG] Error recording device usage: {e}")
         
         return response
 
@@ -196,10 +273,15 @@ class UpdateLastActiveMiddleware:
         
         request.device_fingerprint = device_fp
         request.derived_device_fp = derived_fp
+        request._device_fp = device_fp
+        request._derived_fp = derived_fp
+        request._device_fp_generated = was_generated
 
         ip_for_storage = get_real_ip(request)
         if not ip_for_storage or is_cloudflare_ip(ip_for_storage):
             ip_for_storage = None
+        request._ip_for_storage = ip_for_storage
+        request._user_agent = request.META.get('HTTP_USER_AGENT', '')
 
         # Check for device bans (skip for admin pages)
         if not request.path.startswith('/api-admin/') and not request.path.startswith('/admin/'):
@@ -207,86 +289,13 @@ class UpdateLastActiveMiddleware:
             
             # Use cached ban check to avoid repeated queries
             if check_device_ban_cached(device_fp, derived_fp, ip_for_storage, user_agent):
+                request.device_ban_checked = True
+                request.device_banned = True
                 return HttpResponseForbidden('Device banned')
-
-        # Record device usage with bulk operations and caching
-        try:
-            chosen_fp = None
-            # Only use explicit fingerprint if it came from header/cookie, not generated
-            if device_fp and not was_generated:
-                chosen_fp = device_fp
-            elif derived_fp:
-                chosen_fp = derived_fp
-            else:
-                chosen_fp = device_fp  # Use generated fingerprint
-
-            if chosen_fp:
-                
-                # Use get_or_create with defaults to reduce queries
-                dev, created = Device.objects.get_or_create(
-                    fingerprint=chosen_fp,
-                    defaults={
-                        'last_ip': ip_for_storage,
-                        'user_agent': request.META.get('HTTP_USER_AGENT', '')[:1000],
-                        'last_user': request.user if request.user.is_authenticated else None,
-                        'seen_count': 1
-                    }
-                )
-                
-                # Only update if not just created
-                if not created:
-                    # Batch updates - only update fields that changed
-                    update_fields = []
-                    
-                    dev.last_seen = timezone.now()
-                    update_fields.append('last_seen')
-                    
-                    if ip_for_storage and dev.last_ip != ip_for_storage:
-                        dev.last_ip = ip_for_storage
-                        update_fields.append('last_ip')
-                    
-                    ua = request.META.get('HTTP_USER_AGENT')
-                    if ua and dev.user_agent != ua[:1000]:
-                        dev.user_agent = ua[:1000]
-                        update_fields.append('user_agent')
-                    
-                    if request.user.is_authenticated and dev.last_user != request.user:
-                        dev.last_user = request.user
-                        update_fields.append('last_user')
-                    
-                    dev.seen_count = (dev.seen_count or 0) + 1
-                    update_fields.append('seen_count')
-                    
-                    if update_fields:
-                        dev.save(update_fields=update_fields)
-
-                # Record user-device association
-                if request.user.is_authenticated:
-                    du, du_created = DeviceUsage.objects.get_or_create(
-                        device=dev,
-                        user=request.user,
-                        defaults={'usage_count': 1}
-                    )
-                    if not du_created:
-                        du.last_seen = timezone.now()
-                        du.usage_count = du.usage_count + 1
-                        du.save(update_fields=['last_seen', 'usage_count'])
-        except Exception as e:
-            print(f"[DEBUG] Error recording device usage: {e}")
-
-        # Update user's last IP only if it changed
-        user = request.user
-        if user.is_authenticated:
-            new_ip = get_real_ip(request)
-
-            # Do not save Cloudflare edge IPs
-            if not new_ip or is_cloudflare_ip(new_ip):
-                new_ip = user.last_ip  # keep previous valid IP
-
-            # Only update DB if IP actually changed
-            if user.last_ip != new_ip:
-                user.last_ip = new_ip
-                user.save(update_fields=["last_ip"])
-
+            request.device_ban_checked = True
+            request.device_banned = False
+        else:
+            request.device_ban_checked = False
+            request.device_banned = False
         # Return None to allow normal view processing
         return None

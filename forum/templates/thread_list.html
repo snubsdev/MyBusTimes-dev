@@ -2,63 +2,185 @@
 {% load static %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/narrow.css' %}">
 <style> 
-.a {
+.forum-shell {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 1.5rem;
+  margin-top: 0.75rem;
+  min-height: calc(100vh - 140px);
+}
+
+.forum-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--background-color);
+}
+
+.forum-hero h2 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.forum-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.forum-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--border-color);
+  background: var(--background-color);
   color: var(--text-color);
-  text-decoration: none;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
   font-weight: 600;
-  transition: color 0.3s ease;
 }
 
-.a.button, 
-.a.button-new-thread {
-  display: inline-block;
-  background-color: var(--brand-color);
+.forum-action.primary {
+  background: var(--brand-color);
   color: var(--text-color);
-  padding: 0.4rem 1rem;
-  border-radius: 4px;
-  margin-bottom: 1rem;
-  font-weight: 600;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  border-color: var(--brand-color);
 }
 
-.a.button-new-thread:hover,
-.a.button-new-thread:focus {
-  background-color: var(--brand-color-darker);
-  text-decoration: none ;
+.forum-action:hover {
+  transform: translateY(-1px);
 }
 
-ul.thread-list {
+.forum-card {
+  border: 1px solid var(--border-color);
+  border-radius: 10px 10px 10px 10px;
+  background: var(--background-color);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  padding: 1rem;
+  overflow-y: scroll;
+  overflow-x: hidden;
+  max-height: calc(100vh - 125px);
+}
+
+.forum-card-header {
+  display: grid;
+  grid-template-columns: 1fr 180px;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-color);
+  opacity: 0.7;
+}
+
+.thread-list {
   list-style: none;
   padding: 0;
   margin: 0;
 }
 
-ul.thread-list li {
-  background: var(--background-color);
-  margin-bottom: 0.75rem;
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--border-color);
-  border-radius: 5px;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.05);
-  transition: background-color 0.2s ease;
+.thread-row {
+  display: grid;
+  grid-template-columns: 1fr 180px;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
 }
 
-ul.thread-list li:hover {
-  background-color: var(--brand-color);
+.thread-row:hover {
+  background: rgba(0, 0, 0, 0.04);
+  transform: translateY(-1px);
+}
+
+.thread-row:last-child {
+  border-bottom: none;
 }
 
 .thread-title {
-  font-size: 1.1rem;
   font-weight: 700;
+  font-size: 1.05rem;
 }
 
 .thread-meta {
+  margin-top: 0.35rem;
+  opacity: 0.7;
   font-size: 0.85rem;
-  color: var(--text-color);
-  margin-top: 0.25rem;
+}
+
+.thread-status {
+  text-align: right;
+  font-size: 0.85rem;
   opacity: 0.8;
+}
+
+.thread-status strong {
+  display: block;
+  font-size: 0.95rem;
+}
+
+.forum-sidebar {
+  position: sticky;
+  top: 70px;
+  align-self: start;
+  height: calc(100vh - 90px);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.forum-sidebar .card {
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1rem;
+  background: var(--background-color);
+}
+
+.forum-sidebar .card.recent {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.forum-sidebar h3 {
+  margin-top: 0;
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.forum-sidebar ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.forum-sidebar li {
+  padding: 0.6rem 0;
+  border-bottom: 1px dashed var(--border-color);
+}
+
+.forum-sidebar li:last-child {
+  border-bottom: none;
+}
+
+.forum-sidebar a {
+  color: var(--link-color);
+  font-weight: 600;
+}
+
+.search-box {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-color);
+  background: var(--background-color);
+  border-radius: 6px;
+  color: var(--text-color);
 }
 
 .breadcrumb {
@@ -85,79 +207,163 @@ ul.thread-list li:hover {
 .toggle-btn:hover {
   background: var(--brand-color-darker);
 }
+
+@media (max-width: 900px) {
+  .forum-shell {
+    grid-template-columns: 1fr;
+    min-height: unset;
+  }
+
+  .forum-sidebar {
+    position: static;
+    order: 2;
+    height: auto;
+  }
+}
+
+@media (max-width: 600px) {
+  .forum-card-header,
+  .thread-row {
+    grid-template-columns: 1fr;
+  }
+
+  .thread-status {
+    text-align: left;
+  }
+}
 </style>
 {% endblock %}
 
 {% block title %}{{ forum_name }}{% endblock %}
 
 {% block content %}
-<h2>{{ forum_name }}</h2>
-<a href="{% url 'forum_list' %}" style="color: var(--link-color);font-weight: initial;transition: none;margin-top: -1em;display: block;">Back to forums</a><br>
-
-<a class="a button-new-thread" href="{% url 'new_thread' %}">Start A New Thread</a>
-
-<!-- Filter and Search -->
-<div style="margin-bottom: 1rem;">
-  <input type="text" id="thread-search" placeholder="Search threads..." style="width: 100%; padding: 0.4rem 0.6rem;">
+<div class="forum-hero">
+  <div>
+    <h2>{{ forum_name }}</h2>
+    <small>Classic threads with a modern pace.</small>
+  </div>
+  <div class="forum-actions">
+    <a class="forum-action" href="{% url 'forum_list' %}">Back to forums</a>
+    <a class="forum-action primary" href="{% url 'new_thread' %}">Start a new thread</a>
+  </div>
 </div>
 
-{% if pinned_threads %}
-<h2>Pinned Threads</h2>
-<ul class="thread-list" id="pinned-threads">
-  {% for thread in pinned_threads %}
-  <li class="thread-item" data-forum-id="{{ thread.forum.id }}" onclick="location.href='{% url 'thread_detail' thread.id %}'">
-    <a class="a thread-title" href="{% url 'thread_detail' thread.id %}">{{ thread.title }}</a>
-    <div class="thread-meta">
-      {{ thread.created_at|date:"M d, Y H:i" }}{{ thread.locked|yesno:" - Locked," }}
+<div class="forum-shell">
+  <aside class="forum-sidebar">
+    <div class="card recent">
+      <h3>Recently Active Threads</h3>
+      <ul>
+        {% for thread in recent_threads %}
+        <li>
+          <a href="{% url 'thread_detail' thread.id %}">{{ thread.title }}</a>
+          <div class="thread-meta">{{ thread.forum.name|default:"Forums" }}</div>
+        </li>
+        {% empty %}
+        <li>No recent threads yet.</li>
+        {% endfor %}
+      </ul>
     </div>
-  </li>
-  {% endfor %}
-</ul>
-<hr>
-{% endif %}
+    <div class="card">
+      <h3>Forum Tips</h3>
+      <p class="thread-meta">Keep titles short, tag feedback clearly, and use markdown for formatting.</p>
+    </div>
+  </aside>
 
-{% for group in forum_threads %}
-  <div id="forum-{{ group.forum.name|slugify }}">
-    <h3>{{ group.forum.name }}</h3>
-    <ul class="thread-list">
-      {% for thread in group.threads %}
-        <li class="thread-item" data-forum-id="{{ group.forum.id }}" onclick="location.href='{% url 'thread_detail' thread.id %}'">
-          <a class="a thread-title" href="{% url 'thread_detail' thread.id %}">{{ thread.title }}</a>
-          <div class="thread-meta">
-            {{ thread.created_at|date:"M d, Y H:i" }}{{ thread.locked|yesno:" - Locked," }}
+  <section>
+    <div style="margin: 1rem 0;">
+      <input type="text" id="thread-search" class="search-box" placeholder="Search threads...">
+    </div>
+
+    {% if pinned_threads %}
+    <div class="forum-card" style="margin-bottom: 1rem;">
+      <div class="forum-card-header">
+        <span>Pinned Threads</span>
+        <span>Status</span>
+      </div>
+      <ul class="thread-list" id="pinned-threads">
+        {% for thread in pinned_threads %}
+        <li class="thread-row" data-forum-id="{{ thread.forum.id }}" onclick="location.href='{% url 'thread_detail' thread.id %}'">
+          <div>
+            <div class="thread-title">{{ thread.title }}</div>
+            <div class="thread-meta">{{ thread.created_at|date:"M d, Y H:i" }}</div>
+          </div>
+          <div class="thread-status">
+            <strong>Pinned</strong>
+            {{ thread.locked|yesno:"Locked, Open" }}
           </div>
         </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
 
-        {% if forloop.counter|divisibleby:5 %}
-          <div class="ad-box ad-box-narrow" id="body-ad-1"></div>
-        {% endif %}
-      {% empty %}
-        <li>No threads found in this forum.</li>
-      {% endfor %}
-    </ul>
-  </div>
-{% empty %}
-  <li>No forums or threads found.</li>
-{% endfor %}
+    {% for group in forum_threads %}
+      <div id="forum-{{ group.forum.name|slugify }}" class="forum-card" style="margin-bottom: 1rem;">
+        <div class="forum-card-header">
+          <span>{{ group.forum.name }}</span>
+          <span>Status</span>
+        </div>
+        <ul class="thread-list">
+          {% for thread in group.threads %}
+            <li class="thread-row" data-forum-id="{{ group.forum.id }}" onclick="location.href='{% url 'thread_detail' thread.id %}'">
+              <div>
+                <div class="thread-title">{{ thread.title }}</div>
+                <div class="thread-meta">{{ thread.created_at|date:"M d, Y H:i" }}</div>
+              </div>
+              <div class="thread-status">
+                <strong>{{ thread.locked|yesno:"Locked, Open" }}</strong>
+                {% if thread.pinned %}Pinned{% else %}Active{% endif %}
+              </div>
+            </li>
 
-<!-- Archived Threads -->
-{% if archived_threads %}
-<button class="toggle-btn" onclick="toggleArchived()">Show Archived Threads</button>
-
-<div id="archived-section">
-  <h2>Archived Threads</h2>
-  <ul class="thread-list">
-    {% for thread in archived_threads %}
-    <li class="thread-item" onclick="location.href='{% url 'thread_detail' thread.id %}'">
-      <a class="a" href="{% url 'thread_detail' thread.id %}" class="thread-title">{{ thread.title }}</a>
-      <div class="thread-meta">
-        {{ thread.created_at|date:"M d, Y H:i" }} - Archived {{ thread.locked|yesno:"- Locked," }}
+            {% if forloop.counter|divisibleby:5 %}
+              <div class="ad-box ad-box-narrow" id="body-ad-1"></div>
+            {% endif %}
+          {% empty %}
+            <li class="thread-row">
+              <div>
+                <div class="thread-title">No threads found in this forum.</div>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
       </div>
-    </li>
+    {% empty %}
+      <div class="forum-card">
+        <div class="forum-card-header">
+          <span>No forums or threads found.</span>
+          <span></span>
+        </div>
+      </div>
     {% endfor %}
-  </ul>
+
+    <!-- Archived Threads -->
+    {% if archived_threads %}
+    <button class="toggle-btn" onclick="toggleArchived()">Show Archived Threads</button>
+
+    <div id="archived-section" class="forum-card">
+      <div class="forum-card-header">
+        <span>Archived Threads</span>
+        <span>Status</span>
+      </div>
+      <ul class="thread-list">
+        {% for thread in archived_threads %}
+        <li class="thread-row" onclick="location.href='{% url 'thread_detail' thread.id %}'">
+          <div>
+            <div class="thread-title">{{ thread.title }}</div>
+            <div class="thread-meta">{{ thread.created_at|date:"M d, Y H:i" }}</div>
+          </div>
+          <div class="thread-status">
+            <strong>Archived</strong>
+            {{ thread.locked|yesno:"Locked, Open" }}
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </section>
 </div>
-{% endif %}
 
 <script>
   // Replace logo with MBT Forums
@@ -173,7 +379,7 @@ ul.thread-list li:hover {
 
   // Live search and filter
   const searchInput = document.getElementById('thread-search');
-  const threads = document.querySelectorAll('.thread-item');
+  const threads = document.querySelectorAll('.thread-row');
   const adBoxes = document.querySelectorAll('.ad-box'); // find all ads
 
   function filterThreads() {

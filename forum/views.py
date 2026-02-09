@@ -29,6 +29,13 @@ from .models import Thread, Post, Forum
 from .forms import ThreadForm, PostForm
 from main.models import CustomUser
 
+def get_recent_threads(limit=10):
+    return (
+        Thread.objects.annotate(latest_post=Max('posts__created_at'))
+        .select_related('forum')
+        .order_by('-latest_post', '-created_at')[:limit]
+    )
+
 def forum_banned(request):
     return render(request, 'forum_banned.html')
 
@@ -105,8 +112,11 @@ def forum_list(request):
     # Annotate threads with latest post date
     forum_list = Forum.objects.all().order_by('order', 'name')
 
+    recent_threads = get_recent_threads()
+
     return render(request, 'forum_list.html', {
         'forums': forum_list,
+        'recent_threads': recent_threads,
     })
 
 def thread_list(request, forum_name):
@@ -144,11 +154,14 @@ def thread_list(request, forum_name):
                 'threads': threads
             })
 
+    recent_threads = get_recent_threads()
+
     return render(request, 'thread_list.html', {
         'pinned_threads': pinned_threads,
         'forum_threads': forum_threads,
         'archived_threads': archived_threads,
         'forum_name': forum_name,
+        'recent_threads': recent_threads,
     })
 
 def thread_details_api(request, thread_id):
@@ -168,15 +181,21 @@ def thread_details_api(request, thread_id):
 
     page_obj = paginator.get_page(page_number)
 
+    authors = {post.author for post in page_obj}
+    users_qs = CustomUser.objects.filter(
+        Q(username__in=authors) | Q(discord_username__in=authors)
+    ).prefetch_related('badges')
+    users_by_username = {user.username: user for user in users_qs if user.username}
+    users_by_discord = {user.discord_username: user for user in users_qs if user.discord_username}
+    online_cutoff = timezone.now() - timedelta(minutes=5)
+
     posts_with_pfps = []
     for post in page_obj:
-        user = CustomUser.objects.filter(
-            Q(username=post.author) | Q(discord_username=post.author)
-        ).first()
+        user = users_by_username.get(post.author) or users_by_discord.get(post.author)
         pfp = user.pfp.url if user and user.pfp else None
 
         online = False
-        if user and user.last_active and user.last_active > timezone.now() - timedelta(minutes=5):
+        if user and user.last_active and user.last_active > online_cutoff:
             online = True
 
         if user and user.discord_username == post.author:
@@ -376,7 +395,16 @@ def thread_detail(request, thread_id):
             page_number = (post_count - 1) // posts_per_page + 1
 
             thread_url = reverse('thread_detail', args=[thread.id])
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'status': 'success',
+                    'post_id': post.id,
+                    'page_number': page_number,
+                    'redirect_url': f"{thread_url}?page={page_number}#post-{post.id}",
+                })
             return redirect(f"{thread_url}?page={page_number}#post-{post.id}")
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'status': 'error', 'errors': form.errors}, status=400)
     else:
         form = PostForm()
 
@@ -388,6 +416,7 @@ def thread_detail(request, thread_id):
         'form': form,
         'page_obj': page_obj,      # Keep the real Page object
         'is_last_page': is_last_page,
+        'recent_threads': get_recent_threads(),
     })
 
 @login_required
@@ -430,4 +459,4 @@ def new_thread(request):
     else:
         form = ThreadForm()
 
-    return render(request, 'new_thread.html', {'form': form})
+    return render(request, 'new_thread.html', {'form': form, 'recent_threads': get_recent_threads()})

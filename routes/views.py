@@ -5,6 +5,7 @@ from rest_framework.pagination import LimitOffsetPagination
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
+from django.db.models.functions import Lower
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.http import JsonResponse, Http404
@@ -13,6 +14,7 @@ from mybustimes.permissions import ReadOnly
 from .models import *
 from .filters import *
 from .serializers import *
+from fleet.models import MBTOperator
 from collections import defaultdict
 from django.contrib.admin.views.decorators import staff_member_required
 from django.shortcuts import get_object_or_404
@@ -41,8 +43,14 @@ class routesListView(generics.ListCreateAPIView):
                 )
             
             queryset = queryset.filter(filter_condition)
-        
-        return queryset
+
+        return queryset.prefetch_related(
+                'route_operators',
+                'linked_route',
+                'related_route',
+                'service_updates',
+                'service_updates__effected_route'
+            )
     
 class routeStops(View):
     def get(self, request, pk):
@@ -307,7 +315,25 @@ class stopUpcomingTripsView(APIView):
         except ValueError:
             return Response({"error": "Invalid 'current_time' format. Use HH:MM."}, status=status.HTTP_400_BAD_REQUEST)
 
-        all_entries = timetableEntry.objects.select_related('route').prefetch_related('day_type', 'route__route_operators')
+        all_entries = list(
+            timetableEntry.objects.select_related('route').prefetch_related('day_type', 'route__route_operators')
+        )
+        operator_codes = set()
+        for entry in all_entries:
+            operator_schedule = entry.operator_schedule if isinstance(entry.operator_schedule, list) else []
+            operator_codes.update(code for code in operator_schedule if code)
+
+            route_ops = list(entry.route.route_operators.all())
+            operator_codes.update(op.operator_code for op in route_ops if op.operator_code)
+
+        operator_codes_lower = {code.lower() for code in operator_codes if code}
+        operator_map = {
+            op.operator_code.lower(): op
+            for op in MBTOperator.objects.annotate(code_lower=Lower('operator_code')).filter(
+                code_lower__in=operator_codes_lower
+            )
+            if op.operator_code
+        }
         upcoming_trips = []
 
         for entry in all_entries:
@@ -331,13 +357,14 @@ class stopUpcomingTripsView(APIView):
             if not matched_key:
                 continue
 
-            valid_days = list(entry.day_type.values_list('name', flat=True))
+            valid_days = [day.name for day in entry.day_type.all()]
             if day and day not in valid_days:
                 continue
 
             stop_data = stop_times_data.get(matched_key, {})
             times = stop_data.get('times', [])
-            operator_schedule = entry.operator_schedule or []
+            operator_schedule = entry.operator_schedule if isinstance(entry.operator_schedule, list) else []
+            route_ops = list(entry.route.route_operators.all())
 
             for idx, time_str in enumerate(times):
                 try:
@@ -349,17 +376,16 @@ class stopUpcomingTripsView(APIView):
                     continue
 
                 operator_string = operator_schedule[idx] if idx < len(operator_schedule) else (
-                    entry.route.route_operators.first().operator_code if entry.route.route_operators.exists() else None
+                    route_ops[0].operator_code if route_ops else None
                 )
-
-                operator_obj = MBTOperator.objects.filter(operator_code__iexact=operator_string).first()
+                operator_obj = operator_map.get((operator_string or '').lower())
                 operator_data = {
                     'operator_code': operator_obj.operator_code if operator_obj else None,
                     'operator_name': operator_obj.operator_name if operator_obj else (operator_string or "Unknown"),
                     'operator_slug': operator_obj.operator_slug if operator_obj else None,
                 }
 
-                if entry.inbound or entry.route.outbound_destination == None:
+                if entry.inbound or entry.route.outbound_destination is None:
                     route_dest = entry.route.inbound_destination
                 else:
                     route_dest = entry.route.outbound_destination

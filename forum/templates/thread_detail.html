@@ -4,9 +4,108 @@
 {% load custom_filters %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/narrow.css' %}">
 
 <style>
+  .forum-shell {
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr);
+    gap: 1.5rem;
+    margin-top: 0.75rem;
+    min-height: calc(100vh - 140px);
+  }
+
+  .forum-hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--background-color);
+  }
+
+  .forum-hero h2 {
+    margin: 0;
+    font-size: 1.4rem;
+  }
+
+  .forum-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .forum-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border: 1px solid var(--border-color);
+    background: var(--background-color);
+    color: var(--text-color);
+    padding: 0.45rem 0.85rem;
+    border-radius: 999px;
+    font-weight: 600;
+  }
+
+  .forum-card {
+    border: 1px solid var(--border-color);
+    border-radius: 10px 10px 10px 10px;
+    background: var(--background-color);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+    overflow-y: scroll;
+    overflow-x: hidden;
+    max-height: calc(100vh - 125px);
+  }
+
+  .forum-sidebar {
+    position: sticky;
+    top: 70px;
+    align-self: start;
+    height: calc(100vh - 90px);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .forum-sidebar .card {
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1rem;
+    background: var(--background-color);
+  }
+
+  .forum-sidebar .card.recent {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .forum-sidebar h3 {
+    margin-top: 0;
+    font-size: 1rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .forum-sidebar ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .forum-sidebar li {
+    padding: 0.6rem 0;
+    border-bottom: 1px dashed var(--border-color);
+  }
+
+  .forum-sidebar li:last-child {
+    border-bottom: none;
+  }
+
+  .forum-sidebar a {
+    color: var(--link-color);
+    font-weight: 600;
+  }
   #id_content_helptext {
     font-size: 0.9em;
     color: var(--text-color);
@@ -62,6 +161,38 @@
     display: block;
   }
 
+  .reply-dock {
+    position: sticky;
+    bottom: 0;
+    background: var(--background-color);
+    border-top: 1px solid var(--border-color);
+    margin-top: 1rem;
+    padding: 0 1em 0.5em 1em;
+  }
+
+  .reply-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .reply-upload {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+  }
+
+  .reply-upload label {
+    margin: 0;
+  }
+
+  .reply-dock textarea {
+    height: 75px;
+  }
+
   .badges ul {
     display: inline-flex;
     margin: 0;
@@ -91,6 +222,23 @@
   .breadcrumb {
     display: none;
   }
+
+  @media (max-width: 900px) {
+    .forum-shell {
+      grid-template-columns: 1fr;
+      min-height: unset;
+    }
+
+    .forum-sidebar {
+      position: static;
+      order: 2;
+      height: auto;
+    }
+  }
+
+  #messages {
+    padding: 1em;
+  }
 </style>
 {% endblock %}
 
@@ -99,75 +247,127 @@
 {% endblock %}
 
 {% block content %}
-<h2>{{ thread.title }}</h2>
-{% if thread.forum %}
-<p><a href="{% url 'thread_list' thread.forum.name %}">Back to threads</a></p>
-{% else %}
-<p><a href="{% url 'forum_list' %}">Back to forums</a></p>
-{% endif %}
-<div id="messages">
-  <!-- Messages will be dynamically loaded here form the thread api -->
-</div>
-
-<label for="follow_thread">Live Chat</label>
-<input type="checkbox" id="follow_thread" {% if is_last_page %}checked{% endif %}>
-
-
-<div class="pagination">
-  <div class="pageination-center" style="margin: 0 auto;">
-    {% if page_obj.has_previous %}
-    <a href="?page=1" class="btn">« First</a>
-    <a href="?page={{ page_obj.previous_page_number }}" class="btn">‹ Prev</a>
+<div class="forum-hero">
+  <div>
+    <h2>{{ thread.title }}</h2>
+    <small>{{ thread.forum.name|default:"Forums" }}</small>
+  </div>
+  <div class="forum-actions">
+    {% if thread.forum %}
+    <a class="forum-action" href="{% url 'thread_list' thread.forum.name %}">Back to threads</a>
     {% else %}
-    <span class="btn disabled">« First</span>
-    <span class="btn disabled">‹ Prev</span>
-    {% endif %}
-
-    {# Show a few page numbers around current page #}
-    {% for num in page_obj.paginator.page_range %}
-    {% if num >= page_obj.number|add:-2 and num <= page_obj.number|add:2 %}
-    {% if num == page_obj.number %}
-    <span class="btn current">{{ num }}</span>
-    {% else %}
-    <a href="?page={{ num }}" class="btn">{{ num }}</a>
-    {% endif %}
-    {% elif num == 1 or num == page_obj.paginator.num_pages %}
-    <a href="?page={{ num }}" class="btn">{{ num }}</a>
-    {% elif num == page_obj.number|add:-3 or num == page_obj.number|add:3 %}
-    <span class="dots">…</span>
-    {% endif %}
-    {% endfor %}
-
-    {% if page_obj.has_next %}
-    <a href="?page={{ page_obj.next_page_number }}" class="btn">Next ›</a>
-    <a href="?page={{ page_obj.paginator.num_pages }}" class="btn">Last »</a>
-    {% else %}
-    <span class="btn disabled">Next ›</span>
-    <span class="btn disabled">Last »</span>
+    <a class="forum-action" href="{% url 'forum_list' %}">Back to forums</a>
     {% endif %}
   </div>
 </div>
 
-{% if user.is_authenticated %}
-{% if not thread.locked %}
-{% if not thread.admin_only or user.is_staff %}
-<h3>Reply</h3>
-<form method="post" enctype="multipart/form-data" class="fleet-edit-wrapper">
-  {% csrf_token %}
-  {{ form.as_p }}
-  <br>
-  <a href="https://github.com/im-luka/markdown-cheatsheet/blob/main/README.md">Need help with markdown?</a><br><br>
-  <button class="btn" type="submit" id="post">Post Reply</button>
-</form>
-{% else %}
-<p>This thread is for admins only.</p>
-{% endif %}
-{% else %}
-<p>This thread is locked.</p>
-{% endif %}
-{% else %}
-<p><a href="{% url 'login' %}">Log in</a> to reply.</p>
-{% endif %}
+<div class="forum-shell">
+  <aside class="forum-sidebar">
+    <div class="card recent">
+      <h3>Recently Active Threads</h3>
+      <ul>
+        {% for thread in recent_threads %}
+        <li>
+          <a href="{% url 'thread_detail' thread.id %}">{{ thread.title }}</a>
+          <div class="thread-meta">{{ thread.forum.name|default:"Forums" }}</div>
+        </li>
+        {% empty %}
+        <li>No recent threads yet.</li>
+        {% endfor %}
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Thread Status</h3>
+      <p class="thread-meta">
+        {% if thread.locked %}This thread is locked.{% else %}This thread is open.{% endif %}
+        {% if thread.admin_only %} Admins only.{% endif %}
+      </p>
+    </div>
+  </aside>
+
+  <section>
+    <div class="forum-card">
+      <div id="messages">
+        <!-- Messages will be dynamically loaded here form the thread api -->
+      </div>
+
+      <div style="margin: 1rem 0;">
+        <label for="follow_thread">Live Chat</label>
+        <input type="checkbox" id="follow_thread" {% if is_last_page %}checked{% endif %}>
+      </div>
+
+      <div class="pagination">
+        <div class="pageination-center" style="margin: 0 auto;">
+          {% if page_obj.has_previous %}
+          <a href="?page=1" class="btn">« First</a>
+          <a href="?page={{ page_obj.previous_page_number }}" class="btn">‹ Prev</a>
+          {% else %}
+          <span class="btn disabled">« First</span>
+          <span class="btn disabled">‹ Prev</span>
+          {% endif %}
+
+          {# Show a few page numbers around current page #}
+          {% for num in page_obj.paginator.page_range %}
+          {% if num >= page_obj.number|add:-2 and num <= page_obj.number|add:2 %}
+          {% if num == page_obj.number %}
+          <span class="btn current">{{ num }}</span>
+          {% else %}
+          <a href="?page={{ num }}" class="btn">{{ num }}</a>
+          {% endif %}
+          {% elif num == 1 or num == page_obj.paginator.num_pages %}
+          <a href="?page={{ num }}" class="btn">{{ num }}</a>
+          {% elif num == page_obj.number|add:-3 or num == page_obj.number|add:3 %}
+          <span class="dots">…</span>
+          {% endif %}
+          {% endfor %}
+
+          {% if page_obj.has_next %}
+          <a href="?page={{ page_obj.next_page_number }}" class="btn">Next ›</a>
+          <a href="?page={{ page_obj.paginator.num_pages }}" class="btn">Last »</a>
+          {% else %}
+          <span class="btn disabled">Next ›</span>
+          <span class="btn disabled">Last »</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="reply-dock">
+        {% if user.is_authenticated %}
+        {% if not thread.locked %}
+        {% if not thread.admin_only or user.is_staff %}
+        <h3>Reply</h3>
+        <form method="post" enctype="multipart/form-data" class="fleet-edit-wrapper" id="reply-form">
+          {% csrf_token %}
+          {{ form.non_field_errors }}
+          <p>
+            {{ form.content.errors }}
+            {{ form.content.label_tag }}
+            {{ form.content }}
+          </p>
+          <a href="https://github.com/im-luka/markdown-cheatsheet/blob/main/README.md">Need help with markdown?</a>
+          <div class="reply-actions">
+            <button class="btn" type="submit" id="post">Post Reply</button>
+            <div class="reply-upload">
+              {{ form.image.errors }}
+              {{ form.image.label_tag }}
+              {{ form.image }}
+            </div>
+          </div>
+          <div id="reply-status" style="margin-top: 0.5rem; opacity: 0.8;"></div>
+        </form>
+        {% else %}
+        <p>This thread is for admins only.</p>
+        {% endif %}
+        {% else %}
+        <p>This thread is locked.</p>
+        {% endif %}
+        {% else %}
+        <p><a href="{% url 'login' %}">Log in</a> to reply.</p>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+</div>
 
 <script>
   let latest_message = null;
@@ -303,5 +503,61 @@
   // Poll for new messages every 3 seconds
   setInterval(fetchMessages, 3000);
   fetchMessages();
+
+  const replyForm = document.getElementById('reply-form');
+  const replyButton = document.getElementById('post');
+  const replyStatus = document.getElementById('reply-status');
+
+  if (replyForm && replyButton) {
+    replyForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      if (replyButton.disabled) {
+        return;
+      }
+
+      replyButton.disabled = true;
+      replyButton.setAttribute('aria-busy', 'true');
+      const originalText = replyButton.textContent;
+      replyButton.textContent = 'Posting...';
+      if (replyStatus) {
+        replyStatus.textContent = '';
+      }
+
+      try {
+        const formData = new FormData(replyForm);
+        const response = await fetch(replyForm.action || window.location.href, {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+          }
+        });
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null);
+          const errorText = payload?.errors ? 'Failed to post. Check your reply.' : 'Failed to post. Try again.';
+          if (replyStatus) {
+            replyStatus.textContent = errorText;
+          }
+          return;
+        }
+
+        replyForm.reset();
+        if (replyStatus) {
+          replyStatus.textContent = 'Posted.';
+        }
+        fetchMessages();
+      } catch (error) {
+        if (replyStatus) {
+          replyStatus.textContent = 'Failed to post. Try again.';
+        }
+      } finally {
+        replyButton.disabled = false;
+        replyButton.removeAttribute('aria-busy');
+        replyButton.textContent = originalText;
+      }
+    });
+  }
 </script>
 {% endblock %}

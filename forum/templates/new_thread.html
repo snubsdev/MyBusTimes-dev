@@ -2,7 +2,114 @@
 {% load static %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/narrow.css' %}">
+<link rel="stylesheet" href="{% static 'css/wide.css' %}">
+<style>
+  .forum-shell {
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr);
+    gap: 1.5rem;
+    margin-top: 0.75rem;
+    min-height: calc(100vh - 140px);
+  }
+
+  .forum-hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--background-color);
+  }
+
+  .forum-hero h2 {
+    margin: 0;
+    font-size: 1.4rem;
+  }
+
+  .forum-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border: 1px solid var(--border-color);
+    background: var(--background-color);
+    color: var(--text-color);
+    padding: 0.45rem 0.85rem;
+    border-radius: 999px;
+    font-weight: 600;
+  }
+
+  .forum-card {
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--background-color);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+    padding: 1rem;
+  }
+
+  .forum-sidebar {
+    position: sticky;
+    top: 70px;
+    align-self: start;
+    height: calc(100vh - 90px);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .forum-sidebar .card {
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1rem;
+    background: var(--background-color);
+  }
+
+  .forum-sidebar .card.recent {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .forum-sidebar h3 {
+    margin-top: 0;
+    font-size: 1rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .forum-sidebar ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .forum-sidebar li {
+    padding: 0.6rem 0;
+    border-bottom: 1px dashed var(--border-color);
+  }
+
+  .forum-sidebar li:last-child {
+    border-bottom: none;
+  }
+
+  .forum-sidebar a {
+    color: var(--link-color);
+    font-weight: 600;
+  }
+
+  @media (max-width: 900px) {
+    .forum-shell {
+      grid-template-columns: 1fr;
+      min-height: unset;
+    }
+
+    .forum-sidebar {
+      position: static;
+      order: 2;
+      height: auto;
+    }
+  }
+</style>
 {% endblock %}
 
 {% block title %}
@@ -10,10 +117,39 @@ New Thread
 {% endblock %}
 
 {% block content %}
-<h2>New Thread</h2>
-<form method="post" class="fleet-edit-wrapper">
-  {% csrf_token %}
-  {{ form.as_p }}
-  <button type="submit">Create Thread</button>
-</form>
+<div class="forum-hero">
+  <div>
+    <h2>New Thread</h2>
+    <small>Start a clean, classic discussion.</small>
+  </div>
+  <a class="forum-action" href="{% url 'forum_list' %}">Back to forums</a>
+</div>
+
+<div class="forum-shell">
+  <aside class="forum-sidebar">
+    <div class="card recent">
+      <h3>Recently Active Threads</h3>
+      <ul>
+        {% for thread in recent_threads %}
+        <li>
+          <a href="{% url 'thread_detail' thread.id %}">{{ thread.title }}</a>
+          <div class="thread-meta">{{ thread.forum.name|default:"Forums" }}</div>
+        </li>
+        {% empty %}
+        <li>No recent threads yet.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </aside>
+
+  <section>
+    <div class="forum-card">
+      <form method="post" class="fleet-edit-wrapper">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Create Thread</button>
+      </form>
+    </div>
+  </section>
+</div>
 {% endblock %}

@@ -75,13 +75,13 @@ class TripDetailView(generics.RetrieveAPIView):
 
 # List all tracking records
 class TrackingListView(generics.ListAPIView):
-    queryset = Tracking.objects.all().order_by("-tracking_updated_at")
+    queryset = Tracking.objects.select_related('tracking_route').order_by("-tracking_updated_at")
     serializer_class = TrackingSerializer
 
 
 # Get a single tracking record by ID
 class TrackingDetailView(generics.RetrieveAPIView):
-    queryset = Tracking.objects.all()
+    queryset = Tracking.objects.select_related('tracking_route').all()
     serializer_class = TrackingSerializer
     lookup_field = "tracking_id"
 
@@ -92,7 +92,9 @@ class TrackingByVehicleView(generics.ListAPIView):
 
     def get_queryset(self):
         vehicle_id = self.kwargs["vehicle_id"]
-        return Tracking.objects.filter(tracking_vehicle_id=vehicle_id).order_by("-tracking_updated_at")
+        return Tracking.objects.select_related('tracking_route').filter(
+            tracking_vehicle_id=vehicle_id
+        ).order_by("-tracking_updated_at")
 
 import json
 from django.http import JsonResponse
@@ -256,10 +258,28 @@ class map_view(generics.ListAPIView):
         tracking_game = self.kwargs.get('game_id')
         tracking_id = self.kwargs.get('tracking_id')
         if tracking_id:
-            return Tracking.objects.filter(tracking_id=tracking_id)
+            return Tracking.objects.select_related(
+                'tracking_vehicle',
+                'tracking_vehicle__vehicleType',
+                'tracking_vehicle__operator',
+                'tracking_vehicle__livery',
+                'tracking_route'
+            ).filter(tracking_id=tracking_id)
         if tracking_game:
-            return Tracking.objects.filter(game_id=tracking_game, trip_ended=False)
-        return Tracking.objects.filter(trip_ended=False)
+            return Tracking.objects.select_related(
+                'tracking_vehicle',
+                'tracking_vehicle__vehicleType',
+                'tracking_vehicle__operator',
+                'tracking_vehicle__livery',
+                'tracking_route'
+            ).filter(game_id=tracking_game, trip_ended=False)
+        return Tracking.objects.select_related(
+            'tracking_vehicle',
+            'tracking_vehicle__vehicleType',
+            'tracking_vehicle__operator',
+            'tracking_vehicle__livery',
+            'tracking_route'
+        ).filter(trip_ended=False)
 
 class map_view_history(generics.ListAPIView):
     serializer_class = trackingDataSerializer
@@ -269,10 +289,28 @@ class map_view_history(generics.ListAPIView):
         tracking_game = self.kwargs.get('game_id')
         tracking_id = self.kwargs.get('tracking_id')
         if tracking_id:
-            return Tracking.objects.filter(tracking_id=tracking_id)
+            return Tracking.objects.select_related(
+                'tracking_vehicle',
+                'tracking_vehicle__vehicleType',
+                'tracking_vehicle__operator',
+                'tracking_vehicle__livery',
+                'tracking_route'
+            ).filter(tracking_id=tracking_id)
         if tracking_game:
-            return Tracking.objects.filter(game_id=tracking_game)
-        return Tracking.objects.all()
+            return Tracking.objects.select_related(
+                'tracking_vehicle',
+                'tracking_vehicle__vehicleType',
+                'tracking_vehicle__operator',
+                'tracking_vehicle__livery',
+                'tracking_route'
+            ).filter(game_id=tracking_game)
+        return Tracking.objects.select_related(
+            'tracking_vehicle',
+            'tracking_vehicle__vehicleType',
+            'tracking_vehicle__operator',
+            'tracking_vehicle__livery',
+            'tracking_route'
+        ).all()
 
 class current_vehicle_trips(generics.ListAPIView):
     serializer_class = TripSerializer

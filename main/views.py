@@ -851,7 +851,7 @@ def for_sale(request):
     # Query vehicles efficiently
     for_sale_vehicles = (
         fleet.objects.filter(for_sale=True)
-        .select_related("operator", "livery")   # avoid N+1 queries
+        .select_related("operator", "livery", "vehicleType")   # avoid N+1 queries
         .order_by("fleet_number")
     )
 
@@ -870,13 +870,12 @@ def for_sale(request):
         if vehicle.operator:
             operators.add(vehicle.operator.operator_name)
 
-        # ⭐ SORT HERE — least vehicles for sale first
-        operators_with_vehicles = dict(
+    operators_with_vehicles = dict(
         sorted(
-        operators_with_vehicles.items(),
-        key=lambda item: len(item[1])
-            )
-        )   
+            operators_with_vehicles.items(),
+            key=lambda item: len(item[1])
+        )
+    )
 
     breadcrumbs = [{'name': 'Home', 'url': '/'}, {'name': 'For Sale', 'url': '/for-sale/'}]
 
@@ -1691,7 +1690,9 @@ def operator_fleet_view(request, opID):
         return JsonResponse({"error": "Unauthorized"}, status=403)
 
     # get fleet
-    operator_fleet = fleet.objects.filter(operator=operator, in_service=True).order_by('fleet_number_sort')
+    operator_fleet = fleet.objects.filter(operator=operator, in_service=True).select_related(
+        'vehicleType'
+    ).order_by('fleet_number_sort')
 
     fleet_data = [
         {
