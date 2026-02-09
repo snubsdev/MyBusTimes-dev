@@ -6,12 +6,13 @@ from concurrent.futures import thread
 from datetime import timedelta, datetime, date
 
 # Django imports
-from django.db.models import Max
+from django.db.models import Case, IntegerField, Max, When
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.http import HttpResponseServerError, JsonResponse
+from django.http import HttpResponseForbidden
 from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
@@ -114,9 +115,25 @@ def forum_list(request):
 
     recent_threads = get_recent_threads()
 
+    featured_thread_ids = [5, 320]
+    featured_threads = (
+        Thread.objects.filter(id__in=featured_thread_ids)
+        .annotate(
+            latest_post=Max('posts__created_at'),
+            sort_order=Case(
+                *[When(id=thread_id, then=position) for position, thread_id in enumerate(featured_thread_ids)],
+                default=len(featured_thread_ids),
+                output_field=IntegerField(),
+            ),
+        )
+        .select_related('forum')
+        .order_by('sort_order')
+    )
+
     return render(request, 'forum_list.html', {
         'forums': forum_list,
         'recent_threads': recent_threads,
+        'featured_threads': featured_threads,
     })
 
 def thread_list(request, forum_name):
@@ -231,6 +248,8 @@ def thread_details_api(request, thread_id):
         else:
             image = ""
 
+        can_edit = request.user.is_authenticated and post.author == request.user.username
+
         posts_with_pfps.append({
             'post': {
                 "id": post.id,
@@ -251,6 +270,7 @@ def thread_details_api(request, thread_id):
             'author': author,
             'username': username,
             'from_discord': bool(user and user.discord_username == post.author),
+            'can_edit': can_edit,
         })
 
         latest_message = post.created_at
@@ -418,6 +438,45 @@ def thread_detail(request, thread_id):
         'is_last_page': is_last_page,
         'recent_threads': get_recent_threads(),
     })
+
+@login_required
+@require_POST
+def post_edit(request, post_id):
+    post = get_object_or_404(Post, pk=post_id)
+
+    if post.author != request.user.username:
+        return HttpResponseForbidden('Not allowed')
+
+    if post.thread.locked:
+        return JsonResponse({'status': 'error', 'message': 'Thread is locked'}, status=403)
+
+    content = (request.POST.get('content') or '').strip()
+    if not content:
+        return JsonResponse({'status': 'error', 'message': 'Content required'}, status=400)
+
+    post.content = content
+    post.save(update_fields=['content'])
+
+    return JsonResponse({
+        'status': 'success',
+        'post_id': post.id,
+        'html': markdown.markdown(post.content),
+        'content': post.content,
+    })
+
+@login_required
+@require_POST
+def post_delete(request, post_id):
+    post = get_object_or_404(Post, pk=post_id)
+
+    if post.author != request.user.username:
+        return HttpResponseForbidden('Not allowed')
+
+    if post.thread.locked:
+        return JsonResponse({'status': 'error', 'message': 'Thread is locked'}, status=403)
+
+    post.delete()
+    return JsonResponse({'status': 'success', 'post_id': post_id})
 
 @login_required
 def new_thread(request):

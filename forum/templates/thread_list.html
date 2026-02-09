@@ -282,15 +282,17 @@
       </div>
       <ul class="thread-list" id="pinned-threads">
         {% for thread in pinned_threads %}
-        <li class="thread-row" data-forum-id="{{ thread.forum.id }}" onclick="location.href='{% url 'thread_detail' thread.id %}'">
-          <div>
-            <div class="thread-title">{{ thread.title }}</div>
-            <div class="thread-meta">{{ thread.created_at|date:"M d, Y H:i" }}</div>
-          </div>
-          <div class="thread-status">
-            <strong>Pinned</strong>
-            {{ thread.locked|yesno:"Locked, Open" }}
-          </div>
+        <li class="thread-row" data-forum-id="{{ thread.forum.id }}">
+          <a href="{% url 'thread_detail' thread.id %}" class="thread-row-link">
+            <div>
+              <div class="thread-title">{{ thread.title }}</div>
+              <div class="thread-meta">{{ thread.created_at|date:"M d, Y H:i" }}</div>
+            </div>
+            <div class="thread-status">
+              <strong>Pinned</strong>
+              {{ thread.locked|yesno:"Locked, Open" }}
+            </div>
+          </a>
         </li>
         {% endfor %}
       </ul>
@@ -314,9 +316,9 @@
                 <strong>{{ thread.locked|yesno:"Locked, Open" }}</strong>
                 {% if thread.pinned %}Pinned{% else %}Active{% endif %}
               </div>
-            </li>
-
             {% if forloop.counter|divisibleby:5 %}
+              <li class="ad-box ad-box-narrow" id="body-ad-{{ forloop.counter }}" aria-hidden="true"></li>
+            {% endif %}
               <div class="ad-box ad-box-narrow" id="body-ad-1"></div>
             {% endif %}
           {% empty %}

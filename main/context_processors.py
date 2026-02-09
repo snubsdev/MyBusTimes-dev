@@ -1,12 +1,16 @@
 from datetime import datetime, timedelta
-from main.models import theme, ad, google_ad, featureToggle, BannedIps, ActiveSubscription, DeviceBan, Device
-from django.utils import timezone
-from django.core.cache import cache
-from django.contrib.auth import get_user_model
-from mybustimes import settings
-from django.db.models import Q
 import json
+import logging
+
+from django.contrib.auth import get_user_model
+from django.core.cache import cache
+from django.db.models import Q
+from django.utils import timezone
+from main.models import theme, ad, google_ad, featureToggle, BannedIps, ActiveSubscription, DeviceBan, Device
+from mybustimes import settings
 from mybustimes.middleware.rest_last_active import derive_device_fingerprint
+
+logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
@@ -302,7 +306,7 @@ def check_device_ban(request, ip):
                         cache.set(cache_key, result, 60)
                         return result
     except Exception:
-        pass
+        logger.exception("Device ban check failed; defaulting to not banned")
     
     result = (False, None, device_fp)
     cache.set(cache_key, result, 60)

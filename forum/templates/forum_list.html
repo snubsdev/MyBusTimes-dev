@@ -60,16 +60,21 @@
 }
 
 .forum-row {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.forum-row-link {
   display: grid;
   grid-template-columns: 1fr 140px;
   gap: 1rem;
   padding: 0.9rem 1rem;
-  border-bottom: 1px solid var(--border-color);
-  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
   transition: background 0.2s ease, transform 0.2s ease;
 }
 
-.forum-row:hover {
+.forum-row-link:hover,
+.forum-row-link:focus-visible {
   background: rgba(0, 0, 0, 0.04);
   transform: translateY(-1px);
 }
@@ -164,7 +169,7 @@
 
 @media (max-width: 600px) {
   .forum-card-header,
-  .forum-row {
+  .forum-row-link {
     grid-template-columns: 1fr;
   }
 
@@ -213,27 +218,30 @@
         <span>Last Active</span>
       </div>
       <ul class="forum-list">
-        <li class="forum-row" onclick="location.href='{% url 'thread_detail' 5 %}'">
-          <div>
-            <div class="forum-title">General</div>
-          </div>
-          <div class="forum-last">Featured</div>
+        {% for thread in featured_threads %}
+        <li class="forum-row">
+          <a class="forum-row-link" href="{% url 'thread_detail' thread.id %}">
+            <div>
+              <div class="forum-title">{{ thread.title }}</div>
+              {% if thread.forum %}
+              <div class="forum-desc">{{ thread.forum.name }}</div>
+              {% endif %}
+            </div>
+            <div class="forum-last">{{ thread.latest_post|default_if_none:thread.created_at|date:"M d, Y H:i" }}</div>
+          </a>
         </li>
-        <li class="forum-row" onclick="location.href='{% url 'thread_detail' 320 %}'">
-          <div>
-            <div class="forum-title">Feedback</div>
-          </div>
-          <div class="forum-last">Featured</div>
-        </li>
+        {% endfor %}
         {% for forum in forums %}
-        <li class="forum-row" onclick="location.href='{% url 'thread_list' forum.name %}'">
-          <div>
-            <div class="forum-title">{{ forum.name }}</div>
-            {% if forum.description %}
-            <div class="forum-desc">{{ forum.description }}</div>
-            {% endif %}
-          </div>
-          <div class="forum-last">Browse</div>
+        <li class="forum-row">
+          <a class="forum-row-link" href="{% url 'thread_list' forum.name %}">
+            <div>
+              <div class="forum-title">{{ forum.name }}</div>
+              {% if forum.description %}
+              <div class="forum-desc">{{ forum.description }}</div>
+              {% endif %}
+            </div>
+            <div class="forum-last">Browse</div>
+          </a>
         </li>
         {% empty %}
         <li class="forum-row">

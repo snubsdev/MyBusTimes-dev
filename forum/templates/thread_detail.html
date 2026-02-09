@@ -189,6 +189,40 @@
     margin: 0;
   }
 
+  .post-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin: 0.5rem 0 0.75rem;
+  }
+
+  .post-actions .btn.small {
+    padding: 0.25rem 0.6rem;
+    font-size: 0.8rem;
+  }
+
+  .post-actions .btn.danger {
+    background: #b32828;
+    border-color: #b32828;
+    color: #fff;
+  }
+
+  .post-edit {
+    display: none;
+    margin: 0.75rem 0;
+  }
+
+  .post-edit textarea {
+    width: 100%;
+    min-height: 110px;
+  }
+
+  .post-edit-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+
   .reply-dock textarea {
     height: 75px;
   }
@@ -291,7 +325,7 @@
         <!-- Messages will be dynamically loaded here form the thread api -->
       </div>
 
-      <div style="margin: 1rem 0;">
+      <div style="margin: 1rem;">
         <label for="follow_thread">Live Chat</label>
         <input type="checkbox" id="follow_thread" {% if is_last_page %}checked{% endif %}>
       </div>
@@ -460,6 +494,20 @@
         }
 
         div.id = `post-${msg.post.id}`;
+        const actionsHtml = msg.can_edit ? `
+            <div class="post-actions" data-post-id="${msg.post.id}">
+              <button class="btn small" data-action="edit" data-post-id="${msg.post.id}">Edit</button>
+              <button class="btn small danger" data-action="delete" data-post-id="${msg.post.id}">Delete</button>
+            </div>
+            <div class="post-edit" id="edit-${msg.post.id}">
+              <textarea>${msg.post.content}</textarea>
+              <div class="post-edit-actions">
+                <button class="btn small" data-action="save" data-post-id="${msg.post.id}">Save</button>
+                <button class="btn small" data-action="cancel" data-post-id="${msg.post.id}">Cancel</button>
+              </div>
+            </div>
+            ` : '';
+
         div.innerHTML = `
             <span class="user-info-post">
               <a href="${user_link}">
@@ -475,6 +523,7 @@
               ${msg.post.html}
             ${image_html}
             </span>
+            ${actionsHtml}
             <hr />
             `;
         container.appendChild(div);
@@ -559,5 +608,78 @@
       }
     });
   }
+
+  function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) {
+      return parts.pop().split(';').shift();
+    }
+    return null;
+  }
+
+  document.addEventListener('click', async (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const action = target.dataset.action;
+    const postId = target.dataset.postId;
+    if (!action || !postId) {
+      return;
+    }
+
+    const editPanel = document.getElementById(`edit-${postId}`);
+    if (action === 'edit' && editPanel) {
+      editPanel.style.display = 'block';
+      return;
+    }
+
+    if (action === 'cancel' && editPanel) {
+      editPanel.style.display = 'none';
+      return;
+    }
+
+    if (action === 'save' && editPanel) {
+      const textarea = editPanel.querySelector('textarea');
+      const content = textarea ? textarea.value.trim() : '';
+      if (!content) {
+        return;
+      }
+
+      const response = await fetch(`/forum/post/${postId}/edit/`, {
+        method: 'POST',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRFToken': getCookie('csrftoken') || ''
+        },
+        body: new URLSearchParams({ content })
+      });
+
+      if (response.ok) {
+        editPanel.style.display = 'none';
+        fetchMessages();
+      }
+      return;
+    }
+
+    if (action === 'delete') {
+      const confirmed = confirm('Delete this post?');
+      if (!confirmed) {
+        return;
+      }
+
+      await fetch(`/forum/post/${postId}/delete/`, {
+        method: 'POST',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRFToken': getCookie('csrftoken') || ''
+        }
+      });
+
+      fetchMessages();
+    }
+  });
 </script>
 {% endblock %}
