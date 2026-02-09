@@ -528,7 +528,6 @@ def operator(request, operator_slug):
     
     # Apply colors to routes (no DB queries here)
     for r in routes:
-        print("Processing route:", r.route_num)  # Debugging line
         colours_result = get_route_colours(r, transit_authority_details)
 
         # `get_route_colours` may return either a string or a (colours, school_service) tuple.
@@ -538,8 +537,6 @@ def operator(request, operator_slug):
         else:
             r.colours = colours_result
             r.school_service = None
-
-        print(f"Route {r.route_num} colours: {r.colours}")  # Debugging line
     
     # Get unique linked routes (uses prefetched data - no DB queries!)
     unique_routes = get_unique_linked_routes(routes)
@@ -3135,12 +3132,12 @@ def get_timetable_trips(request, route_id):
     all_trips.sort(key=lambda x: x['start_minutes'])
     
     # Debug: Print all trips
-    print(f"\n===== ALL TRIPS FOR ROUTE {r.route_num} (direction={direction}) =====")
-    print(f"Total trips found: {len(all_trips)}")
-    for idx, trip in enumerate(all_trips):
-        print(f"Trip {idx}: {trip['start_time']} → {trip['end_time']} | {trip['direction']} | {trip['origin']} → {trip['destination']} | start_loc={trip['start_location']}, end_loc={trip['end_location']}")
-    print("=" * 80)
-    
+    #print(f"\n===== ALL TRIPS FOR ROUTE {r.route_num} (direction={direction}) =====")
+    #print(f"Total trips found: {len(all_trips)}")
+    #for idx, trip in enumerate(all_trips):
+    #    print(f"Trip {idx}: {trip['start_time']} → {trip['end_time']} | {trip['direction']} | {trip['origin']} → {trip['destination']} | start_loc={trip['start_location']}, end_loc={trip['end_location']}")
+    #print("=" * 80)
+    #
     # Vehicle blocking algorithm - minimize number of vehicles by maximizing trips per vehicle
     # Strategy: Always try to assign to the FIRST vehicle that can do it, no matter the wait time
     vehicles = []  # List of vehicle blocks, each is {'trips': [], 'end_minutes': int, 'end_location': str}
