@@ -68,7 +68,7 @@
       </thead>
       <tbody>
         {% for vehicle in vehicles %}
-        <tr>
+        <tr data-type="{{ vehicle.vehicleType.type_name }}">
           <td><input type="checkbox" name="selected_vehicles" class="big-checkbox" value="{{ vehicle.id }}"></td>
           <td>{{ vehicle.fleet_number }}</td>
           <td>{{ vehicle.reg }}</td>
@@ -84,51 +84,59 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-  const rows = document.querySelectorAll('table.fleet tbody tr');
+  const rows = Array.from(document.querySelectorAll('table.fleet tbody tr'));
   const dropdown = document.getElementById('typeFilter');
-  const checkboxes = document.querySelectorAll('input[name="selected_vehicles"]');
+  const checkboxes = Array.from(document.querySelectorAll('input[name="selected_vehicles"]'));
 
-  // 1️⃣ Collect unique type names from table
   const typeSet = new Set();
   rows.forEach(row => {
-    const typeName = row.cells[3].textContent.trim();
-    typeSet.add(typeName);
+    typeSet.add(row.dataset.type || '');
   });
 
-  // 2️⃣ Populate dropdown
-  typeSet.forEach(type => {
+  const fragment = document.createDocumentFragment();
+  Array.from(typeSet).sort().forEach(type => {
+    if (!type) return;
     const option = document.createElement('option');
     option.value = type;
     option.textContent = type;
-    dropdown.appendChild(option);
+    fragment.appendChild(option);
   });
+  dropdown.appendChild(fragment);
 
-  // 3️⃣ Filter rows based on dropdown + checkboxes
-  function getSelectedTypeNames() {
-    const selectedTypeNames = new Set();
-    checkboxes.forEach(cb => {
+  const selectedTypeNames = new Set();
+  checkboxes.forEach(cb => {
+    cb.addEventListener('change', () => {
+      const typeName = cb.closest('tr').dataset.type || '';
       if (cb.checked) {
-        const typeName = cb.closest('tr').cells[3].textContent.trim();
         selectedTypeNames.add(typeName);
+      } else {
+        selectedTypeNames.delete(typeName);
       }
+      scheduleFilter();
     });
-    return selectedTypeNames;
-  }
+  });
 
   function filterRows() {
     const selectedType = dropdown.value;
-    const selectedTypeNames = getSelectedTypeNames();
-
     rows.forEach(row => {
-      const typeName = row.cells[3].textContent.trim();
-      const matchesDropdown = selectedType === "" || typeName === selectedType;
+      const typeName = row.dataset.type || '';
+      const matchesDropdown = selectedType === '' || typeName === selectedType;
       const matchesCheckbox = selectedTypeNames.size === 0 || selectedTypeNames.has(typeName);
       row.style.display = (matchesDropdown && matchesCheckbox) ? '' : 'none';
     });
   }
 
-  checkboxes.forEach(cb => cb.addEventListener('change', filterRows));
-  dropdown.addEventListener('change', filterRows);
+  let filterScheduled = false;
+  function scheduleFilter() {
+    if (filterScheduled) return;
+    filterScheduled = true;
+    window.requestAnimationFrame(() => {
+      filterScheduled = false;
+      filterRows();
+    });
+  }
+
+  dropdown.addEventListener('change', scheduleFilter);
 });
 </script>
 {% endblock %}

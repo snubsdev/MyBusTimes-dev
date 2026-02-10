@@ -5013,11 +5013,12 @@ def vehicle_select_mass_edit(request, operator_slug):
         messages.error(request, "You do not have permission to edit vehicles for this operator.")
         return redirect(f'/operator/{operator_slug}/vehicles/')
     
-    def alphanum_key(fleet_number):
-            return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', fleet_number or '')]
-
-    vehicles = list(fleet.objects.filter(operator=operator))
-    vehicles.sort(key=lambda v: alphanum_key(v.fleet_number))
+    vehicles = (
+        fleet.objects.filter(operator=operator)
+        .select_related('vehicleType')
+        .only('id', 'fleet_number', 'reg', 'fleet_number_sort', 'vehicleType__type_name')
+        .order_by('fleet_number_sort', 'fleet_number')
+    )
 
     if request.method == "POST":
         selected_ids = request.POST.getlist('selected_vehicles')
