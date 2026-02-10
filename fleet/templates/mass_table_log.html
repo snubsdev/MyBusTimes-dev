@@ -634,6 +634,16 @@
       </div>
     </div>
 
+    <div class="settings-bar">
+      <div class="settings-group" style="display: block;">
+        <label>Override</label>
+        <input type="checkbox" id="override-existing" name="override-existing" style="min-width: 0;">
+        <label style="display:flex;align-items:center;gap:0.5rem;">
+          Clear existing trips for date
+        </label>
+      </div>
+    </div>
+
     <div class="action-bar">
       <div class="action-bar-left">
         <span class="assignment-count" id="assignment-count-1">0 assignments ready</span>
@@ -744,7 +754,7 @@
   document.addEventListener("DOMContentLoaded", function () {
 
     
-
+      const boardsUrl = "{% url 'boards_api' operator.operator_slug %}";
 
         // -------------------------------
         // Stable key generator
@@ -765,7 +775,8 @@
         // Save on change
         // -------------------------------
         function saveElement(el) {
-          localStorage.setItem(getKey(el), el.value);
+          const value = el.type === "checkbox" ? (el.checked ? "1" : "0") : el.value;
+          localStorage.setItem(getKey(el), value);
         }
 
         // -------------------------------
@@ -773,7 +784,6 @@
         // -------------------------------
         function initBoardSelect2s() {
           if (!window.jQuery || !jQuery().select2) return;
-          const boardsUrl = "{% url 'boards_api' operator.operator_slug %}";
 
           document.querySelectorAll('.board-select').forEach(sel => {
             const vehicleId = sel.dataset.vehicle;
@@ -850,64 +860,88 @@
         // Initialize Select2-powered board selects
         initBoardSelect2s();
 
-        // Build available boards grouped by category (from server-provided context)
-        var availableBoards = {}; {%for d in duties %}
-        (function () {
-          var cat = "{% if d.category %}{{ d.category.id }}{% else %}none{% endif %}";
-          availableBoards[cat] = availableBoards[cat] || [];
-          availableBoards[cat].push({
-            id: "{{ d.id }}",
-            text: "{{ d.duty_name|escapejs }}",
-            type: "duty"
-          });
-        })(); {% endfor %} {%for rb in running_boards %}
-        (function () {
-          var cat = "{% if rb.category %}{{ rb.category.id }}{% else %}none{% endif %}";
-          availableBoards[cat] = availableBoards[cat] || [];
-          availableBoards[cat].push({
-            id: "{{ rb.id }}",
-            text: "{{ rb.duty_name|escapejs }}",
-            type: "running"
-          });
-        })(); {% endfor %}
+        const boardsCache = new Map();
+
+        async function fetchBoardsForCategory(category) {
+          if (boardsCache.has(category)) {
+            return boardsCache.get(category);
+          }
+
+          const params = new URLSearchParams();
+          if (category === "none") {
+            params.set("category", "none");
+          } else if (category) {
+            params.set("category", category);
+          }
+
+          const url = params.toString() ? `${boardsUrl}?${params.toString()}` : boardsUrl;
+          try {
+            const response = await fetch(url);
+            if (!response.ok) {
+              boardsCache.set(category, []);
+              return [];
+            }
+            const data = await response.json();
+            const boards = (data.results || []).map(board => ({
+              id: String(board.id),
+              text: board.text,
+              type: board.type === "running-boards" ? "running" : board.type
+            }));
+            boardsCache.set(category, boards);
+            return boards;
+          } catch (err) {
+            boardsCache.set(category, []);
+            return [];
+          }
+        }
 
         // Auto-fill: randomly select a board matching vehicle's category for unassigned rows
-        document.getElementById('auto-fill-btn').addEventListener('click', function () {
+        document.getElementById('auto-fill-btn').addEventListener('click', async function () {
           const used = new Set(Array.from(document.querySelectorAll('.board-select')).map(s => s.value).filter(
             Boolean));
 
+          const rowsByCategory = new Map();
           document.querySelectorAll('.vehicle-row').forEach(row => {
             const sel = row.querySelector('.board-select');
-            const typeSel = row.querySelector('.board-type');
-            if (!sel) return;
-            if (sel.value) return; // skip already assigned
-
+            if (!sel || sel.value) return;
             const cat = row.getAttribute('data-vehicle-category') || 'none';
-            const pool = (availableBoards[cat] || []).filter(b => !used.has(String(b.id)));
-            if (!pool.length) return;
-            const pick = pool[Math.floor(Math.random() * pool.length)];
-
-            // set board type to match pick
-            if (typeSel) {
-              typeSel.value = pick.type;
-              saveElement(typeSel);
-              typeSel.dispatchEvent(new Event('change'));
-            }
-
-            // set select2 value (ensure option exists)
-            if (window.jQuery && jQuery().select2) {
-              const $sel = $(sel);
-              if ($sel.find('option[value="' + pick.id + '"]').length === 0) {
-                $sel.append(new Option(pick.text, pick.id, false, false));
-              }
-              $sel.val(pick.id).trigger('change');
-            } else {
-              sel.value = pick.id;
-            }
-
-            saveElement(sel);
-            used.add(String(pick.id));
+            if (!rowsByCategory.has(cat)) rowsByCategory.set(cat, []);
+            rowsByCategory.get(cat).push(row);
           });
+
+          for (const [cat, rows] of rowsByCategory.entries()) {
+            const boards = await fetchBoardsForCategory(cat);
+            if (!boards.length) continue;
+
+            rows.forEach(row => {
+              const sel = row.querySelector('.board-select');
+              const typeSel = row.querySelector('.board-type');
+              if (!sel || sel.value) return;
+
+              const pool = boards.filter(b => !used.has(String(b.id)));
+              if (!pool.length) return;
+              const pick = pool[Math.floor(Math.random() * pool.length)];
+
+              if (typeSel) {
+                typeSel.value = pick.type;
+                saveElement(typeSel);
+                typeSel.dispatchEvent(new Event('change'));
+              }
+
+              if (window.jQuery && jQuery().select2) {
+                const $sel = $(sel);
+                if ($sel.find('option[value="' + pick.id + '"]').length === 0) {
+                  $sel.append(new Option(pick.text, pick.id, false, false));
+                }
+                $sel.val(pick.id).trigger('change');
+              } else {
+                sel.value = pick.id;
+              }
+
+              saveElement(sel);
+              used.add(String(pick.id));
+            });
+          }
 
           updateUsedBoards();
           updateRowStyling();
@@ -917,10 +951,16 @@
         // -------------------------------
         // Load saved values for other elements
         // -------------------------------
-        document.querySelectorAll(".board-type, #assign-date, #global-board-type")
+        document.querySelectorAll(".board-type, #assign-date, #global-board-type, #override-existing")
           .forEach(el => {
             const stored = localStorage.getItem(getKey(el));
-            if (stored !== null) el.value = stored;
+            if (stored !== null) {
+              if (el.type === "checkbox") {
+                el.checked = stored === "1";
+              } else {
+                el.value = stored;
+              }
+            }
           });
 
         // -------------------------------
@@ -956,7 +996,7 @@
           countEl1.textContent = count + ' assignment' + (count !== 1 ? 's' : '') + ' ready';
         }
 
-        document.querySelectorAll(".board-type, #assign-date, #global-board-type")
+        document.querySelectorAll(".board-type, #assign-date, #global-board-type, #override-existing")
           .forEach(el => el.addEventListener("change", () => {
             saveElement(el);
 
@@ -1073,6 +1113,7 @@
         const logStatus = document.getElementById("log-status");
         const dateInput = document.getElementById("assign-date");
         const closeProgressBtn = document.getElementById("close-progress-btn");
+        const overrideInput = document.getElementById("override-existing");
 
         async function startMassLog() {
           const date = dateInput.value;
@@ -1082,6 +1123,7 @@
           }
 
           const assignments = [];
+          const overrideExisting = !!(overrideInput && overrideInput.checked);
           document.querySelectorAll(".board-type").forEach(typeSelect => {
             const vehicleId = typeSelect.dataset.vehicle;
             const type = typeSelect.value;
@@ -1098,7 +1140,8 @@
                 fleet_num: fleetNum,
                 board_type: type,
                 board_id: boardId,
-                date: date
+                date: date,
+                override: overrideExisting
               });
             }
           });
@@ -1129,6 +1172,7 @@
               formData.append("board_type", task.board_type);
               formData.append("board_id", task.board_id);
               formData.append("date", task.date);
+              formData.append("override", task.override ? "true" : "false");
               formData.append("csrfmiddlewaretoken", document.querySelector('[name=csrfmiddlewaretoken]').value);
               const controller = new AbortController();
               const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -1140,12 +1184,29 @@
                   signal: controller.signal
                 });
                 clearTimeout(timeoutId);
-                const result = await response.json();
+                const contentType = response.headers.get("content-type") || "";
+                let result = null;
+
+                if (contentType.includes("application/json")) {
+                  result = await response.json();
+                } else {
+                  const text = await response.text();
+                  lastError = response.ok
+                    ? "Unexpected response format"
+                    : `Server error ${response.status}: ${text.slice(0, 120)}`;
+                }
+
+                if (!result) {
+                  continue;
+                }
 
                 if (result.success) {
+                  const overwriteNote = result.overwritten
+                    ? ` Overwrote ${result.overwritten} trip${result.overwritten === 1 ? "" : "s"}.`
+                    : "";
                   if (result.skipped && result.skipped.length > 0) {
                     logStatus.innerHTML +=
-                      `<div class="log-entry warning">⚠ ${task.fleet_num}: ${result.message}</div>`;
+                      `<div class="log-entry warning">⚠ ${task.fleet_num}: ${result.message}${overwriteNote}</div>`;
                     let skippedHtml = '<div class="log-entry-details">';
                     result.skipped.forEach(detail => {
                       skippedHtml += `<div>• ${detail}</div>`;
@@ -1154,7 +1215,7 @@
                     logStatus.innerHTML += skippedHtml;
                   } else {
                     logStatus.innerHTML +=
-                      `<div class="log-entry success">✓ ${task.fleet_num}: ${result.message}</div>`;
+                      `<div class="log-entry success">✓ ${task.fleet_num}: ${result.message}${overwriteNote}</div>`;
                   }
                   success = true;
                   break;

@@ -7501,6 +7501,7 @@ def mass_assign_single_vehicle_api(request, operator_slug):
     board_type = request.POST.get("board_type")
     board_id = request.POST.get("board_id")
     date_str = request.POST.get("date")
+    override_existing = request.POST.get("override", "false").lower() == "true"
 
     if not all([vehicle_id, board_type, board_id, date_str]):
         return JsonResponse({'success': False, 'error': "Missing required fields."}, status=400)
@@ -7528,36 +7529,65 @@ def mass_assign_single_vehicle_api(request, operator_slug):
             duty_operator=operator
         )
 
-    trip_set = board_obj.duty_trips.all()
+    trip_set = board_obj.duty_trips.select_related("route_link")
     
     created_count = 0
     skipped_count = 0
     skipped_details = []
     errors = []
+    overwritten_count = 0
 
-    # Create trips for this board
+    trip_windows = []
     for trip in trip_set:
         start_dt = make_aware(datetime.combine(selected_date, trip.start_time))
         end_dt = make_aware(datetime.combine(selected_date, trip.end_time))
+        trip_windows.append((trip, start_dt, end_dt))
 
-        # Check if vehicle already has a trip that overlaps with this time
-        overlapping_trip = Trip.objects.filter(
-            trip_vehicle=vehicle,
-            trip_start_at__lt=end_dt,
-            trip_end_at__gt=start_dt
-        ).first()
+    existing_windows = []
+    if trip_windows:
+        min_start = min(window[1] for window in trip_windows)
+        max_end = max(window[2] for window in trip_windows)
+
+        if override_existing:
+            day_start = make_aware(datetime.combine(selected_date, time.min))
+            day_end = make_aware(datetime.combine(selected_date, time.max))
+            deleted_count, _ = Trip.objects.filter(
+                trip_vehicle=vehicle,
+                trip_start_at__lt=day_end,
+                trip_end_at__gt=day_start,
+            ).delete()
+            overwritten_count = deleted_count
+        else:
+            existing_trips = Trip.objects.filter(
+                trip_vehicle=vehicle,
+                trip_start_at__lt=max_end,
+                trip_end_at__gt=min_start,
+            ).only("trip_start_at", "trip_end_at", "trip_route_num")
+            existing_windows = [
+                (t.trip_start_at, t.trip_end_at, t.trip_route_num) for t in existing_trips
+            ]
+
+    # Create trips for this board
+    for trip, start_dt, end_dt in trip_windows:
+        overlapping_trip = None
+        for existing_start, existing_end, existing_route_num in existing_windows:
+            if existing_start < end_dt and existing_end > start_dt:
+                overlapping_trip = existing_route_num or "existing trip"
+                break
 
         if overlapping_trip:
             skipped_count += 1
-            skipped_details.append(f"{trip.start_time.strftime('%H:%M')}-{trip.end_time.strftime('%H:%M')} (conflicts with {overlapping_trip.trip_route_num or 'existing trip'})")
+            skipped_details.append(
+                f"{trip.start_time.strftime('%H:%M')}-{trip.end_time.strftime('%H:%M')} (conflicts with {overlapping_trip})"
+            )
             continue
 
         created_trip = Trip(
             trip_vehicle=vehicle,
             trip_route=trip.route_link,
             trip_route_num=(
-                trip.route.route_num
-                if hasattr(trip.route, "route_num")
+                trip.route_link.route_num
+                if trip.route_link and hasattr(trip.route_link, "route_num")
                 else trip.route
             ),
             trip_inbound=trip.inbound,
@@ -7584,12 +7614,17 @@ def mass_assign_single_vehicle_api(request, operator_slug):
     # Skipped trips due to conflicts - return partial success
     if skipped_count > 0:
         return JsonResponse({
-            'success': True, 
+            'success': True,
             'message': f"Logged {created_count} trips for {vehicle.fleet_number}. Skipped {skipped_count} due to conflicts.",
-            'skipped': skipped_details
+            'skipped': skipped_details,
+            'overwritten': overwritten_count,
         })
 
-    return JsonResponse({'success': True, 'message': f"Logged {created_count} trips for {vehicle.fleet_number}."})
+    return JsonResponse({
+        'success': True,
+        'message': f"Logged {created_count} trips for {vehicle.fleet_number}.",
+        'overwritten': overwritten_count,
+    })
 
 
 @login_required
@@ -7619,17 +7654,9 @@ def mass_assign_boards(request, operator_slug):
     # ----------------------------------------------------------------------
     # GET: Load table
     # ----------------------------------------------------------------------
-    duties_list = duty.objects.filter(
-        duty_operator=operator, board_type='duty'
-    ).select_related('category').prefetch_related('duty_trips').order_by('duty_name')
-
-    running_list = duty.objects.filter(
-        duty_operator=operator, board_type='running-boards'
-    ).select_related('category').prefetch_related('duty_trips').order_by('duty_name')
-
     vehicles = fleet.objects.filter(
         Q(operator=operator) | Q(loan_operator=operator), in_service=True
-    ).select_related('vehicle_category').order_by('fleet_number_sort')
+    ).select_related('vehicle_category', 'vehicleType', 'livery').order_by('fleet_number_sort')
 
     breadcrumbs = [
         {'name': 'Home', 'url': '/'},
@@ -7641,8 +7668,6 @@ def mass_assign_boards(request, operator_slug):
     context = {
         'breadcrumbs': breadcrumbs,
         'operator': operator,
-        'duties': duties_list,
-        'running_boards': running_list,
         'vehicles': vehicles,
         'current_date': timezone.now().strftime("%Y-%m-%d"),
     }
@@ -7746,7 +7771,10 @@ def boards_api(request, operator_slug):
         queryset = queryset.filter(board_type=board_type)
 
     if category:
-        queryset = queryset.filter(category__id=category)
+        if category == "none":
+            queryset = queryset.filter(category__isnull=True)
+        else:
+            queryset = queryset.filter(category__id=category)
 
     if search:
         queryset = queryset.filter(duty_name__icontains=search)
