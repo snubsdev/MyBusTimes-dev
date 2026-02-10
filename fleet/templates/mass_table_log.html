@@ -878,7 +878,6 @@
           try {
             const response = await fetch(url);
             if (!response.ok) {
-              boardsCache.set(category, []);
               return [];
             }
             const data = await response.json();
@@ -890,7 +889,6 @@
             boardsCache.set(category, boards);
             return boards;
           } catch (err) {
-            boardsCache.set(category, []);
             return [];
           }
         }
@@ -1191,13 +1189,8 @@
                   result = await response.json();
                 } else {
                   const text = await response.text();
-                  lastError = response.ok
-                    ? "Unexpected response format"
-                    : `Server error ${response.status}: ${text.slice(0, 120)}`;
-                }
-
-                if (!result) {
-                  continue;
+                  lastError = `Non-JSON response (${response.status}): ${text.slice(0, 120)}`;
+                  break;
                 }
 
                 if (result.success) {
