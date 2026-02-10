@@ -61,10 +61,28 @@
 
     <label for="type">Type:</label>
     <select name="type" id="type">
-      {% for type in typeData %}
-      <option value="{{ type.id }}">
-        {{ type.type_name }}
-      </option>
+      {% regroup typeData by type as type_groups %}
+      {% for group in type_groups %}
+        {% if group.grouper == "Bus" %}
+        <optgroup label="{{ group.grouper }}">
+          {% for type in group.list %}
+          <option value="{{ type.id }}">
+            {{ type.type_name }}
+          </option>
+          {% endfor %}
+        </optgroup>
+        {% endif %}
+      {% endfor %}
+      {% for group in type_groups %}
+        {% if group.grouper != "Bus" %}
+        <optgroup label="{{ group.grouper }}">
+          {% for type in group.list %}
+          <option value="{{ type.id }}">
+            {{ type.type_name }}
+          </option>
+          {% endfor %}
+        </optgroup>
+        {% endif %}
       {% endfor %}
     </select>
     <input style="margin-top: -.5em;border-radius: 0;" type="text" id="type_details" placeholder="Additional Type Details" name="type_details" title="This is for things such as `Electric Conversion`">
@@ -331,11 +349,32 @@
         processResults: function (data, params) {
           params.page = params.page || 0;
 
+          const groups = {};
+          let groupOrder = [];
+
+          data.results.forEach(function(type) {
+            const groupName = type.type || 'Other';
+            if (!groups[groupName]) {
+              groups[groupName] = [];
+              groupOrder.push(groupName);
+            }
+            groups[groupName].push({
+              id: type.id,
+              text: type.type_name
+            });
+          });
+
+          if (groupOrder.includes('Bus')) {
+            groupOrder = ['Bus'].concat(groupOrder.filter(function(name) {
+              return name !== 'Bus';
+            }));
+          }
+
           return {
-            results: data.results.map(function(type) {
+            results: groupOrder.map(function(groupName) {
               return {
-                id: type.id,
-                text: type.type_name,
+                text: groupName,
+                children: groups[groupName]
               };
             }),
             pagination: {

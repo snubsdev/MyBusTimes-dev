@@ -39,7 +39,17 @@ class FleetChangeAdmin(SimpleHistoryAdmin):
     actions = [approve_changes, decline_changes]
     list_select_related = ('vehicle', 'operator', 'user', 'approved_by')  # KEY FIX
     autocomplete_fields = ('vehicle', 'operator', 'user', 'approved_by', 'voters')
-    search_fields = ('vehicle__fleet_number', 'vehicle__reg', 'operator__operator_name', 'user__name', 'approved_by__name')
+    search_fields = (
+        'vehicle__fleet_number',
+        'vehicle__reg',
+        'operator__operator_name',
+        'user__username',
+        'user__first_name',
+        'user__last_name',
+        'approved_by__username',
+        'approved_by__first_name',
+        'approved_by__last_name'
+    )
 
     def status(self, obj):
         if obj.approved:
@@ -69,7 +79,7 @@ class OperatorOwnerFilter(AutocompleteFilter):
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        return qs.order_by("owner__name")
+        return qs.order_by("owner__username")
 
 class OperatorGroupFilter(AutocompleteFilter):
     title = "Group"
@@ -102,8 +112,16 @@ class MBTOperatorAdmin(SimpleHistoryAdmin):
 
 @admin.register(vehicleType)
 class VehicleTypeAdmin(SimpleHistoryAdmin):
-    search_fields = ['type_name']
+    search_fields = ['type_name',]
     ordering = ['type_name']
+    list_display = ['type_name', 'vehicle_count', 'active', 'hidden', 'added_by', 'type', 'fuel']
+    list_filter = ['type', 'added_by', 'fuel']
+    autocomplete_fields = ['added_by', 'aproved_by']
+
+    def vehicle_count(self, obj):
+        return obj.fleet_set.count()
+
+    vehicle_count.short_description = "Vehicles Using"
 
     def get_search_results(self, request, queryset, search_term):
         queryset, use_distinct = super().get_search_results(request, queryset, search_term)
@@ -115,7 +133,7 @@ class LiveryUserFilter(AutocompleteFilter):
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        return qs.order_by("added_by__name")
+        return qs.order_by("added_by__username")
 
 @admin.register(liverie)
 class LiveryAdmin(SimpleHistoryAdmin):

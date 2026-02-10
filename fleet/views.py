@@ -46,7 +46,7 @@ from rest_framework.filters import SearchFilter
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
-from django.db.models import IntegerField
+from django.db.models import IntegerField, Case, When, Value
 from django.db.models.functions import Cast
 
 # Project-specific imports
@@ -223,14 +223,30 @@ class liveriesDetailView(generics.RetrieveAPIView):
     filterset_class = liveriesFilter 
 
 class typeListView(generics.ListCreateAPIView):
-    queryset = vehicleType.objects.filter(active=True).order_by('type_name')
+    queryset = vehicleType.objects.filter(active=True, hidden=False).order_by(
+        Case(
+            When(type='Bus', then=Value(0)),
+            default=Value(1),
+            output_field=IntegerField()
+        ),
+        'type',
+        'type_name'
+    )
     serializer_class = typeSerializer
     permission_classes = [ReadOnly] 
     filter_backends = (DjangoFilterBackend,)
     filterset_class = typeFilter
 
 class typeDetailView(generics.RetrieveAPIView):
-    queryset = vehicleType.objects.filter(active=True).order_by('type_name')
+    queryset = vehicleType.objects.filter(active=True, hidden=False).order_by(
+        Case(
+            When(type='Bus', then=Value(0)),
+            default=Value(1),
+            output_field=IntegerField()
+        ),
+        'type',
+        'type_name'
+    )
     serializer_class = typeSerializer
     permission_classes = [ReadOnly] 
     filter_backends = (DjangoFilterBackend,)
