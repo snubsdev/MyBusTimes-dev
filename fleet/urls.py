@@ -10,6 +10,10 @@ urlpatterns = [
     path('games/<str:operator_game_name>/', operator_game_detail, name='operator-game-detail'),
     path('create-type/', operator_type_add, name='add-operator-type'),
 
+    # Vehicle types
+    path('vehicle-types/', vehicle_types, name='vehicle-types'),
+    path('vehicle-types/<int:type_id>/', vehicle_type_detail_view, name='vehicle-type-detail'),
+
     # Operator management
     path('create/', create_operator, name='create-operator'),
     path('<str:operator_slug>/', operator, name='operator'),

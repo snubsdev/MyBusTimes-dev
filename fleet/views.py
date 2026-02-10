@@ -46,7 +46,7 @@ from rest_framework.filters import SearchFilter
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
-from django.db.models import IntegerField, Case, When, Value
+from django.db.models import IntegerField, Case, When, Value, Count
 from django.db.models.functions import Cast
 
 # Project-specific imports
@@ -6442,6 +6442,207 @@ def operator_type_detail(request, operator_type_name):
         'operators': operators,
     }
     return render(request, 'operator_type_detail.html', context)
+
+def vehicle_types(request):
+    types = vehicleType.objects.filter(hidden=False).order_by('type_name').annotate(
+        vehicle_count=Count('fleet', distinct=True),
+        pending_requests=Count('change_requests', filter=Q(change_requests__status='pending'))
+    )
+    pending_delete_ids = list(
+        VehicleTypeChangeRequest.objects.filter(
+            request_type='delete',
+            status='pending'
+        ).values_list('vehicle_type_id', flat=True)
+    )
+
+    breadcrumbs = [
+        {'name': 'Home', 'url': '/'},
+        {'name': 'Vehicle Types', 'url': '/operator/vehicle-types/'},
+    ]
+
+    context = {
+        'breadcrumbs': breadcrumbs,
+        'vehicle_types': types,
+        'pending_delete_ids': pending_delete_ids,
+    }
+    return render(request, 'vehicle_types.html', context)
+
+def vehicle_type_detail_view(request, type_id):
+    vehicle_type = get_object_or_404(vehicleType, id=type_id)
+    pending_requests = VehicleTypeChangeRequest.objects.filter(
+        vehicle_type=vehicle_type,
+        status='pending'
+    ).order_by('-created_at')
+    all_requests = VehicleTypeChangeRequest.objects.filter(
+        vehicle_type=vehicle_type
+    ).order_by('-created_at')
+
+    pending_delete_ids = list(
+        VehicleTypeChangeRequest.objects.filter(
+            request_type='delete',
+            status='pending'
+        ).values_list('vehicle_type_id', flat=True)
+    )
+    pending_delete_exists = vehicle_type.id in pending_delete_ids
+    replacement_options = vehicleType.objects.filter(active=True).exclude(
+        id=vehicle_type.id
+    ).exclude(
+        id__in=pending_delete_ids
+    ).order_by('type_name')
+    vehicle_count = fleet.objects.filter(vehicleType=vehicle_type).count()
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+
+        if action in ['edit', 'delete'] and not request.user.is_authenticated:
+            messages.error(request, "Please log in to submit a request.")
+            return redirect(f'/operator/vehicle-types/{vehicle_type.id}/')
+
+        if action == 'edit':
+            proposed = {}
+            text_fields = ['type_name', 'type', 'fuel', 'lengths']
+            bool_fields = ['double_decker', 'active', 'hidden']
+            required_fields = ['type_name', 'type', 'fuel']
+
+            for field in text_fields:
+                new_value = request.POST.get(field, '').strip()
+                old_value = getattr(vehicle_type, field) or ''
+                if field in required_fields and new_value == '' and old_value != '':
+                    messages.error(request, f"{field.replace('_', ' ').title()} cannot be blank.")
+                    return redirect(f'/operator/vehicle-types/{vehicle_type.id}/')
+                if new_value != old_value:
+                    proposed[field] = {'old': old_value, 'new': new_value}
+
+            for field in bool_fields:
+                new_value = field in request.POST
+                old_value = bool(getattr(vehicle_type, field))
+                if new_value != old_value:
+                    proposed[field] = {'old': old_value, 'new': new_value}
+
+            if not proposed:
+                messages.error(request, "No changes detected.")
+                return redirect(f'/operator/vehicle-types/{vehicle_type.id}/')
+
+            VehicleTypeChangeRequest.objects.create(
+                vehicle_type=vehicle_type,
+                requested_by=request.user,
+                request_type='edit',
+                proposed_changes=proposed,
+            )
+            messages.success(request, "Edit request submitted.")
+            return redirect(f'/operator/vehicle-types/{vehicle_type.id}/')
+
+        if action == 'delete':
+            if pending_delete_exists:
+                messages.error(request, "A delete request is already pending for this type.")
+                return redirect(f'/operator/vehicle-types/{vehicle_type.id}/')
+
+            replacement_id = request.POST.get('replacement_type') or None
+            replacement_type = None
+
+            if vehicle_count > 0:
+                if not replacement_id:
+                    messages.error(request, "A replacement type is required when this type is in use.")
+                    return redirect(f'/operator/vehicle-types/{vehicle_type.id}/')
+                replacement_type = get_object_or_404(vehicleType, id=replacement_id)
+                if replacement_type.id in pending_delete_ids:
+                    messages.error(request, "That replacement type has a pending delete request.")
+                    return redirect(f'/operator/vehicle-types/{vehicle_type.id}/')
+            elif replacement_id:
+                replacement_type = get_object_or_404(vehicleType, id=replacement_id)
+
+            VehicleTypeChangeRequest.objects.create(
+                vehicle_type=vehicle_type,
+                requested_by=request.user,
+                request_type='delete',
+                replacement_type=replacement_type,
+            )
+            messages.success(request, "Delete request submitted.")
+            return redirect(f'/operator/vehicle-types/{vehicle_type.id}/')
+
+        if action in ['approve', 'disapprove']:
+            if not request.user.is_superuser:
+                messages.error(request, "Only superusers can review requests.")
+                return redirect(f'/operator/vehicle-types/{vehicle_type.id}/')
+
+            request_id = request.POST.get('request_id')
+            change_request = get_object_or_404(VehicleTypeChangeRequest, id=request_id)
+
+            if change_request.status != 'pending':
+                messages.error(request, "This request has already been reviewed.")
+                return redirect(f'/operator/vehicle-types/{vehicle_type.id}/')
+
+            change_request.reviewed_by = request.user
+            change_request.reviewed_at = timezone.now()
+
+            if action == 'disapprove':
+                change_request.status = 'disapproved'
+                change_request.disapproved_reason = request.POST.get('disapproved_reason', '').strip()
+                change_request.save()
+                messages.success(request, "Request disapproved.")
+                return redirect(f'/operator/vehicle-types/{vehicle_type.id}/')
+
+            if change_request.request_type == 'edit':
+                type_obj = change_request.vehicle_type
+                if not type_obj:
+                    messages.error(request, "Vehicle type no longer exists.")
+                    return redirect('/operator/vehicle-types/')
+
+                for field, change in (change_request.proposed_changes or {}).items():
+                    setattr(type_obj, field, change.get('new'))
+                type_obj.save()
+
+                change_request.status = 'approved'
+                change_request.save()
+                messages.success(request, "Edit request approved.")
+                return redirect(f'/operator/vehicle-types/{vehicle_type.id}/')
+
+            if change_request.request_type == 'delete':
+                type_obj = change_request.vehicle_type
+                if not type_obj:
+                    messages.error(request, "Vehicle type no longer exists.")
+                    return redirect('/operator/vehicle-types/')
+
+                replacement_type = change_request.replacement_type
+                in_use_count = fleet.objects.filter(vehicleType=type_obj).count()
+
+                if in_use_count > 0 and not replacement_type:
+                    messages.error(request, "A replacement type is required before deletion.")
+                    return redirect(f'/operator/vehicle-types/{vehicle_type.id}/')
+
+                if replacement_type and VehicleTypeChangeRequest.objects.filter(
+                    vehicle_type=replacement_type,
+                    request_type='delete',
+                    status='pending'
+                ).exists():
+                    messages.error(request, "Replacement type has a pending delete request.")
+                    return redirect(f'/operator/vehicle-types/{vehicle_type.id}/')
+
+                if replacement_type:
+                    fleet.objects.filter(vehicleType=type_obj).update(vehicleType=replacement_type)
+
+                change_request.status = 'approved'
+                change_request.save()
+                type_obj.delete()
+                messages.success(request, "Delete request approved.")
+                return redirect('/operator/vehicle-types/')
+
+    breadcrumbs = [
+        {'name': 'Home', 'url': '/'},
+        {'name': 'Vehicle Types', 'url': '/operator/vehicle-types/'},
+        {'name': vehicle_type.type_name, 'url': f'/operator/vehicle-types/{vehicle_type.id}/'},
+    ]
+
+    context = {
+        'breadcrumbs': breadcrumbs,
+        'vehicle_type': vehicle_type,
+        'pending_requests': pending_requests,
+        'all_requests': all_requests,
+        'replacement_options': replacement_options,
+        'vehicle_count': vehicle_count,
+        'pending_delete_exists': pending_delete_exists,
+    }
+    return render(request, 'vehicle_type_detail.html', context)
 
 def operator_game_detail(request, operator_game_name):
     response = feature_enabled(request, "view_operator_types")

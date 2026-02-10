@@ -1,0 +1,73 @@
+{% extends "mbtbase.html" %}
+{% load static %}
+
+{% block title %}Vehicle Types{% endblock %}
+
+{% block content %}
+<style>
+  .vehicle-types-table {
+    width: 100%;
+    border-collapse: collapse;
+    overflow: scroll;
+    display: block;
+  }
+  .vehicle-types-table th,
+  .vehicle-types-table td {
+    padding: 8px;
+    border-bottom: 1px solid #ddd;
+    text-align: left;
+  }
+  .vehicle-types-table th {
+    white-space: nowrap;
+  }
+</style>
+
+<h2>Vehicle Types</h2>
+<p>Click a type to view details and pending requests.</p>
+{% if not request.user.is_authenticated %}
+  <p><strong>Login required:</strong> You can view details, but must log in to submit requests.</p>
+{% endif %}
+
+<table class="vehicle-types-table">
+  <thead>
+    <tr>
+      <th>Type Name</th>
+      <th>Type</th>
+      <th>Fuel</th>
+      <th>Double Decker</th>
+      <th>Active</th>
+      <th>Hidden</th>
+      <th>Lengths</th>
+      <th>Vehicles Using</th>
+      <th>Pending Requests</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for type in vehicle_types %}
+    <tr>
+      <td><a href="{% url 'vehicle-type-detail' type.id %}">{{ type.type_name }}</a></td>
+      <td>{{ type.type }}</td>
+      <td>{{ type.fuel }}</td>
+      <td>{{ type.double_decker|yesno:"Yes,No" }}</td>
+      <td>{{ type.active|yesno:"Yes,No" }}</td>
+      <td>{{ type.hidden|yesno:"Yes,No" }}</td>
+      <td>{{ type.lengths }}</td>
+      <td>{{ type.vehicle_count }}</td>
+      <td>{{ type.pending_requests|default:0 }}</td>
+      <td>
+        {% if type.id in pending_delete_ids %}
+          Pending delete
+        {% else %}
+          Active
+        {% endif %}
+      </td>
+    </tr>
+    {% empty %}
+    <tr>
+      <td colspan="10">No vehicle types found.</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -127,6 +127,18 @@ class VehicleTypeAdmin(SimpleHistoryAdmin):
         queryset, use_distinct = super().get_search_results(request, queryset, search_term)
         return queryset.order_by('type_name'), use_distinct
 
+@admin.register(VehicleTypeChangeRequest)
+class VehicleTypeChangeRequestAdmin(SimpleHistoryAdmin):
+    list_display = ('vehicle_type', 'request_type', 'status', 'requested_by', 'created_at', 'reviewed_by')
+    list_filter = ('request_type', 'status')
+    search_fields = (
+        'vehicle_type__type_name',
+        'requested_by__username',
+        'requested_by__first_name',
+        'requested_by__last_name',
+    )
+    ordering = ('-created_at',)
+
 class LiveryUserFilter(AutocompleteFilter):
     title = "User"
     field_name = "added_by"

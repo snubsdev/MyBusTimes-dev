@@ -1,0 +1,193 @@
+{% extends "mbtbase.html" %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" type="text/css" href="{% static 'css/narrow.css' %}">
+{% endblock %}
+
+{% block title %}Vehicle Type Details{% endblock %}
+
+{% block content %}
+<style>
+  .type-detail-table,
+  .pending-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .type-detail-table th,
+  .type-detail-table td,
+  .pending-table th,
+  .pending-table td {
+    padding: 8px;
+    border-bottom: 1px solid #ddd;
+    text-align: left;
+  }
+  .request-card {
+    margin: 16px 0;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+  }
+  .request-actions {
+    display: block;
+  }
+</style>
+
+<h2>Vehicle Type: {{ vehicle_type.type_name }}</h2>
+
+<table class="type-detail-table">
+  <tbody>
+    <tr><th>Type</th><td>{{ vehicle_type.type }}</td></tr>
+    <tr><th>Fuel</th><td>{{ vehicle_type.fuel }}</td></tr>
+    <tr><th>Double Decker</th><td>{{ vehicle_type.double_decker|yesno:"Yes,No" }}</td></tr>
+    <tr><th>Active</th><td>{{ vehicle_type.active|yesno:"Yes,No" }}</td></tr>
+    <tr><th>Hidden</th><td>{{ vehicle_type.hidden|yesno:"Yes,No" }}</td></tr>
+    <tr><th>Lengths</th><td>{{ vehicle_type.lengths }}</td></tr>
+    <tr><th>Vehicles Using</th><td>{{ vehicle_count }}</td></tr>
+  </tbody>
+</table>
+
+<h3>Pending Requests</h3>
+{% if pending_requests %}
+  {% for req in pending_requests %}
+  <div class="request-card fleet-edit-wrapper">
+    <p><strong>Request:</strong> {{ req.request_type|capfirst }} | <strong>By:</strong> {{ req.requested_by }} | <strong>At:</strong> {{ req.created_at }}</p>
+
+    {% if req.request_type == "edit" %}
+      <table class="pending-table fleet-edit-wrapper">
+        <thead>
+          <tr><th>Field</th><th>Old</th><th>New</th></tr>
+        </thead>
+        <tbody>
+          {% for field, change in req.proposed_changes.items %}
+          <tr>
+            <td>{{ field }}</td>
+            <td>{{ change.old }}</td>
+            <td>{{ change.new }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <br>
+    {% endif %}
+
+    {% if req.request_type == "delete" %}
+      <p><strong>Replacement:</strong> {{ req.replacement_type|default:"None" }}</p>
+    {% endif %}
+
+    {% if request.user.is_superuser %}
+      <div class="request-actions">
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="approve">
+          <input type="hidden" name="request_id" value="{{ req.id }}">
+          <button class="btn" type="submit">Approve</button>
+        </form>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="disapprove">
+          <input type="hidden" name="request_id" value="{{ req.id }}">
+          <input type="text" name="disapproved_reason" placeholder="Reason (optional)">
+          <button class="btn" type="submit">Disapprove</button>
+        </form>
+      </div>
+    {% else %}
+      <p><em>Only superusers can approve or disapprove requests.</em></p>
+    {% endif %}
+  </div>
+  {% endfor %}
+{% else %}
+  <p>No pending requests.</p>
+{% endif %}
+
+<h3>Request Edit</h3>
+{% if request.user.is_authenticated %}
+  <form method="post" class="fleet-edit-wrapper">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="edit">
+
+    <label for="type_name">Type Name</label>
+    <input type="text" id="type_name" name="type_name" value="{{ vehicle_type.type_name }}">
+
+    <label for="type">Type</label>
+    <input type="text" id="type" name="type" value="{{ vehicle_type.type }}">
+
+    <label for="fuel">Fuel</label>
+    <input type="text" id="fuel" name="fuel" value="{{ vehicle_type.fuel }}">
+
+    <label for="lengths">Lengths</label>
+    <input type="text" id="lengths" name="lengths" value="{{ vehicle_type.lengths }}">
+
+    <label for="double_decker">Double Decker</label>
+    <input type="checkbox" id="double_decker" name="double_decker" {% if vehicle_type.double_decker %}checked{% endif %}><br>
+
+    <label for="active">Active</label>
+    <input type="checkbox" id="active" name="active" {% if vehicle_type.active %}checked{% endif %}><br>
+
+    <label for="hidden">Hidden</label>
+    <input type="checkbox" id="hidden" name="hidden" {% if vehicle_type.hidden %}checked{% endif %}><br><br><br>
+
+    <button class="btn" type="submit">Submit Edit Request</button>
+  </form>
+{% else %}
+  <p><em>Login to request edits.</em></p>
+{% endif %}
+
+<h3>Request Delete</h3>
+{% if pending_delete_exists %}
+  <p><strong>A delete request is already pending for this type.</strong></p>
+{% endif %}
+
+{% if request.user.is_authenticated %}
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="delete">
+
+    <p><strong>Vehicles using this type:</strong> {{ vehicle_count }}</p>
+
+    {% if vehicle_count > 0 %}
+      <label for="replacement_type">Replacement Type (required)</label>
+      <select id="replacement_type" name="replacement_type" {% if pending_delete_exists %}disabled{% endif %}>
+        <option value="">Select replacement</option>
+        {% for option in replacement_options %}
+          <option value="{{ option.id }}">{{ option.type_name }}</option>
+        {% endfor %}
+      </select>
+    {% else %}
+      <label for="replacement_type">Replacement Type (optional)</label>
+      <select id="replacement_type" name="replacement_type" {% if pending_delete_exists %}disabled{% endif %}>
+        <option value="">No replacement</option>
+        {% for option in replacement_options %}
+          <option value="{{ option.id }}">{{ option.type_name }}</option>
+        {% endfor %}
+      </select>
+    {% endif %}
+
+    <button class="btn" type="submit" {% if pending_delete_exists %}disabled{% endif %}>Submit Delete Request</button>
+  </form>
+{% else %}
+  <p><em>Login to request deletion.</em></p>
+{% endif %}
+
+<h3>All Requests</h3>
+{% if all_requests %}
+  <table class="pending-table">
+    <thead>
+      <tr><th>Type</th><th>Status</th><th>Requested By</th><th>Created</th><th>Reviewed By</th></tr>
+    </thead>
+    <tbody>
+      {% for req in all_requests %}
+      <tr>
+        <td>{{ req.request_type|capfirst }}</td>
+        <td>{{ req.status|capfirst }}</td>
+        <td>{{ req.requested_by }}</td>
+        <td>{{ req.created_at }}</td>
+        <td>{{ req.reviewed_by|default:"-" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p>No requests yet.</p>
+{% endif %}
+{% endblock %}
