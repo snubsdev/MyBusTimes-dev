@@ -12,6 +12,7 @@ urlpatterns = [
 
     # Vehicle types
     path('vehicle-types/', vehicle_types, name='vehicle-types'),
+    path('vehicle-types/admin/', vehicle_types_admin, name='vehicle-types-admin'),
     path('vehicle-types/<int:type_id>/', vehicle_type_detail_view, name='vehicle-type-detail'),
 
     # Operator management

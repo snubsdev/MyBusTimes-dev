@@ -1,0 +1,51 @@
+{% extends "mbtbase.html" %}
+{% load static %}
+
+{% block title %}Vehicle Type Requests{% endblock %}
+
+{% block content %}
+<style>
+  .vehicle-requests-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .vehicle-requests-table th,
+  .vehicle-requests-table td {
+    padding: 8px;
+    border-bottom: 1px solid #ddd;
+    text-align: left;
+  }
+  .vehicle-requests-table th {
+    white-space: nowrap;
+  }
+</style>
+
+<h2>Pending Vehicle Type Requests</h2>
+
+<table class="vehicle-requests-table">
+  <thead>
+    <tr>
+      <th>Type</th>
+      <th>Request</th>
+      <th>Requested By</th>
+      <th>Created</th>
+      <th>Replacement</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for req in pending_requests %}
+    <tr>
+      <td><a href="{% url 'vehicle-type-detail' req.vehicle_type.id %}">{{ req.vehicle_type.type_name }}</a></td>
+      <td>{{ req.request_type|capfirst }}</td>
+      <td>{{ req.requested_by|default:"-" }}</td>
+      <td>{{ req.created_at }}</td>
+      <td>{{ req.replacement_type|default:"-" }}</td>
+    </tr>
+    {% empty %}
+    <tr>
+      <td colspan="5">No pending requests.</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

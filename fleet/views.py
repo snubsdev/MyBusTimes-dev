@@ -6468,6 +6468,32 @@ def vehicle_types(request):
     }
     return render(request, 'vehicle_types.html', context)
 
+@login_required
+def vehicle_types_admin(request):
+    if not request.user.is_superuser:
+        messages.error(request, "Only superusers can view pending vehicle type requests.")
+        return redirect('/operator/vehicle-types/')
+
+    pending_requests = VehicleTypeChangeRequest.objects.filter(
+        status='pending'
+    ).select_related(
+        'vehicle_type',
+        'requested_by',
+        'replacement_type'
+    ).order_by('-created_at')
+
+    breadcrumbs = [
+        {'name': 'Home', 'url': '/'},
+        {'name': 'Vehicle Types', 'url': '/operator/vehicle-types/'},
+        {'name': 'Pending Requests', 'url': '/operator/vehicle-types/admin/'},
+    ]
+
+    context = {
+        'breadcrumbs': breadcrumbs,
+        'pending_requests': pending_requests,
+    }
+    return render(request, 'vehicle_types_admin.html', context)
+
 def vehicle_type_detail_view(request, type_id):
     vehicle_type = get_object_or_404(vehicleType, id=type_id)
     pending_requests = VehicleTypeChangeRequest.objects.filter(
