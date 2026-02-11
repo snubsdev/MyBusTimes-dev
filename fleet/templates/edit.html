@@ -119,7 +119,11 @@
       <option value=""></option>
       {% for cat in categoryData %}
       <option value="{{ cat.id }}" {% if fleetData.vehicle_category and cat.id == fleetData.vehicle_category.id %}selected{% endif %}>
-        {{ cat.name }}
+        {% if cat.parent_category %}
+          {{ cat.parent_category.name }} &gt; {{ cat.name }}
+        {% else %}
+          {{ cat.name }}
+        {% endif %}
       </option>
       {% endfor %}
     </select>
