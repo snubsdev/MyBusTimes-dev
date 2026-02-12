@@ -261,6 +261,10 @@ except ImportError:
         }
     }
 
+    DATABASES["default"]["OPTIONS"] = {
+        "options": "-c statement_timeout=30000"
+    }
+
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
