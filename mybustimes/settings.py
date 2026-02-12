@@ -249,21 +249,47 @@ CHANNEL_LAYERS = {
 try:
     from .settings_local import *
 except ImportError:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.getenv("DB_NAME"),
-            'USER': os.getenv("DB_USER"),
-            'PASSWORD': os.getenv("DB_PASSWORD"),
-            'HOST': os.getenv("DB_HOST"),
-            'PORT': os.getenv("DB_PORT"),
-            "CONN_MAX_AGE": 60,
-        }
-    }
+    if os.getenv("DB_REPLICA_HOST") == "True":
+        DATABASE_ROUTERS = ["mybustimes.db_router.PrimaryReplicaRouter"]
 
-    DATABASES["default"]["OPTIONS"] = {
-        "options": "-c statement_timeout=30000"
-    }
+        DATABASES = {
+            "default": {  # PRIMARY (BM2)
+                "ENGINE": "django.db.backends.postgresql",
+                'NAME': os.getenv("DB_NAME"),
+                'USER': os.getenv("DB_USER"),
+                'PASSWORD': os.getenv("DB_PASSWORD"),
+                'HOST': os.getenv("DB_HOST_PRIMARY"),
+                'PORT': os.getenv("DB_PORT"),
+                "CONN_MAX_AGE": 60,
+            },
+
+            "replica": {  # READ ONLY (BM1)
+                "ENGINE": "django.db.backends.postgresql",
+                'NAME': os.getenv("DB_NAME"),
+                'USER': os.getenv("DB_USER"),
+                'PASSWORD': os.getenv("DB_PASSWORD"),
+                'HOST': os.getenv("DB_HOST_REPLICA"),
+                'PORT': os.getenv("DB_PORT"),
+                "CONN_MAX_AGE": 60,
+            },
+        }
+    else:
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.postgresql',
+                'NAME': os.getenv("DB_NAME"),
+                'USER': os.getenv("DB_USER"),
+                'PASSWORD': os.getenv("DB_PASSWORD"),
+                'HOST': os.getenv("DB_HOST"),
+                'PORT': os.getenv("DB_PORT"),
+                "CONN_MAX_AGE": 60,
+            }
+        }
+
+    for db_alias in DATABASES:
+        DATABASES[db_alias]["OPTIONS"] = {
+            "options": "-c statement_timeout=30000"
+        }
 
 AUTH_PASSWORD_VALIDATORS = [
     {

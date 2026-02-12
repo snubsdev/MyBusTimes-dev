@@ -233,20 +233,44 @@ def get_cookie_theme_settings(request):
 def check_ban_status(user, ip):
     """Check if user or IP is banned."""
     # IP ban check
-    user_has_banned_ip = BannedIps.objects.filter(ip_address=ip).exists() if ip else False
+    if ip:
+        ip_cache_key = f'ban_ip:{ip}'
+        cached_ip = cache.get(ip_cache_key)
+        if cached_ip is None:
+            cached_ip = BannedIps.objects.filter(ip_address=ip).exists()
+            cache.set(ip_cache_key, cached_ip, 60)
+        user_has_banned_ip = cached_ip
+    else:
+        user_has_banned_ip = False
     
     # User account ban check
     user_account_banned = False
     if user.is_authenticated:
-        if user.banned and user.banned_date:
-            if user.banned_date > timezone.now():
+        user_cache_key = (
+            f'user_ban:{user.id}:'
+            f'{int(getattr(user, "banned", False))}:'
+            f'{user.banned_date.isoformat() if user.banned_date else "none"}'
+        )
+        cached_user_ban = cache.get(user_cache_key)
+        if cached_user_ban is not None:
+            return user_has_banned_ip, cached_user_ban
+
+        if user.banned:
+            if user.banned_date is None or user.banned_date > timezone.now():
                 user_account_banned = True
             else:
-                # Ban expired - unban user
-                user.banned = False
-                user.banned_reason = ''
-                user.banned_date = None
-                user.save()
+                # Ban expired - unban user once
+                updated = User.objects.filter(
+                    pk=user.pk,
+                    banned=True,
+                    banned_date__lte=timezone.now()
+                ).update(banned=False, banned_reason='', banned_date=None)
+                if updated:
+                    user.banned = False
+                    user.banned_reason = ''
+                    user.banned_date = None
+
+        cache.set(user_cache_key, user_account_banned, 60)
     
     return user_has_banned_ip, user_account_banned
 

@@ -13,12 +13,25 @@ from django.conf import settings
 from django.utils.timezone import now, timedelta
 from django.contrib.auth import get_user_model
 from django.http import Http404
+from django.db import DatabaseError
+from django.core.cache import cache
 
 MAX_ACTIVE_USERS = 100
 ACTIVE_TIME_WINDOW = timedelta(minutes=2)
 User = get_user_model()
 
 EXEMPT_PATHS = ['/admin/', '/account/login/', '/queue/', '/ads.txt', '/robots.txt']
+FEATURE_CACHE_TTL = 60
+
+
+def is_feature_enabled(name):
+    cache_key = f'feature_toggle:{name}'
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+    enabled = featureToggle.objects.filter(name=name, enabled=True).exists()
+    cache.set(cache_key, enabled, FEATURE_CACHE_TTL)
+    return enabled
 
 class QueueMiddleware:
     def __init__(self, get_response):
@@ -26,11 +39,10 @@ class QueueMiddleware:
 
     def __call__(self, request):
         try:
-            feature = featureToggle.objects.get(name='queue_system')
-            
-            if feature.enabled and not request.user.is_superuser:
-                if request.path.startswith(('/admin/', '/account/login/', '/queue/', '/u/register/', '/account/register/', '/static/', '/media/')):
-                    return self.get_response(request)
+            if request.path.startswith(('/admin/', '/account/login/', '/queue/', '/u/register/', '/account/register/', '/static/', '/media/')):
+                return self.get_response(request)
+
+            if is_feature_enabled('queue_system') and not request.user.is_superuser:
 
                 if not request.user.is_authenticated:
                     return redirect('/account/login/')  # or allow anonymously with a fallback
@@ -52,7 +64,7 @@ class QueueMiddleware:
                     request.session['queue_position'] = position
                     return redirect('/queue/')
         
-        except featureToggle.DoesNotExist:
+        except DatabaseError:
             pass
 
         return self.get_response(request)
@@ -68,8 +80,7 @@ class SiteImportingMiddleware:
             return self.get_response(request)
 
         try:
-            feature = featureToggle.objects.get(name='importing_data')
-            if feature.enabled and not request.user.is_superuser:
+            if is_feature_enabled('importing_data') and not request.user.is_superuser:
                 fleet_changes = fleetChange.objects.count()
                 routes_imported = route.objects.count()
                 vehicles_imported = fleet.objects.count()
@@ -87,7 +98,7 @@ class SiteImportingMiddleware:
                 }
 
                 return render(request, 'site_importing.html', context, status=200)
-        except featureToggle.DoesNotExist:
+        except DatabaseError:
             pass
 
         return self.get_response(request)
@@ -103,11 +114,10 @@ class SiteLockMiddleware:
             return self.get_response(request)
 
         try:
-            feature = featureToggle.objects.get(name='full_admin_only')
-            if feature.enabled and not request.user.is_superuser:
+            if is_feature_enabled('full_admin_only') and not request.user.is_superuser:
 
                 return render(request, 'site_locked.html', status=200)
-        except featureToggle.DoesNotExist:
+        except DatabaseError:
             pass
 
         return self.get_response(request)
@@ -123,11 +133,10 @@ class SiteUpdatingMiddleware:
             return self.get_response(request)
 
         try:
-            feature = featureToggle.objects.get(name='site_updating')
-            if feature.enabled and not request.user.is_superuser:
+            if is_feature_enabled('site_updating') and not request.user.is_superuser:
 
                 return render(request, 'site_updating.html', status=200)
-        except featureToggle.DoesNotExist:
+        except DatabaseError:
             pass
 
         return self.get_response(request)
