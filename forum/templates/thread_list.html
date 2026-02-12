@@ -316,10 +316,9 @@
                 <strong>{{ thread.locked|yesno:"Locked, Open" }}</strong>
                 {% if thread.pinned %}Pinned{% else %}Active{% endif %}
               </div>
+            </li>
             {% if forloop.counter|divisibleby:5 %}
               <li class="ad-box ad-box-narrow" id="body-ad-{{ forloop.counter }}" aria-hidden="true"></li>
-            {% endif %}
-              <div class="ad-box ad-box-narrow" id="body-ad-1"></div>
             {% endif %}
           {% empty %}
             <li class="thread-row">
