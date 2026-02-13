@@ -70,7 +70,7 @@ CSRF_TRUSTED_ORIGINS = [
     'https://mybustimes.cc',
     'https://www.mybustimes.cc',
     'https://local-dev.mybustimes.cc',
-    'https://mbt.nextstoplaps.org',
+    'https://mbt.nextstoplabs.org',
 ]
 
 AUTH_USER_MODEL = 'main.CustomUser'
