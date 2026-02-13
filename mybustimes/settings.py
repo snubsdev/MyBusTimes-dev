@@ -261,6 +261,7 @@ except ImportError:
                 'HOST': os.getenv("DB_HOST_PRIMARY"),
                 'PORT': os.getenv("DB_PORT"),
                 "CONN_MAX_AGE": 60,
+                "DISABLE_SERVER_SIDE_CURSORS": True,
             },
 
             "replica": {  # READ ONLY (BM1)
@@ -271,6 +272,7 @@ except ImportError:
                 'HOST': os.getenv("DB_HOST_REPLICA"),
                 'PORT': os.getenv("DB_PORT"),
                 "CONN_MAX_AGE": 60,
+                "DISABLE_SERVER_SIDE_CURSORS": True,
             },
         }
     else:
@@ -283,6 +285,7 @@ except ImportError:
                 'HOST': os.getenv("DB_HOST"),
                 'PORT': os.getenv("DB_PORT"),
                 "CONN_MAX_AGE": 60,
+                "DISABLE_SERVER_SIDE_CURSORS": True,
             }
         }
 

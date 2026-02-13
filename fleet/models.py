@@ -292,6 +292,7 @@ class fleet(models.Model):
     sim_lat = models.FloatField(blank=True, null=True)
     sim_lon = models.FloatField(blank=True, null=True)
     sim_heading = models.FloatField(blank=True, null=True)
+    sim_delay = models.IntegerField(blank=True, null=True)
     current_trip = models.ForeignKey('tracking.Trip', on_delete=models.SET_NULL, blank=True, null=True, related_name='fleet_current_trip')
     updated_at = models.DateTimeField(db_index=True, blank=True, null=True)
 
