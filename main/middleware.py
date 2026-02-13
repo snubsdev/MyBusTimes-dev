@@ -14,6 +14,7 @@ from django.utils.timezone import now, timedelta
 from django.contrib.auth import get_user_model
 from django.http import Http404
 from django.db import DatabaseError
+from django.db.models import Q
 from django.core.cache import cache
 
 MAX_ACTIVE_USERS = 100
@@ -51,11 +52,16 @@ class QueueMiddleware:
                     return self.get_response(request)
 
                 now_time = now()
-                active_users = User.objects.filter(last_active__gte=now_time - ACTIVE_TIME_WINDOW).order_by('last_active')
-
-                # Get position in queue
-                user_list = list(active_users.values_list('id', flat=True))
-                position = user_list.index(request.user.id) + 1 if request.user.id in user_list else None
+                user_last_active = request.user.last_active
+                if user_last_active:
+                    position = User.objects.filter(
+                        last_active__gte=now_time - ACTIVE_TIME_WINDOW
+                    ).filter(
+                        Q(last_active__lt=user_last_active) |
+                        Q(last_active=user_last_active, id__lte=request.user.id)
+                    ).count()
+                else:
+                    position = None
 
                 if position is not None and position <= MAX_ACTIVE_USERS:
                     request.session['queue_pass'] = True

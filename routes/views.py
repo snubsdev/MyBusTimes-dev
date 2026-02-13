@@ -198,7 +198,18 @@ class stopRouteSearchView(APIView):
         if not stop_name:
             return Response({"error": "Missing 'stop' query parameter."}, status=status.HTTP_400_BAD_REQUEST)
 
-        all_entries = timetableEntry.objects.select_related('route').prefetch_related('day_type')
+        all_entries = (
+            timetableEntry.objects
+            .select_related('route')
+            .prefetch_related('day_type')
+            .only(
+                'id', 'route', 'stop_times', 'inbound', 'circular',
+                'route__id', 'route__route_num', 'route__route_name',
+                'route__inbound_destination', 'route__outbound_destination'
+            )
+        )
+        if day:
+            all_entries = all_entries.filter(day_type__name=day).distinct()
 
         route_timings = defaultdict(list)
 
@@ -212,11 +223,7 @@ class stopRouteSearchView(APIView):
                 continue
 
             time_at_stop = stop_times_data[stop_name]
-            days = entry.day_type.all()
-            day_names = [d.name for d in days]
-
-            if day and day not in day_names:
-                continue
+            day_names = [d.name for d in entry.day_type.all()]
 
             route_timings[entry.route.id].append({
                 'timing_point': True,
@@ -251,7 +258,15 @@ class stopServicesListView(APIView):
         if not stop_name:
             return Response({"error": "Missing 'stop' query parameter."}, status=status.HTTP_400_BAD_REQUEST)
 
-        all_entries = timetableEntry.objects.select_related('route').prefetch_related('day_type')
+        all_entries = (
+            timetableEntry.objects
+            .select_related('route')
+            .only(
+                'id', 'route', 'stop_times',
+                'route__id', 'route__route_num', 'route__route_name',
+                'route__inbound_destination', 'route__outbound_destination'
+            )
+        )
 
         route_timings = defaultdict(list)
 
@@ -315,8 +330,14 @@ class stopUpcomingTripsView(APIView):
         except ValueError:
             return Response({"error": "Invalid 'current_time' format. Use HH:MM."}, status=status.HTTP_400_BAD_REQUEST)
 
-        all_entries = list(
-            timetableEntry.objects.select_related('route').prefetch_related('day_type', 'route__route_operators')
+        all_entries = (
+            timetableEntry.objects
+            .select_related('route')
+            .prefetch_related('day_type', 'route__route_operators')
+            .only(
+                'id', 'route', 'stop_times', 'inbound', 'circular', 'operator_schedule',
+                'route__id', 'route__route_num', 'route__inbound_destination', 'route__outbound_destination'
+            )
         )
         operator_codes = set()
         for entry in all_entries:
@@ -406,7 +427,7 @@ class timetableDaysView(APIView):
     permission_classes = [ReadOnly]
 
     def get(self, request, *args, **kwargs):
-        queryset = timetableEntry.objects.all()
+        queryset = timetableEntry.objects.select_related('route').prefetch_related('day_type')
 
         # Optional: apply filters if using DjangoFilterBackend
         for backend in list(self.filter_backends):
@@ -415,13 +436,14 @@ class timetableDaysView(APIView):
         merged = {}
         for entry in queryset:
             route_id = entry.route.id
+            day_names = [d.name for d in entry.day_type.all()]
             if route_id not in merged:
                 merged[route_id] = {
                     'route': entry.route,
-                    'day_type': set(entry.day_type.values_list('name', flat=True))  # Assuming name field
+                    'day_type': set(day_names)
                 }
             else:
-                merged[route_id]['day_type'].update(entry.day_type.values_list('name', flat=True))
+                merged[route_id]['day_type'].update(day_names)
 
         # Prepare final list
         results = []
@@ -497,8 +519,19 @@ def get_timetables(request):
     if not route_id:
         return JsonResponse({'timetables': {}})
     
-    entries = timetableEntry.objects.filter(route_id=route_id)
-    data = {entry.id: str(entry) for entry in entries}
+    entries = (
+        timetableEntry.objects
+        .filter(route_id=route_id)
+        .select_related('route')
+        .prefetch_related('day_type')
+    )
+    data = {}
+    for entry in entries:
+        direction = "Inbound" if entry.inbound else "Outbound"
+        if entry.circular or entry.route.outbound_destination is None:
+            direction = "Circular"
+        day_names = [d.name for d in entry.day_type.all()]
+        data[entry.id] = f"{entry.route.route_num} - {direction} - ({', '.join(day_names)})"
     return JsonResponse({'timetables': data})
 
 from django.http import JsonResponse

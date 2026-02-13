@@ -1,55 +1,60 @@
-# MyBusTimes V2
+# MyBusTimes
 [![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC_BY--NC--SA_4.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 ![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/NextStopLabs/MyBusTimes?utm_source=oss&utm_medium=github&utm_campaign=NextStopLabs%2FMyBusTimes&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
 
-# Important notes
-1. add your doimain to settings "CSRF_TRUSTED_ORIGINS"
-2. Keep debug enabled to disable captcha
-3. Only test on python 3.11.0
+MyBusTimes is a Django-based platform for bus route data, live tracking, community features, and admin workflows. This repository includes the web app, API endpoints, admin dashboards, and supporting services.
 
-## .env setup
+## Table of Contents
+- Overview
+- Tech Stack
+- Requirements
+- Quick Start (Local)
+- Environment Variables
+- Database Setup (Local Postgres)
+- Running the App
+- Production Notes
+- Optional: Docker Compose (Sanitized)
+- Nginx Reference
+- Troubleshooting
+
+## Overview
+- Public-facing site, community content, and documentation.
+- Admin tools for moderation, data imports, and analytics.
+- API endpoints for routes, stops, timetables, and tracking.
+
+## Tech Stack
+- Python / Django (ASGI)
+- Django REST Framework
+- PostgreSQL (recommended) or SQLite (local dev)
+- Optional: PgBouncer for DB pooling
+
+## Requirements
+- Python 3.11.x
+- pip
+- PostgreSQL 17.x (optional for local, recommended for staging/prod)
+
+## Quick Start (Local)
+Create a virtual environment and run with SQLite:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py loaddata data.json
+python manage.py createsuperuser
+python manage.py runserver
+```
+
+App will be available at http://localhost:8000
+
+## Environment Variables
+Create a `.env` file with at least these values. Use real secrets locally and in prod.
 
 ```
 DEBUG=True
 SECRET_KEY=
 ALLOWED_HOSTS=
-
-STRIPE_SECRET_KEY=sk_live_
-STRIPE_PUBLISHABLE_KEY=pk_live_
-STRIPE_WEBHOOK_SECRET=
-STRIPE_BILLING_PORTAL_URL=https://billing.stripe.com/
-
-STRIPE_PUBLISHABLE_KEY_TEST=pk_test_
-STRIPE_SECRET_KEY_TEST=sk_test_
-STRIPE_WEBHOOK_SECRET_TEST=
-
-PRICE_ID_MONTHLY=price_
-PRICE_ID_YEARLY=price_
-PRICE_ID_CUSTOM=price_
-
-PRICE_ID_MONTHLY_TEST=price_
-PRICE_ID_YEARLY_TEST=price_
-PRICE_ID_CUSTOM_TEST=price_
-
-DISCORD_LIVERY_REQUESTS_CHANNEL_WEBHOOK=https://discord.com/api/webhooks/
-DISCORD_OPERATOR_TYPE_REQUESTS_CHANNEL_WEBHOOK=https://discord.com/api/webhooks/
-DISCORD_TYPE_REQUEST_WEBHOOK=https://discord.com/api/webhooks/
-DISCORD_FOR_SALE_WEBHOOK=https://discord.com/api/webhooks/
-DISCORD_WEB_ERROR_WEBHOOK=https://discord.com/api/webhooks/
-DISCORD_404_ERROR_WEBHOOK=https://discord.com/api/webhooks/
-DISCORD_BOT_API_URL=http://localhost:8070
-
-DISCORD_GUILD_ID=
-DISCORD_BOT_API_TOKEN=
-
-DISCORD_MIGRATION_ERROR_ID=
-DISCORD_REPORTS_CHANNEL_ID=
-DISCORD_LIVERY_ID=
-DISCORD_GAME_ID=
-DISCORD_OPERATOR_LOGS_ID=
-
-DISCORD_GUILD_ID=
-DISCORD_BOT_API_TOKEN=
 
 DB_NAME=mybustimes
 DB_USER=
@@ -57,274 +62,209 @@ DB_PASSWORD=
 DB_HOST=
 DB_PORT=
 
+CF_SITE_KEY=
+CF_SECRET_KEY=
+
+STRIPE_SECRET_KEY=
+STRIPE_PUBLISHABLE_KEY=
+STRIPE_WEBHOOK_SECRET=
+STRIPE_BILLING_PORTAL_URL=https://billing.stripe.com/
+
+STRIPE_PUBLISHABLE_KEY_TEST=
+STRIPE_SECRET_KEY_TEST=
+STRIPE_WEBHOOK_SECRET_TEST=
+
+STRIPE_BASIC_MONTHLY_PRICE_ID=
+STRIPE_BASIC_YEARLY_PRICE_ID=
+STRIPE_BASIC_ONE_OFF_PRICE_ID=
+STRIPE_PRO_MONTHLY_PRICE_ID=
+STRIPE_PRO_YEARLY_PRICE_ID=
+STRIPE_PRO_ONE_OFF_PRICE_ID=
+
+DISCORD_BOT_API_URL=http://localhost:8070
+DISCORD_WEB_ERROR_WEBHOOK=
+DISCORD_404_ERROR_WEBHOOK=
+DISCORD_REPORTS_CHANNEL_ID=
+DISCORD_LIVERY_ID=
+DISCORD_GAME_ID=
+DISCORD_OPERATOR_LOGS_ID=
+DISCORD_GUILD_ID=
+DISCORD_BOT_API_TOKEN=
+
 SMTP_HOST=
 SMTP_PORT=
 SMTP_USER=
 SMTP_PASSWORD=
-
-CF_SITE_KEY=
-CF_SECRET_KEY=
-
-OIDC_RP_CLIENT_ID=
-OIDC_RP_CLIENT_SECRET=
-``` 
-
-# Local Dev
-## Inishel Setup
-
-To run MBT local you can use sqlite
-
-settings_local.py
-```python
-from pathlib import Path
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
-}
 ```
 
-Then run the server
-```bash
-python manage.py runserver
-```
+Notes:
+- Add your domain to `CSRF_TRUSTED_ORIGINS` in settings.
+- Keep `DEBUG=True` in local dev to bypass captcha checks.
 
-Now it should be all setup and accessable from http://localhost:8000
+## Database Setup (Local Postgres)
+If you prefer PostgreSQL locally:
 
-# Setup
-
-## DB Setup - Postgress
-
-Update system
 ```bash
 sudo apt update
-sudo apt upgrade -y
-```
-
-Install postgres
-```bash
-sudo apt install postgresql postgresql-contrib nginx python3.11 python3.11-venv redis -y
-```
-
-Enable and start the service
-```bash
-sudo systemctl start postgresql
+sudo apt install postgresql postgresql-contrib -y
 sudo systemctl enable postgresql
-sudo systemctl enable redis
-sudo systemctl start redis
+sudo systemctl start postgresql
 ```
 
-Change to the postgres user
+Create DB and user:
+
 ```bash
 sudo -i -u postgres
-```
-
-Enter postgres
-```bash
 psql
 ```
 
-Create the user and the db
 ```sql
 CREATE USER mybustimesdb WITH PASSWORD 'your_secure_password';
 CREATE DATABASE mybustimes OWNER mybustimesdb;
-\c mybustimes
 GRANT ALL ON SCHEMA public TO mybustimesdb;
-ALTER SCHEMA public OWNER TO mybustimesdb;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO mybustimesdb;
-ALTER USER mybustimesdb CREATEDB;
 \q
 ```
 
-Go back to the main user
+Then set `DB_*` in `.env` and run migrations.
+
+## Running the App
+With your venv active:
+
 ```bash
-exit
-```
-
-Test the connection
-```bash
-psql -h localhost -U username -d dbname
-```
-
-Exit if it worked
-```
-\q
-```
-
-
-## Web setup
-
-Create the python venv
-```bash
-python3 -m venv .venv
-```
-
-Activate the venv
-```bash
-source .venv/bin/activate
-```
-
-Install python dependencies
-```bash
-pip install -r requirements.txt
-```
-
-Migrate main
-```bash
-python manage.py makemigrations
 python manage.py migrate
-```
-
-Import base data
-```bash
 python manage.py loaddata data.json
+python manage.py runserver
 ```
 
-Make your superuser
-```bash
-python manage.py createsuperuser
+## Production Notes
+- Set `DEBUG=False` and configure `ALLOWED_HOSTS`.
+- Use PostgreSQL.
+- Use a reverse proxy (Nginx) in front of ASGI workers.
+- Production DB architecture documented internally.
+
+## Optional: Docker Compose (Sanitized)
+This is an example snippet to illustrate pooling and health checks. Use your own values.
+
+```
+services:
+  pgbouncer:
+    image: edoburu/pgbouncer:1.23.1
+    restart: always
+    environment:
+      DB_USER:
+      DB_PASSWORD:
+      DB_HOST: pg17
+      DB_NAME:
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 500
+      DEFAULT_POOL_SIZE: 32
+    ports:
+      - "6432:5432"
+    depends_on:
+      - pg17
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h pg17 -p 5432 -U ${DB_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  pg17:
+    image: postgres:17.2
+    shm_size: 2g
+    env_file:
+      - .env
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=150"
+      - "-c"
+      - "shared_buffers=4GB"
+      - "-c"
+      - "effective_cache_size=12GB"
+      - "-c"
+      - "maintenance_work_mem=1GB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+      - "-c"
+      - "wal_buffers=16MB"
+      - "-c"
+      - "default_statistics_target=100"
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "effective_io_concurrency=200"
+      - "-c"
+      - "work_mem=32MB"
+      - "-c"
+      - "huge_pages=off"
+      - "-c"
+      - "min_wal_size=1GB"
+      - "-c"
+      - "max_wal_size=4GB"
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pg17-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.00'
+          memory: 6G
+        reservations:
+          cpus: '1.00'
+          memory: 3G
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+volumes:
+  pg17-data:
 ```
 
-Create the service file
-```bash
-sudo nano /etc/systemd/system/mybustimes.service
+## Nginx Reference
+Minimal reverse proxy example:
+
 ```
-
-Web service running on port 5681
-```bash
-[Unit]
-Description=My Bus Times Django ASGI HTTP Workers (Gunicorn + Uvicorn)
-After=network.target
-
-[Service]
-User=mybustimes
-Group=mybustimes
-WorkingDirectory=/srv/MyBusTimes
-Environment="PATH=/srv/MyBusTimes/.venv/bin"
-Environment="PYTHONUNBUFFERED=1"
-
-ExecStart=/srv/MyBusTimes/.venv/bin/gunicorn \
-    mybustimes.asgi:application \
-    --workers 10 \
-    --worker-class uvicorn.workers.UvicornWorker \
-    --bind 127.0.0.1:5681 \
-    --log-level info \
-    --access-logfile - \
-    --error-logfile -
-
-Restart=always
-RestartSec=5
-LimitNOFILE=4096
-TimeoutStopSec=30
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Websocket running on port 5682
-```bash
-[Unit]
-Description=My Bus Times Django ASGI WebSocket Worker
-After=network.target
-
-[Service]
-User=mybustimes
-Group=mybustimes
-WorkingDirectory=/srv/MyBusTimes
-Environment="PATH=/srv/MyBusTimes/.venv/bin"
-Environment="PYTHONUNBUFFERED=1"
-ExecStart=/srv/MyBusTimes/.venv/bin/uvicorn \
-    mybustimes.asgi:application \
-    --workers 1 \
-    --host 127.0.0.1 \
-    --port 5682 \
-    --ws websockets \
-    --log-level debug \
-    --proxy-headers
-
-Restart=always
-RestartSec=5
-LimitNOFILE=4096
-TimeoutStopSec=30
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Reload Daemon
-```bash
-systemctl daemon-reload
-```
-
-Enable and start the web service
-```bash
-sudo systemctl start mybustimes
-sudo systemctl start mybustimes-ws
-sudo systemctl enable mybustimes
-sudo systemctl enable mybustimes-ws
-```
-
-Check if its running
-```bash
-sudo systemctl status mybustimes
-```
-
-You show now be able to access it on http://localhost:5681
-No styles will be loaded yet
-
-## Setup Nginx
-```bash
-sudo nano /etc/nginx/sites-available/mybustimes
-```
-
-```bash
 server {
     listen 4986;
-    server_name mybustimes.cc www.mybustimes.cc;
+    server_name example.com;
 
     client_max_body_size 1G;
 
-    # Static files
     location /static/ {
         alias /srv/MyBusTimes/staticfiles/;
         autoindex off;
     }
 
-    # Media files
     location /media/ {
         alias /srv/MyBusTimes/media/;
         autoindex off;
     }
 
-    error_page 502 /502.html;
-
-    location = /502.html {
-        root /usr/share/nginx/html;
-        internal;
-    }
-
-    location /message/ws/ {
-        proxy_pass http://127.0.0.1:5682;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "Upgrade";
-        proxy_set_header Host $host;
-
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_buffering off;
-    }
-
-    # Main proxy to frontend
     location / {
         proxy_pass http://127.0.0.1:5681;
         proxy_set_header Host $host;
@@ -335,21 +275,6 @@ server {
 }
 ```
 
-Grant Nginx permitions to access mybustimes files
-```bash
-sudo chown -R your-user:www-data /path/to/MyBusTimes/staticfiles /path/to/MyBusTimes/media
-sudo chmod -R 755 /path/to/MyBusTimes/staticfiles /path/to/MyBusTimes/media
-sudo chmod +x /path/to/MyBusTimes
-sudo chmod -R o+rx /path/to/MyBusTimes/staticfiles
-sudo chmod -R o+rx /path/to/MyBusTimes/media
-```
-
-Reload Nginx
-```bash
-sudo ln -s /etc/nginx/sites-available/mybustimes /etc/nginx/sites-enabled/
-sudo rm /etc/nginx/sites-enabled/default
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-Now it should be all setup and accessable from http://localhost
+## Troubleshooting
+- If CSS or media is missing, run `python manage.py collectstatic` and verify file permissions.
+- If DB connection fails, confirm `.env` values and Postgres user permissions.

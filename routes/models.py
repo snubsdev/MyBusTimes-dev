@@ -74,8 +74,16 @@ class serviceUpdate(models.Model):
     history = HistoricalRecords()
 
     def __str__(self):
-        routes = ", ".join([r.route_num for r in self.effected_route.all()])
-        return f"{routes} - {self.start_date} - {self.end_date}"
+        prefetched = getattr(self, "_prefetched_objects_cache", {})
+        if "effected_route" in prefetched:
+            route_nums = [
+                (r.route_num or "").strip()
+                for r in prefetched["effected_route"]
+            ]
+            cleaned = [r for r in route_nums if r]
+            routes = ", ".join(cleaned) if cleaned else "<no route>"
+            return f"{self.update_title} - {routes} - {self.start_date} - {self.end_date}"
+        return f"{self.update_title} - {self.start_date} - {self.end_date}"
 
 class stop(models.Model):
     stop_name = models.CharField(max_length=256)
@@ -126,7 +134,11 @@ class timetableEntry(models.Model):
             direction = "Outbound"
         if self.circular or self.route.outbound_destination == None:
             direction = " Circular"
-        return f"{self.route.route_num} - {direction} - ({', '.join([day.name for day in self.day_type.all()])})"
+        prefetched = getattr(self, "_prefetched_objects_cache", {})
+        if "day_type" in prefetched:
+            day_names = [day.name for day in prefetched["day_type"]]
+            return f"{self.route.route_num} - {direction} - ({', '.join(day_names)})"
+        return f"{self.route.route_num} - {direction}"
 
 class routeStop(models.Model):
     route = models.ForeignKey(route, on_delete=models.CASCADE)

@@ -36,6 +36,7 @@ from django.core.paginator import Paginator
 from django.utils.dateparse import parse_time
 from simple_history.models import HistoricalRecords
 from django.core.files.storage import default_storage
+from django.core.cache import cache
 
 # Django REST Framework imports
 from rest_framework.exceptions import NotFound
@@ -290,11 +291,23 @@ def generate_tabs(active, operator, count=None):
 
     vehicle_count = count
 
-    duty_count = duty.objects.filter(duty_operator=operator, board_type='duty').count()
-    rb_count = duty.objects.filter(duty_operator=operator, board_type='running-boards').count()
-    ticket_count = ticket.objects.filter(operator=operator).count()
-    route_count = route.objects.filter(route_operators=operator).count()
-    update_count = companyUpdate.objects.filter(operator=operator).count()
+    cache_key = f"operator_tab_counts:{operator.id}"
+    counts = cache.get(cache_key)
+    if counts is None:
+        counts = {
+            'duty_count': duty.objects.filter(duty_operator=operator, board_type='duty').count(),
+            'rb_count': duty.objects.filter(duty_operator=operator, board_type='running-boards').count(),
+            'ticket_count': ticket.objects.filter(operator=operator).count(),
+            'route_count': route.objects.filter(route_operators=operator).count(),
+            'update_count': companyUpdate.objects.filter(operator=operator).count(),
+        }
+        cache.set(cache_key, counts, 60)
+
+    duty_count = counts['duty_count']
+    rb_count = counts['rb_count']
+    ticket_count = counts['ticket_count']
+    route_count = counts['route_count']
+    update_count = counts['update_count']
 
     tabs = []
     
@@ -1087,18 +1100,21 @@ def trackable_status(request, operator_slug, route_id):
     has_out_stops = outbound_route_stops is not None
     has_in_stop_cords = inbound_route_stops and inbound_route_stops.stops and len(inbound_route_stops.stops) > 0
 
-    existing_route_in_stops = routeStop.objects.filter(route=route_instance, inbound=True).first()
-    existing_route_out_stops = routeStop.objects.filter(route=route_instance, inbound=False).first()
-
     has_in_stop_cords = False
     has_out_stop_cords = False
-    if existing_route_in_stops and existing_route_in_stops.stops and len(existing_route_in_stops.stops) > 0:
-        has_in_stop_cords = any('cords' in stop for stop in existing_route_in_stops.stops)
+    if inbound_route_stops and inbound_route_stops.stops and len(inbound_route_stops.stops) > 0:
+        has_in_stop_cords = any(
+            isinstance(stop, dict) and bool(stop.get('cords'))
+            for stop in inbound_route_stops.stops
+        )
     else:
         has_in_stop_cords = False
 
-    if existing_route_out_stops and existing_route_out_stops.stops and len(existing_route_out_stops.stops) > 0:
-        has_out_stop_cords = any('cords' in stop for stop in existing_route_out_stops.stops)
+    if outbound_route_stops and outbound_route_stops.stops and len(outbound_route_stops.stops) > 0:
+        has_out_stop_cords = any(
+            isinstance(stop, dict) and bool(stop.get('cords'))
+            for stop in outbound_route_stops.stops
+        )
     else:
         has_out_stop_cords = False
 

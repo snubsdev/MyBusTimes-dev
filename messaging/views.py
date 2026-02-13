@@ -4,7 +4,7 @@ from .forms import StartChatForm
 from .models import Chat, ChatMember, Message
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Count
 from PIL import Image
 from io import BytesIO
 from django.core.files.base import ContentFile
@@ -118,7 +118,7 @@ def chat_detail(request, chat_id):
     ChatMember.objects.filter(chat=chat, user=request.user).update(last_seen_at=timezone.now())
     messages = chat.messages.filter(is_deleted=False).order_by("created_at")[:50]
 
-    if request.user not in chat.members.all():
+    if not chat.members.filter(id=request.user.id).exists():
         return JsonResponse({"error": "You are not a member of this chat."}, status=403)
 
     return render(request, "chat_detail.html", {
@@ -144,18 +144,18 @@ def start_chat(request):
                 else:
                     # Check if a direct chat already exists between these two users
                     user_ids = sorted([request.user.id, selected_users.first().id])
-                    existing_chats = Chat.objects.filter(
-                        chat_type="direct",
-                        members__id=user_ids[0]
-                    ).filter(
-                        members__id=user_ids[1]
-                    ).distinct()
+                    existing_chats = (
+                        Chat.objects
+                        .filter(chat_type="direct", members__id=user_ids[0])
+                        .filter(members__id=user_ids[1])
+                        .annotate(member_count=Count("members"))
+                        .filter(member_count=2)
+                        .distinct()
+                    )
 
-                    # A direct chat between two users should have exactly 2 members
-                    existing_chats = [c for c in existing_chats if c.members.count() == 2]
-
-                    if existing_chats:
-                        return redirect("chat_detail", chat_id=existing_chats[0].id)
+                    existing_chat = existing_chats.first()
+                    if existing_chat:
+                        return redirect("chat_detail", chat_id=existing_chat.id)
 
                     # Create new direct chat
                     chat = Chat.objects.create(chat_type="direct", created_by=request.user)

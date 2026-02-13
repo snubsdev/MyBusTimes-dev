@@ -44,6 +44,7 @@ from django.http import HttpResponse, Http404
 from django.http import FileResponse
 from datetime import timedelta
 from django.core.files.storage import default_storage
+from django.core.paginator import Paginator
 from django.contrib.auth import authenticate
 from django.utils import timezone
 from django.db.models import Count, Avg
@@ -446,17 +447,11 @@ def trip_map(request, trip_id):
     else:
         direction = "outbound"
 
-    if route:
-        operator = route.route_operators.first()
-    else:
-        operator = None
-
-    if route:
-        mapTiles = route.route_operators.first().mapTile if route.route_operators.exists() else mapTileSet.objects.filter(is_default=True).first()
-    else:
-        mapTiles = mapTileSet.objects.filter(is_default=True).first()
+    operator = route.route_operators.first() if route else None
 
     mapTiles = mapTileSet.objects.filter(is_default=True).first()
+    if operator and operator.mapTile:
+        mapTiles = operator.mapTile
 
     context = {
         'trip': trip,
@@ -514,8 +509,6 @@ def search(request):
 
     breadcrumbs = [{'name': 'Home', 'url': '/'}]
 
-    print(f"Search query: {query}")
-    print(f"Found {operators.count()} operators and {vehicles.count()} vehicles and {routes_qs.count()} routes and {users.count()} users for query '{query}'")
 
     context = {
         'breadcrumbs': breadcrumbs,
@@ -1524,7 +1517,15 @@ def community_hub_images(request):
         return JsonResponse({"error": "Only GET allowed"}, status=405)
 
     # Get all images from the community hub
-    images = CommunityImages.objects.all()
+    images_qs = (
+        CommunityImages.objects
+        .select_related('uploaded_by')
+        .only('id', 'image', 'uploaded_by__username', 'created_at')
+        .order_by('-created_at')
+    )
+    paginator = Paginator(images_qs, 50)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
 
     images_data = [
         {
@@ -1533,10 +1534,13 @@ def community_hub_images(request):
             "uploaded_by": img.uploaded_by.username,
             "created_at": img.created_at,
         }
-        for img in images
+        for img in page_obj.object_list
     ]
 
-    return render(request, 'community_images.html', {'images': images_data})
+    return render(request, 'community_images.html', {
+        'images': images_data,
+        'page_obj': page_obj,
+    })
 
 @api_view(["GET"])
 def api_root(request, format=None):

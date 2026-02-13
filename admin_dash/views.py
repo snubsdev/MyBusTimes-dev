@@ -46,6 +46,8 @@ import zipfile
 import tempfile
 import os
 
+MAX_HISTORY_ROWS_PER_MODEL = 1000
+
 def has_permission(user, perm_name):
     if user.is_superuser:
         return True
@@ -255,10 +257,10 @@ def user_activity_view(request):
                     # No operator relationship → skip this model
                     continue
 
-        count = qs.count()
-        print(f"✔ Retrieved {count} rows")
-        if count:
-            results.extend(list(qs))
+        qs = qs.order_by('-history_date')[:MAX_HISTORY_ROWS_PER_MODEL]
+        rows = list(qs)
+        if rows:
+            results.extend(rows)
 
     print("[STEP] Sorting results")
     results.sort(key=lambda x: x.history_date, reverse=True)

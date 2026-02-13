@@ -8,7 +8,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from datetime import timedelta
-from django.db.models import IntegerField
+from django.db.models import IntegerField, Case, When, Max
 from django.db.models.functions import Cast
 import re
 from django.shortcuts import get_object_or_404, render
@@ -76,12 +76,45 @@ def group_view(request, group_name):
         qs = qs.order_by('fleet_number_sort')
 
 
-    show_livery   = qs.filter(Q(livery__isnull=False) | Q(colour__isnull=False)).exists()
-    show_branding = qs.filter(Q(branding__isnull=False) & Q(livery__isnull=False)).exists()
-    show_prev_reg = qs.filter(~Q(prev_reg__in=[None, ''])).exists()
-    show_name     = qs.filter(~Q(name__in=[None, ''])).exists()
-    show_depot    = qs.filter(~Q(depot__in=[None, ''])).exists()
-    show_features = qs.filter(~Q(features__in=[None, ''])).exists()
+    show_flags = qs.aggregate(
+        show_livery=Max(Case(
+            When(Q(livery__isnull=False) | Q(colour__isnull=False), then=1),
+            default=0,
+            output_field=IntegerField()
+        )),
+        show_branding=Max(Case(
+            When(Q(branding__isnull=False) & Q(livery__isnull=False), then=1),
+            default=0,
+            output_field=IntegerField()
+        )),
+        show_prev_reg=Max(Case(
+            When(~Q(prev_reg__in=[None, '']), then=1),
+            default=0,
+            output_field=IntegerField()
+        )),
+        show_name=Max(Case(
+            When(~Q(name__in=[None, '']), then=1),
+            default=0,
+            output_field=IntegerField()
+        )),
+        show_depot=Max(Case(
+            When(~Q(depot__in=[None, '']), then=1),
+            default=0,
+            output_field=IntegerField()
+        )),
+        show_features=Max(Case(
+            When(~Q(features__in=[None, '']), then=1),
+            default=0,
+            output_field=IntegerField()
+        )),
+    )
+
+    show_livery = bool(show_flags.get('show_livery'))
+    show_branding = bool(show_flags.get('show_branding'))
+    show_prev_reg = bool(show_flags.get('show_prev_reg'))
+    show_name = bool(show_flags.get('show_name'))
+    show_depot = bool(show_flags.get('show_depot'))
+    show_features = bool(show_flags.get('show_features'))
 
     paginator = Paginator(qs, 250)
     page_num = request.GET.get('page', 1)
@@ -97,13 +130,32 @@ def group_view(request, group_name):
     vehicle_ids = [v['id'] for v in serialized_vehicles]
 
     latest_trips = {}
-    for trip in (
-        Trip.objects
-        .filter(trip_vehicle_id__in=vehicle_ids, trip_start_at__lte=timezone.now())
-        .order_by('trip_vehicle_id', '-trip_start_at')
-    ):
-        if trip.trip_vehicle_id not in latest_trips:
-            latest_trips[trip.trip_vehicle_id] = trip
+    if vehicle_ids:
+        try:
+            trips = (
+                Trip.objects
+                .filter(trip_vehicle_id__in=vehicle_ids, trip_start_at__lte=timezone.now())
+                .select_related('trip_route')
+                .only('trip_vehicle_id', 'trip_start_at', 'trip_route_num', 'trip_route__route_num')
+                .order_by('trip_vehicle_id', '-trip_start_at')
+                .distinct('trip_vehicle_id')
+            )
+            latest_trips = {trip.trip_vehicle_id: trip for trip in trips}
+        except NotImplementedError:
+            now_ts = timezone.now()
+            trip_iter = (
+                Trip.objects
+                .filter(trip_vehicle_id__in=vehicle_ids, trip_start_at__lte=now_ts)
+                .select_related('trip_route')
+                .only('trip_vehicle_id', 'trip_start_at', 'trip_route_num', 'trip_route__route_num')
+                .order_by('trip_vehicle_id', '-trip_start_at')
+                .iterator()
+            )
+            for trip in trip_iter:
+                if trip.trip_vehicle_id not in latest_trips:
+                    latest_trips[trip.trip_vehicle_id] = trip
+                    if len(latest_trips) == len(vehicle_ids):
+                        break
 
     def format_last_trip_display(trip_date):
         local = timezone.localtime(trip_date)
@@ -170,12 +222,45 @@ def organisation_view(request, organisation_name):
         'operator__operator_slug', 'operator__operator_code', 'in_service'
     ).order_by('fleet_number_sort')
 
-    show_livery   = qs.filter(Q(livery__isnull=False) | Q(colour__isnull=False)).exists()
-    show_branding = qs.filter(Q(branding__isnull=False) & Q(livery__isnull=False)).exists()
-    show_prev_reg = qs.filter(~Q(prev_reg__in=[None, ''])).exists()
-    show_name     = qs.filter(~Q(name__in=[None, ''])).exists()
-    show_depot    = qs.filter(~Q(depot__in=[None, ''])).exists()
-    show_features = qs.filter(~Q(features__in=[None, ''])).exists()
+    show_flags = qs.aggregate(
+        show_livery=Max(Case(
+            When(Q(livery__isnull=False) | Q(colour__isnull=False), then=1),
+            default=0,
+            output_field=IntegerField()
+        )),
+        show_branding=Max(Case(
+            When(Q(branding__isnull=False) & Q(livery__isnull=False), then=1),
+            default=0,
+            output_field=IntegerField()
+        )),
+        show_prev_reg=Max(Case(
+            When(~Q(prev_reg__in=[None, '']), then=1),
+            default=0,
+            output_field=IntegerField()
+        )),
+        show_name=Max(Case(
+            When(~Q(name__in=[None, '']), then=1),
+            default=0,
+            output_field=IntegerField()
+        )),
+        show_depot=Max(Case(
+            When(~Q(depot__in=[None, '']), then=1),
+            default=0,
+            output_field=IntegerField()
+        )),
+        show_features=Max(Case(
+            When(~Q(features__in=[None, '']), then=1),
+            default=0,
+            output_field=IntegerField()
+        )),
+    )
+
+    show_livery = bool(show_flags.get('show_livery'))
+    show_branding = bool(show_flags.get('show_branding'))
+    show_prev_reg = bool(show_flags.get('show_prev_reg'))
+    show_name = bool(show_flags.get('show_name'))
+    show_depot = bool(show_flags.get('show_depot'))
+    show_features = bool(show_flags.get('show_features'))
 
     paginator = Paginator(qs, 250)
     page_num = request.GET.get('page', 1)
@@ -191,13 +276,32 @@ def organisation_view(request, organisation_name):
     vehicle_ids = [v['id'] for v in serialized_vehicles]
 
     latest_trips = {}
-    for trip in (
-        Trip.objects
-        .filter(trip_vehicle_id__in=vehicle_ids, trip_start_at__lte=timezone.now())
-        .order_by('trip_vehicle_id', '-trip_start_at')
-    ):
-        if trip.trip_vehicle_id not in latest_trips:
-            latest_trips[trip.trip_vehicle_id] = trip
+    if vehicle_ids:
+        try:
+            trips = (
+                Trip.objects
+                .filter(trip_vehicle_id__in=vehicle_ids, trip_start_at__lte=timezone.now())
+                .select_related('trip_route')
+                .only('trip_vehicle_id', 'trip_start_at', 'trip_route_num', 'trip_route__route_num')
+                .order_by('trip_vehicle_id', '-trip_start_at')
+                .distinct('trip_vehicle_id')
+            )
+            latest_trips = {trip.trip_vehicle_id: trip for trip in trips}
+        except NotImplementedError:
+            now_ts = timezone.now()
+            trip_iter = (
+                Trip.objects
+                .filter(trip_vehicle_id__in=vehicle_ids, trip_start_at__lte=now_ts)
+                .select_related('trip_route')
+                .only('trip_vehicle_id', 'trip_start_at', 'trip_route_num', 'trip_route__route_num')
+                .order_by('trip_vehicle_id', '-trip_start_at')
+                .iterator()
+            )
+            for trip in trip_iter:
+                if trip.trip_vehicle_id not in latest_trips:
+                    latest_trips[trip.trip_vehicle_id] = trip
+                    if len(latest_trips) == len(vehicle_ids):
+                        break
 
     def format_last_trip_display(trip_date):
         local = timezone.localtime(trip_date)

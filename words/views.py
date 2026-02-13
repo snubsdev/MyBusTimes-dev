@@ -101,6 +101,7 @@ def check_string_view(request):
     # Load word lists once for efficiency
     banned_set = set(b.lower() for b in bannedWord.objects.values_list('word', flat=True))
     whitelisted_set = set(w.lower() for w in whitelistedWord.objects.values_list('word', flat=True))
+    insta_ban_set = set(b.lower() for b in bannedWord.objects.filter(insta_ban=True).values_list('word', flat=True))
 
     results = []
     insta_banned = False
@@ -114,9 +115,7 @@ def check_string_view(request):
             status = 'ok'
         elif lw in banned_set:
             status = 'banned'
-            # Check if it's an insta-ban word
-            if bannedWord.objects.filter(word__iexact=lw, insta_ban=True).exists():
-                status = 'banned'
+            if lw in insta_ban_set:
                 insta_banned = True
         else:
             status = 'ok'

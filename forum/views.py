@@ -2,6 +2,7 @@
 import io
 import json
 import markdown
+from collections import defaultdict
 from concurrent.futures import thread
 from datetime import timedelta, datetime, date
 
@@ -161,11 +162,15 @@ def thread_list(request, forum_name):
     unpinned_threads = active_threads.filter(pinned=False)
 
     # Group unpinned threads by forum
-    forums = Forum.objects.all().order_by('order', 'name')
+    forums = list(Forum.objects.all().order_by('order', 'name'))
+    threads_by_forum = defaultdict(list)
+    for t in unpinned_threads.select_related('forum'):
+        threads_by_forum[t.forum_id].append(t)
+
     forum_threads = []
     for forum in forums:
-        threads = unpinned_threads.filter(forum=forum)
-        if threads.exists():
+        threads = threads_by_forum.get(forum.id)
+        if threads:
             forum_threads.append({
                 'forum': forum,
                 'threads': threads
@@ -306,11 +311,16 @@ def thread_detail(request, thread_id):
     else:
         is_last_page = True
 
+    authors = {post.author for post in page_obj}
+    users_qs = CustomUser.objects.filter(
+        Q(username__in=authors) | Q(discord_username__in=authors)
+    )
+    users_by_username = {user.username: user for user in users_qs if user.username}
+    users_by_discord = {user.discord_username: user for user in users_qs if user.discord_username}
+
     posts_with_pfps = []
     for post in page_obj:
-        user = CustomUser.objects.filter(
-            Q(username=post.author) | Q(discord_username=post.author)
-        ).first()
+        user = users_by_username.get(post.author) or users_by_discord.get(post.author)
         pfp = user.pfp.url if user and user.pfp else None
 
         online = False
