@@ -3,11 +3,12 @@ from .models import Prize, Winner, Entry
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from main.models import CustomUser as User
+from django.db.models import Count
 import random
 
 # Create your views here.
 def giveaway_home(request):
-    prizes = Prize.objects.all().order_by('tier')
+    prizes = Prize.objects.annotate(winner_count=Count('winner')).order_by('tier')
     
     entered_prize_ids = set()
     if request.user.is_authenticated:
@@ -41,19 +42,19 @@ def draw_winner(request):
         messages.error(request, "You don't have permission to access this page.")
         return redirect('giveaway_home')
 
-    prizes = Prize.objects.all().order_by('tier')
+    prizes = Prize.objects.annotate(winner_count=Count('winner')).order_by('tier')
     selected_prize = None
     winners = []
     remaining = None
 
     for p in prizes:
-        p.remaining = p.quantity - p.winner_set.count()
+        p.remaining = p.quantity - p.winner_count
 
     if request.method == "POST":
         prize_id = request.POST.get("prize_id")
         selected_prize = get_object_or_404(Prize, id=prize_id)
 
-        winners = Winner.objects.filter(prize=selected_prize)
+        winners = Winner.objects.filter(prize=selected_prize).select_related('user', 'prize')
         remaining = selected_prize.quantity - winners.count()
 
         if remaining <= 0:
@@ -76,7 +77,7 @@ def draw_winner(request):
                     Winner.objects.create(user=winner_entry.user, prize=selected_prize)
                     messages.success(request, f"🎉 {winner_entry.user.username} has won {selected_prize.name}!")
 
-        winners = Winner.objects.filter(prize=selected_prize)
+        winners = Winner.objects.filter(prize=selected_prize).select_related('user', 'prize')
         remaining = selected_prize.quantity - winners.count()
 
     # ✅ Still show full winner list

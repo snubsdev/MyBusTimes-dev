@@ -45,7 +45,10 @@ def rebuild_ticket_channel(request, ticket_id):
     if not request.user.is_superuser:
         return JsonResponse({"error": "Not allowed"}, status=403)
 
-    ticket = get_object_or_404(Ticket, id=ticket_id)
+    ticket = get_object_or_404(
+        Ticket.objects.select_related('ticket_type', 'user', 'assigned_team'),
+        id=ticket_id
+    )
 
     # ---- 1. Delete old channel (optional but recommended) ----
     if ticket.discord_channel_id:
@@ -97,7 +100,12 @@ def rebuild_ticket_channel(request, ticket_id):
     })
 
     # ---- 4. Send each message individually (better formatting, supports files) ----
-    messages = ticket.messages.all().order_by("created_at")
+    messages = (
+        ticket.messages
+        .select_related('sender')
+        .only('id', 'username', 'content', 'files', 'created_at', 'sender__username')
+        .order_by("created_at")
+    )
 
     for msg in messages:
         sender = msg.username if msg.username else msg.sender
@@ -158,18 +166,33 @@ def ticket_list_api(request):
 def ticket_home(request):
     if request.user.is_authenticated and request.user.banned_from.filter(name='tickets').exists():
         return redirect('ticket_banned')
-    mytickets = Ticket.objects.filter(user=request.user, status='open').order_by('-created_at')
+    mytickets = (
+        Ticket.objects
+        .filter(user=request.user, status='open')
+        .select_related('ticket_type', 'assigned_team', 'user')
+        .order_by('-created_at')
+    )
 
     if request.user.is_superuser:
-        myteamticketers = Ticket.objects.filter(status='open').order_by('-created_at')
+        myteamticketers = (
+            Ticket.objects
+            .filter(status='open')
+            .select_related('ticket_type', 'assigned_team', 'user')
+            .order_by('-created_at')
+        )
     else:
         if request.user.mbt_team:
-            myteamticketers = Ticket.objects.filter(
-                (
-                    Q(ticket_type__other_team=request.user.mbt_team) |
-                    Q(assigned_team=request.user.mbt_team)
-                ) & Q(status='open')
-            ).order_by('-created_at')
+            myteamticketers = (
+                Ticket.objects
+                .filter(
+                    (
+                        Q(ticket_type__other_team=request.user.mbt_team) |
+                        Q(assigned_team=request.user.mbt_team)
+                    ) & Q(status='open')
+                )
+                .select_related('ticket_type', 'assigned_team', 'user')
+                .order_by('-created_at')
+            )
         else:
             myteamticketers = Ticket.objects.none()
 
@@ -181,11 +204,13 @@ def ticket_messages_api(request, ticket_id):
         return redirect('ticket_banned')
     assigned_teams = [request.user.mbt_team] if request.user.mbt_team else []
 
+    ticket_qs = Ticket.objects.select_related('ticket_type', 'user', 'assigned_team')
+
     if request.user.is_superuser:
-        ticket = get_object_or_404(Ticket, id=ticket_id)
+        ticket = get_object_or_404(ticket_qs, id=ticket_id)
     else:
         ticket = get_object_or_404(
-            Ticket.objects.filter(
+            ticket_qs.filter(
                 Q(status='open') & (
                     Q(user=request.user) |
                     Q(ticket_type__other_team__in=assigned_teams) |
@@ -223,7 +248,12 @@ def ticket_messages_api(request, ticket_id):
             return JsonResponse({"status": "ok", "discord_status": response.status_code})
         return JsonResponse({"status": "ok"})
 
-    messages = ticket.messages.all().order_by("created_at")
+    messages = (
+        ticket.messages
+        .select_related('sender')
+        .only('id', 'username', 'content', 'files', 'created_at', 'sender__username')
+        .order_by("created_at")
+    )
 
     if ticket.sender_email:
         is_email_ticket = True

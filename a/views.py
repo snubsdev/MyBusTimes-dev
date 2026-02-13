@@ -1,20 +1,19 @@
 from django.shortcuts import render, redirect
 from .models import Link, AffiliateLink
 from main.models import CustomUser as User
-from django.db.models import Sum
+from django.db.models import Sum, F
 
 # Create your views here.
 def a(request, name):
-    link = Link.objects.filter(name=name).first()
-    if link:
-        link.clicks += 1
-        link.save()
-        return redirect(link.url)
+    link_data = Link.objects.filter(name=name).values('id', 'url').first()
+    if link_data:
+        Link.objects.filter(id=link_data['id']).update(clicks=F('clicks') + 1)
+        return redirect(link_data['url'])
     else:
         return render(request, 'error/404.html', status=404)
     
 def affiliate_link(request, name):
-    link = AffiliateLink.objects.filter(tag=name).first()
+    link = AffiliateLink.objects.filter(tag=name).select_related('user').first()
 
     if not link:
         tag_base = name.split('-')[0]
@@ -23,8 +22,7 @@ def affiliate_link(request, name):
             return render(request, 'error/404.html', status=404)
         link = AffiliateLink.objects.create(tag=name, user=user)
 
-    link.clicks += 1
-    link.save()
+    AffiliateLink.objects.filter(id=link.id).update(clicks=F('clicks') + 1)
 
     response = redirect("/u/register/")
 

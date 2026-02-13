@@ -86,7 +86,17 @@ def ratelimit_view(request, exception):
     return render(request, 'error/429.html', status=429)
 
 def get_random_community_image(request):
-    image = CommunityImages.objects.order_by('?').first()
+    image_count = CommunityImages.objects.count()
+    if image_count == 0:
+        return JsonResponse({'error': 'No images found'}, status=404)
+
+    random_index = random.randint(0, image_count - 1)
+    image = (
+        CommunityImages.objects
+        .select_related('uploaded_by')
+        .only('id', 'image', 'uploaded_by__username')
+        .order_by('id')[random_index]
+    )
     if image:
         return JsonResponse({'id': image.id, 'image_url': image.image.url, 'uploaded_by': image.uploaded_by.username})
     return JsonResponse({'error': 'No images found'}, status=404)
@@ -351,11 +361,10 @@ def live_map(request):
     if response:
         return response
     
-    active_trips = Tracking.objects.filter(trip_ended=False)
+    active_trips = Tracking.objects.filter(trip_ended=False).values_list('tracking_data', flat=True)
 
     vehicles_data = []
-    for trip in active_trips:
-        data = trip.tracking_data  # This is a dict (JSONField)
+    for data in active_trips:
         if data and 'X' in data and 'Y' in data:
             vehicles_data.append({
                 "x": data['X'],
