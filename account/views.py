@@ -255,22 +255,53 @@ def user_profile(request, username):
         {'name': 'Home', 'url': '/'},
     ]
 
-    profile_user = get_object_or_404(CustomUser, username=username)
+    profile_user = (
+        CustomUser.objects
+        .select_related('mbt_team')
+        .prefetch_related('badges', 'banned_from')
+        .get(username=username)
+    )
 
     # Operators owned by this user
-    operators = MBTOperator.objects.filter(owner=profile_user).order_by('operator_slug')
+    operators = (
+        MBTOperator.objects
+        .filter(owner=profile_user)
+        .only('id', 'operator_name', 'operator_slug', 'operator_code')
+        .order_by('operator_slug')
+    )
 
-    groups = group.objects.filter(group_owner=profile_user).order_by('group_name')
+    groups = (
+        group.objects
+        .filter(group_owner=profile_user)
+        .only('id', 'group_name')
+        .order_by('group_name')
+    )
 
     # Operators the user helps with
-    helper_operator_links = helper.objects.filter(helper=profile_user).order_by('operator__operator_name')
-    helper_operators_list = MBTOperator.objects.filter(id__in=helper_operator_links.values('operator')).order_by('operator_name')
+    helper_operators_list = (
+        MBTOperator.objects
+        .filter(helper_operator__helper=profile_user)
+        .only('id', 'operator_name', 'operator_slug', 'operator_code')
+        .order_by('operator_name')
+        .distinct()
+    )
 
-    user_edits = fleetChange.objects.filter(user=profile_user).order_by('-create_at')[:10]
+    user_edits = (
+        fleetChange.objects
+        .filter(user=profile_user)
+        .select_related('vehicle', 'vehicle__operator', 'user')
+        .only(
+            'id', 'create_at',
+            'vehicle__id', 'vehicle__fleet_number', 'vehicle__reg',
+            'vehicle__operator__operator_slug',
+            'user__id', 'user__username'
+        )
+        .order_by('-create_at')[:10]
+    )
 
     # Check if viewing own profile
     owner = request.user == profile_user
-    now = timezone.now();
+    now = timezone.now()
 
     online = False
     if profile_user.last_active and profile_user.last_active > timezone.now() - timedelta(minutes=5):
@@ -279,12 +310,14 @@ def user_profile(request, username):
     sub_status = {}
 
     # Filter to only currently active subscriptions
-    user_active_subs = ActiveSubscription.objects.filter(
-        user=profile_user,
-        end_date__gt=timezone.now()
-    ).order_by('-end_date')
+    user_active_subs = list(
+        ActiveSubscription.objects.filter(
+            user=profile_user,
+            end_date__gt=now
+        ).order_by('-end_date')
+    )
 
-    sub_count = user_active_subs.count()
+    sub_count = len(user_active_subs)
     
     if sub_count > 1:
         counter = 0
@@ -296,7 +329,7 @@ def user_profile(request, username):
                 'is_trial': sub.is_trial
             }
     elif sub_count == 1:
-        sub = user_active_subs.first()
+        sub = user_active_subs[0]
         sub_status["sub_1"] = {
             'plan': sub.plan,
             'until': sub.end_date.strftime("%Y-%m-%d"),
