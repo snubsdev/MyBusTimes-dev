@@ -466,4 +466,5 @@ def theme_settings(request):
         'ms_icon_144x144': favicons['ms_144'],
         'manifest_json': favicons['manifest'],
         'silence': events['silence'],
+        'ACKEE_DOMAIN_ID': settings.ACKEE_DOMAIN_ID,
     }
