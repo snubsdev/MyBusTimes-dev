@@ -3,68 +3,174 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MyBusTimes is Down</title>
+  <title>Leave me alone im tired</title>
   <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
     :root {
       --brand-color: #8cb9d5;
       --brand-color-darker: #84bcec;
-      --brand-color-darker-darker: #7cb5e7;
-      --border-color: var(--brand-color-darker);
-      --border-color-darker: var(--brand-color-darker-darker);
-      --background-color: #eee;
-      --text-color: #000;
-      --link-color: #3b42a2;
-      --viewed-color: #84aec8;
-      --header-image: linear-gradient(121deg, #8cb9d5 17%, transparent 17.05%),
-        linear-gradient(-37deg, #c7ddeb 20%, transparent 20.05%),
-        linear-gradient(23deg, #aecee1 46%, transparent 46.05%),
-        linear-gradient(-187deg, #367296 49%, transparent 49.05%),
-        linear-gradient(0deg, #5398c1 100%, transparent 100.05%);
+      --brand-dark: #367296;
+      --brand-light: #c7ddeb;
+      --text-primary: #1f3a4d;
+      --text-secondary: #2b3e4f;
     }
-
+    
     body {
-      margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: var(--header-image);
-      color: var(--text-color);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(135deg, #367296 0%, #5398c1 50%, #8cb9d5 100%);
       display: flex;
       align-items: center;
       justify-content: center;
-      height: 100vh;
-      text-align: center;
+      min-height: 100vh;
+      padding: 20px;
+      position: relative;
     }
-    .box {
-      max-width: 520px;
-      padding: 2rem;
+    
+    body::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: 
+        radial-gradient(circle at 20% 80%, rgba(199, 221, 235, 0.2) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(140, 185, 213, 0.2) 0%, transparent 50%);
+      pointer-events: none;
+    }
+    
+    .container {
+      max-width: 650px;
+      width: 100%;
+      position: relative;
+      z-index: 1;
+    }
+    
+    .card {
       background: #ffffff;
-      border-radius: 16px;
-      border: 2px solid var(--border-color);
-      box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+      border-radius: 24px;
+      padding: 4rem 3rem;
+      box-shadow: 
+        0 20px 60px rgba(54, 114, 150, 0.3),
+        0 0 0 1px rgba(140, 185, 213, 0.1);
+      text-align: center;
+      position: relative;
+      overflow: hidden;
     }
+    
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 6px;
+      background: linear-gradient(90deg, #367296, #5398c1, #8cb9d5, #c7ddeb);
+    }
+    
+    .icon-wrapper {
+      width: 100px;
+      height: 100px;
+      margin: 0 auto 2rem;
+      background: linear-gradient(135deg, var(--brand-color) 0%, var(--brand-dark) 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 8px 24px rgba(54, 114, 150, 0.25);
+    }
+    
+    .icon-wrapper svg {
+      width: 50px;
+      height: 50px;
+      fill: white;
+    }
+    
     h1 {
-      margin: 0 0 1rem;
-      font-size: 1.8rem;
-      color: #1f3a4d;
+      font-size: 2.25rem;
+      color: var(--text-primary);
+      margin-bottom: 1.5rem;
+      font-weight: 600;
+      line-height: 1.2;
     }
+    
     p {
-      margin: 0.6rem 0;
-      line-height: 1.5;
-      color: #2b3e4f;
+      color: var(--text-secondary);
+      font-size: 1.15rem;
+      line-height: 1.8;
+      margin-bottom: 1rem;
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
     }
-    .note {
-      margin-top: 1rem;
-      font-size: 0.9rem;
-      color: #4b6b82;
+    
+    p:last-of-type {
+      margin-bottom: 2.5rem;
+    }
+    
+    .status-badge {
+      display: inline-block;
+      padding: 14px 32px;
+      background: linear-gradient(135deg, var(--brand-color) 0%, var(--brand-dark) 100%);
+      color: white;
+      border-radius: 50px;
+      font-weight: 600;
+      font-size: 1rem;
+      letter-spacing: 0.5px;
+      box-shadow: 0 4px 15px rgba(54, 114, 150, 0.3);
+    }
+    
+    .divider {
+      width: 60px;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, var(--brand-color), transparent);
+      margin: 2rem auto;
+    }
+    
+    @media (max-width: 640px) {
+      .card {
+        padding: 3rem 2rem;
+      }
+      
+      h1 {
+        font-size: 1.75rem;
+      }
+      
+      p {
+        font-size: 1rem;
+      }
+      
+      .icon-wrapper {
+        width: 80px;
+        height: 80px;
+      }
+      
+      .icon-wrapper svg {
+        width: 40px;
+        height: 40px;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="box">
-    <h1>MyBusTimes is currently offline</h1>
-    <p>The site experienced an internal failure and is currently being fully restored.</p>
-    <p><strong>No data has been lost</strong>, but the restore process is complex and will take some time.</p>
-    <p>Please do <strong>not</strong> report this as a bug.</p>
-    <p class="note">Thanks for your patience while we get everything back online.</p>
+  <div class="container">
+    <div class="card">
+      <div class="icon-wrapper">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-4h2v2h-2zm0-10h2v8h-2z"/>
+        </svg>
+      </div>
+      <h1>Sorry, Not in Service</h1>
+      <div class="divider"></div>
+      <p>Sorry mybustimes is a bit broken at the moment.</p>
+      <p>Kai is trying to fix it but is currently in not at home so this will take some time.</p>
+      <div class="status-badge">WAKE UP ETA: 3am 15/02/2026</div>
+    </div>
   </div>
 </body>
 </html>
