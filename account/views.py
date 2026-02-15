@@ -255,11 +255,11 @@ def user_profile(request, username):
         {'name': 'Home', 'url': '/'},
     ]
 
-    profile_user = (
+    profile_user = get_object_or_404(
         CustomUser.objects
         .select_related('mbt_team')
-        .prefetch_related('badges', 'banned_from')
-        .get(username=username)
+        .prefetch_related('badges', 'banned_from'),
+        username=username,
     )
 
     # Operators owned by this user

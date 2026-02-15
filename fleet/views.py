@@ -2075,6 +2075,10 @@ def remove_todays_trips(request, operator_slug, vehicle_id, selected_date):
 #        break  # success → exit loop
 
 def send_to_discord_for_sale_embed(channel_id, title, message, colour=0x00BFFF, image_url=None, fields=None, content=None):
+    """Send a message+embed to the Discord bot API.
+
+    Returns (True, None) on success or (False, error_string) on failure.
+    """
     embed = {
         "title": title,
         "description": message,
@@ -2100,25 +2104,36 @@ def send_to_discord_for_sale_embed(channel_id, title, message, colour=0x00BFFF, 
         'embed': embed
     }
 
-    message_data = {
-        'channel_id': channel_id,
-        'message': content
-    }
+    # send optional plain content first (role ping)
+    try:
+        if content:
+            message_data = {
+                'channel_id': channel_id,
+                'message': content
+            }
+            response_message = requests.post(
+                f"{settings.DISCORD_BOT_API_URL}/send-message-clean",
+                data=message_data,
+                files=None,
+                timeout=5,
+            )
+            # raise for bad status codes
+            response_message.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        return False, f"Failed to send Discord message: {e}"
 
-    if content:
-        response_message = requests.post(
-            f"{settings.DISCORD_BOT_API_URL}/send-message-clean",
-            data=message_data,
-            files=None
+    # now send the embed
+    try:
+        response = requests.post(
+            f"{settings.DISCORD_BOT_API_URL}/send-embed",
+            json=data,
+            timeout=5,
         )
-        response_message.raise_for_status()
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        return False, f"Failed to send Discord embed: {e}"
 
-    response = requests.post(
-        f"{settings.DISCORD_BOT_API_URL}/send-embed",
-        json=data
-    )
-
-    response.raise_for_status()
+    return True, None
 
 
 @login_required
@@ -2172,7 +2187,7 @@ def vehicle_sell(request, operator_slug, vehicle_id):
                 {"name": "View", "value": f"https://www.mybustimes.cc/operator/{encoded_operator_slug}/vehicles/{vehicle.id}/?v={random.randint(1000,9999)}", "inline": False}
             ]
 
-            send_to_discord_for_sale_embed(
+            success, err = send_to_discord_for_sale_embed(
                 channel_id=settings.DISCORD_FOR_SALE_CHANNEL_ID,
                 title=title,
                 message=description,
@@ -2181,6 +2196,8 @@ def vehicle_sell(request, operator_slug, vehicle_id):
                 image_url=f"https://www.mybustimes.cc/operator/vehicle_image/{vehicle.id}/?v={random.randint(1000,9999)}",
                 content="<@&1348490878024679424>"  # <-- role ping included here
             )
+            if not success:
+                messages.error(request, f"Vehicle listed but failed to notify Discord: {err}")
     vehicle.save()
     operator.save()
 
@@ -6399,7 +6416,7 @@ def operator_type_add(request):
 
         new_operator_type = operatorType.objects.create(operator_type_name=operator_type_name, published=False)
         webhook_url = settings.DISCORD_TYPE_REQUEST_WEBHOOK
-        message += {
+        message = {
             "content": f"New operator type created: **{operator_type_name}** by {request.user.username}\n[Review](https://www.mybustimes.cc/admin/operator-management/pending/)\n",
         }
         try:
