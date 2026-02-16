@@ -5,6 +5,7 @@ from fleet.models import fleet
 from .models import Tracking
 from django import forms
 from datetime import datetime, date
+from django.utils import timezone
 
 def alphanum_key(fleet_number):
     return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', fleet_number or '')]
@@ -67,8 +68,14 @@ class trackingForm(forms.ModelForm):
             today = date.today()
             cleaned_data['tracking_start_location'] = start_stop
             cleaned_data['tracking_end_location'] = end_stop
-            cleaned_data['tracking_start_at'] = datetime.strptime(f"{today} {start_time}", "%Y-%m-%d %H:%M")
-            cleaned_data['tracking_end_at'] = datetime.strptime(f"{today} {end_time}", "%Y-%m-%d %H:%M")
+            dt_start = datetime.strptime(f"{today} {start_time}", "%Y-%m-%d %H:%M")
+            dt_end = datetime.strptime(f"{today} {end_time}", "%Y-%m-%d %H:%M")
+            if timezone.is_naive(dt_start):
+                dt_start = timezone.make_aware(dt_start, timezone.get_current_timezone())
+            if timezone.is_naive(dt_end):
+                dt_end = timezone.make_aware(dt_end, timezone.get_current_timezone())
+            cleaned_data['tracking_start_at'] = dt_start
+            cleaned_data['tracking_end_at'] = dt_end
 
         return cleaned_data
 

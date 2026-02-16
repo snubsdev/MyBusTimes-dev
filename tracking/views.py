@@ -100,6 +100,7 @@ import json
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from .models import Trip, Tracking, fleet, route, CustomUser  # adjust imports
 
 @csrf_exempt
@@ -114,7 +115,14 @@ def StartNewTripView(request):
         route_id = data.get("route_id")
         route_number = data.get("route_number")
         trip_end_location = data.get("outbound_destination")
-        trip_start_at = data.get("trip_date_time")  # should be ISO8601 string
+        trip_start_at_raw = data.get("trip_date_time")  # should be ISO8601 string
+        trip_start_at = None
+        if trip_start_at_raw:
+            parsed = parse_datetime(trip_start_at_raw)
+            if parsed:
+                if timezone.is_naive(parsed):
+                    parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
+                trip_start_at = parsed
     except Exception as e:
         return JsonResponse({"error": "Invalid request data", "details": str(e)}, status=400)
 

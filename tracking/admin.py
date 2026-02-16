@@ -85,8 +85,15 @@ class TripForm(forms.ModelForm):
             today = date.today()
             cleaned_data['trip_start_location'] = start_stop
             cleaned_data['trip_end_location'] = end_stop
-            cleaned_data['trip_start_at'] = datetime.strptime(f"{today} {start_time}", "%Y-%m-%d %H:%M")
-            cleaned_data['trip_end_at'] = datetime.strptime(f"{today} {end_time}", "%Y-%m-%d %H:%M")
+            dt_start = datetime.strptime(f"{today} {start_time}", "%Y-%m-%d %H:%M")
+            dt_end = datetime.strptime(f"{today} {end_time}", "%Y-%m-%d %H:%M")
+            # Ensure datetimes are timezone-aware when USE_TZ is True
+            if timezone.is_naive(dt_start):
+                dt_start = timezone.make_aware(dt_start, timezone.get_current_timezone())
+            if timezone.is_naive(dt_end):
+                dt_end = timezone.make_aware(dt_end, timezone.get_current_timezone())
+            cleaned_data['trip_start_at'] = dt_start
+            cleaned_data['trip_end_at'] = dt_end
 
         return cleaned_data
 
