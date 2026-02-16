@@ -69,6 +69,20 @@ DISCORD_FULL_OPERATOR_LOGS_ID = 1432690197228818482
 # Vars
 max_for_sale = 25
 
+
+def safe_json_load(path, default=None):
+    """Load JSON from default_storage at `path`, safely catching MemoryError and other IO errors.
+    Returns `default` on failure to avoid blowing up the request process.
+    """
+    try:
+        with default_storage.open(path, "r") as f:
+            return json.load(f)
+    except MemoryError:
+        # Very large file; return default and let caller decide how to proceed.
+        return default if default is not None else {}
+    except Exception:
+        return default if default is not None else {}
+
 def send_to_discord_delete(count, channel_id, operator_name):
     content = f"**Operator Deleted: {operator_name}**\n"
     content += f"Vehicles: {count}\n"
@@ -1583,10 +1597,7 @@ def vehicle_edit(request, operator_slug, vehicle_id):
         ).distinct().order_by('operator_name')
 
     path = "JSON/features.json"
-
-    with default_storage.open(path, "r") as f:
-        data = json.load(f)  # loads the entire JSON file into a dict
-
+    data = safe_json_load(path, default={})
     features_list = data.get("features", [])
 
     if request.method == "POST":
@@ -4404,9 +4415,7 @@ def vehicle_add(request, operator_slug):
 
     path = "JSON/features.json"
 
-    with default_storage.open(path, "r") as f:
-        data = json.load(f)  # loads the entire JSON file into a dict
-
+    data = safe_json_load(path, default={})
     features_list = data.get("features", [])
 
     if request.method == "POST":
@@ -4568,10 +4577,7 @@ def vehicle_mass_add(request, operator_slug):
 
 
     path = "JSON/features.json"
-
-    with default_storage.open(path, "r") as f:
-        data = json.load(f)  # loads the entire JSON file into a dict
-
+    data = safe_json_load(path, default={})
     features_list = data.get("features", [])
 
     if request.method == "POST":
@@ -4834,10 +4840,7 @@ def vehicle_mass_edit(request, operator_slug):
         ).distinct().order_by('operator_name')
 
     path = "JSON/features.json"
-
-    with default_storage.open(path, "r") as f:
-        features_json = json.load(f)
-
+    features_json = safe_json_load(path, default={})
     features_list = features_json.get("features", [])
 
     if request.method == "POST":

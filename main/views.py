@@ -6,6 +6,7 @@ import random
 import os
 import secrets
 import threading
+import concurrent.futures
 import requests
 import traceback
 import traceback
@@ -48,6 +49,9 @@ from django.core.paginator import Paginator
 from django.contrib.auth import authenticate
 from django.utils import timezone
 from django.db.models import Count, Avg
+
+# Bounded executor to avoid unbounded thread growth from repeated imports
+_IMPORT_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -1050,8 +1054,14 @@ def import_mbt_data(request):
         for chunk in uploaded_file.chunks():
             dest.write(chunk)
 
-    # Start background thread for import
-    threading.Thread(target=process_import_job, args=(job.id, file_path)).start()
+    # Submit import job to bounded executor (prevents unbounded thread creation)
+    try:
+        _IMPORT_EXECUTOR.submit(process_import_job, job.id, file_path)
+    except Exception:
+        # Fallback to daemon thread if executor is unusable
+        t = threading.Thread(target=process_import_job, args=(job.id, file_path))
+        t.daemon = True
+        t.start()
 
     return JsonResponse({'job_id': str(job.id), 'status': 'started'})
 
@@ -1099,8 +1109,16 @@ def process_import_job(job_id, file_path):
     print(f"Import job {job_id} is now running.")
 
     try:
+        # Load file contents; guard against MemoryError for very large uploads.
         with open(file_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+            try:
+                data = json.load(f)
+            except MemoryError:
+                job.status = 'failed'
+                job.message = 'Import failed: file too large to load into memory'
+                job.save()
+                send_migration_error_notification('Import failed: file too large', 'Admin')
+                return
 
         print(f"Data loaded successfully for job {job_id}")
         job.status = 'running'
@@ -1110,14 +1128,11 @@ def process_import_job(job_id, file_path):
         userData = data.get("user")
         operatorsData = data.get("operators")
 
-        print(f"User data: {userData}")
-        #print(f"Operators data: {operatorsData}")
-
         # Simplified example: update progress as you go
-        total_operators = len(operatorsData)
-        total_vehicles = sum(len(op["fleet"]) for op in operatorsData if "fleet" in op)
-        total_routes = sum(len(op["routes"]) for op in operatorsData if "routes" in op)
-        total_tickets = sum(len(op["tickets"]) for op in operatorsData if "tickets" in op)
+        total_operators = len(operatorsData) if operatorsData else 0
+        total_vehicles = sum(len(op.get("fleet", [])) for op in operatorsData or [])
+        total_routes = sum(len(op.get("routes", [])) for op in operatorsData or [])
+        total_tickets = sum(len(op.get("tickets", [])) for op in operatorsData or [])
 
         if not userData:
             job.status = 'error'
@@ -1126,7 +1141,7 @@ def process_import_job(job_id, file_path):
 
             send_migration_error_notification("Missing user data", 'Admin')
 
-            return JsonResponse({"error": "Missing user data"}, status=400)
+            return
 
         if not operatorsData:
             job.status = 'warning'
@@ -1136,7 +1151,11 @@ def process_import_job(job_id, file_path):
         # ---- Create or update user first ----
         raw_username = userData.get('Username')
         if not raw_username:
-            return JsonResponse({"error": "Username missing in user data"}, status=400)
+            job.status = 'failed'
+            job.message = 'Username missing in user data'
+            job.save()
+            send_migration_error_notification('Username missing in user data', 'Admin')
+            return
 
         sanitized_username, username_modified = sanitize_username(raw_username)
         original_username = sanitized_username
@@ -1435,10 +1454,14 @@ def process_import_job(job_id, file_path):
         job.message = "Import complete"
         job.save()
 
-        return JsonResponse({
-            "status": "success",
-            "created": created
-        })
+        # Cleanup uploaded file to free disk space
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        except Exception:
+            pass
+
+        return
 
     except Exception as e:
         exc_type, exc_obj, tb = sys.exc_info()
@@ -1456,6 +1479,13 @@ def process_import_job(job_id, file_path):
         job.status = 'error'
         job.message = f"{error_type} at {fname}, line {line_no}: {error_msg}"
         job.save()
+
+        # Attempt to cleanup the file even on errors
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        except Exception:
+            pass
     
 def import_status_data(request, job_id):
     try:
