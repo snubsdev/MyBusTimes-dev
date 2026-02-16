@@ -212,6 +212,7 @@ def thread_details_api(request, thread_id):
     online_cutoff = timezone.now() - timedelta(minutes=5)
 
     posts_with_pfps = []
+    latest_message = None
     for post in page_obj:
         user = users_by_username.get(post.author) or users_by_discord.get(post.author)
         pfp = user.pfp.url if user and user.pfp else None
