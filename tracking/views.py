@@ -119,10 +119,13 @@ def StartNewTripView(request):
         trip_start_at = None
         if trip_start_at_raw:
             parsed = parse_datetime(trip_start_at_raw)
-            if parsed:
-                if timezone.is_naive(parsed):
-                    parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
-                trip_start_at = parsed
+            # If parse_datetime returned None, the input wasn't valid ISO8601
+            if parsed is None:
+                return JsonResponse({"error": "trip_date_time is invalid ISO8601"}, status=400)
+            # Make timezone-aware if naive
+            if timezone.is_naive(parsed):
+                parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
+            trip_start_at = parsed
     except Exception as e:
         return JsonResponse({"error": "Invalid request data", "details": str(e)}, status=400)
 

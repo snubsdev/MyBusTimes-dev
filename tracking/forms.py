@@ -4,7 +4,7 @@ from routes.models import timetableEntry, route
 from fleet.models import fleet
 from .models import Tracking
 from django import forms
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from django.utils import timezone
 
 def alphanum_key(fleet_number):
@@ -70,10 +70,12 @@ class trackingForm(forms.ModelForm):
             cleaned_data['tracking_end_location'] = end_stop
             dt_start = datetime.strptime(f"{today} {start_time}", "%Y-%m-%d %H:%M")
             dt_end = datetime.strptime(f"{today} {end_time}", "%Y-%m-%d %H:%M")
-            if timezone.is_naive(dt_start):
-                dt_start = timezone.make_aware(dt_start, timezone.get_current_timezone())
-            if timezone.is_naive(dt_end):
-                dt_end = timezone.make_aware(dt_end, timezone.get_current_timezone())
+            # If trip crosses midnight, bump end date
+            if dt_end <= dt_start:
+                dt_end = dt_end + timedelta(days=1)
+            # Convert both naive datetimes to timezone-aware values
+            dt_start = timezone.make_aware(dt_start, timezone.get_current_timezone())
+            dt_end = timezone.make_aware(dt_end, timezone.get_current_timezone())
             cleaned_data['tracking_start_at'] = dt_start
             cleaned_data['tracking_end_at'] = dt_end
 

@@ -82,16 +82,30 @@ class TripForm(forms.ModelForm):
             except (KeyError, ValueError, IndexError):
                 raise forms.ValidationError("Invalid time selected.")
 
-            today = date.today()
+            # Use Django's timezone-aware local date to build datetimes
+            today = timezone.localdate()
             cleaned_data['trip_start_location'] = start_stop
             cleaned_data['trip_end_location'] = end_stop
             dt_start = datetime.strptime(f"{today} {start_time}", "%Y-%m-%d %H:%M")
             dt_end = datetime.strptime(f"{today} {end_time}", "%Y-%m-%d %H:%M")
-            # Ensure datetimes are timezone-aware when USE_TZ is True
-            if timezone.is_naive(dt_start):
-                dt_start = timezone.make_aware(dt_start, timezone.get_current_timezone())
-            if timezone.is_naive(dt_end):
-                dt_end = timezone.make_aware(dt_end, timezone.get_current_timezone())
+            # If the trip crosses midnight, ensure end is after start
+            if dt_end <= dt_start:
+                dt_end = dt_end + timedelta(days=1)
+            # Convert to timezone-aware datetimes with DST resilience
+            def _make_aware_dst(dt):
+                try:
+                    return timezone.make_aware(dt, timezone.get_current_timezone())
+                except timezone.AmbiguousTimeError:
+                    # Ambiguous (fold) — prefer the later fold
+                    dt = dt.replace(fold=1)
+                    return timezone.make_aware(dt, timezone.get_current_timezone())
+                except timezone.NonExistentTimeError:
+                    # Non-existent time (clock jumps forward) — nudge forward by 1 hour
+                    dt = dt + timedelta(hours=1)
+                    return timezone.make_aware(dt, timezone.get_current_timezone())
+
+            dt_start = _make_aware_dst(dt_start)
+            dt_end = _make_aware_dst(dt_end)
             cleaned_data['trip_start_at'] = dt_start
             cleaned_data['trip_end_at'] = dt_end
 
