@@ -2404,7 +2404,7 @@ def duties(request, operator_slug):
             key=lambda kv: parse_name_key(kv[0].split(' > ')[-1])
         ))
         if uncategorized:
-            grouped_duties_ordered['Uncategorized'] = uncategorized
+            grouped_duties_ordered['Uncategorised'] = uncategorized
     else:
         # Group duties by day name (default)
         grouped_duties = defaultdict(list)
