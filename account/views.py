@@ -22,6 +22,7 @@ from django.views.decorators.http import require_POST
 from django.contrib import messages
 from django.contrib.auth import logout
 from rest_framework.decorators import api_view
+from django.core.cache import cache
 
 # Third-party imports
 import stripe
@@ -132,12 +133,17 @@ def send_to_discord_embed(channel_id, title, message, colour=0x00BFFF):
         'channel_id': channel_id,
         'embed': embed
     }
-
-    response = requests.post(
-        f"{settings.DISCORD_BOT_API_URL}/send-embed",
-        json=data
-    )
-    response.raise_for_status()
+    try:
+        response = requests.post(
+            f"{settings.DISCORD_BOT_API_URL}/send-embed",
+            json=data,
+            timeout=5,
+        )
+        response.raise_for_status()
+        return True
+    except Exception as e:
+        logger.exception("Failed to send embed to Discord: %s", e)
+        return False
 
 
 def validate_turnstile(token, remoteip=None):
@@ -225,6 +231,27 @@ def register_view(request):
 
             # Continue only if validation success
             if validation['success']:
+                # Rate limit signups by IP: max 5 signups per 10 minutes
+                remoteip = (
+                    request.headers.get('CF-Connecting-IP')
+                    or request.headers.get('X-Forwarded-For')
+                    or request.META.get('REMOTE_ADDR')
+                )
+                ip = remoteip.split(',')[0].strip() if remoteip else request.META.get('REMOTE_ADDR')
+
+                LIMIT = 5
+                WINDOW = 10 * 60  # seconds
+                cache_key = f"signup:{ip}"
+
+                current = cache.get(cache_key)
+                if current is None:
+                    cache.set(cache_key, 1, WINDOW)
+                else:
+                    if current >= LIMIT:
+                        form.add_error(None, 'Too many signups from your IP address. Please try again later.')
+                        return render(request, 'register.html', {'form': form})
+                    cache.set(cache_key, current + 1, WINDOW)
+
                 user = form.save()
 
                 # invite cookie support

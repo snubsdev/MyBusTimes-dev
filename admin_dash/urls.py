@@ -48,6 +48,20 @@ urlpatterns = [
     path("applications/<int:application_id>/", application_detail, name="application_detail"),
     path('restart-service/', restart_service, name='restart_service'),
     path('admin-site-links/', admin_site_links, name='admin-site-links'),
+    path('forum-management/', forum_management_view, name='forum-management'),
+    path('forum/resync-thread/<int:thread_id>/', resync_thread, name='resync-thread'),
+    path('forum/resync-status/<int:thread_id>/', resync_status, name='resync-status'),
+    path('forum/resync-pause/<int:thread_id>/', resync_pause, name='resync-pause'),
+    path('forum/resync-resume/<int:thread_id>/', resync_resume, name='resync-resume'),
+    path('forum/resync-stop/<int:thread_id>/', resync_stop, name='resync-stop'),
+    path('forum/moderation/', forum_mod_threads, name='forum-mod-threads'),
+    path('forum/moderation/thread/<int:thread_id>/', forum_mod_thread_detail, name='forum-mod-thread'),
+    path('forum/moderation/thread/<int:thread_id>/delete/', mod_delete_thread, name='forum-mod-delete-thread'),
+    path('forum/moderation/thread/<int:thread_id>/recreate/', mod_recreate_thread, name='forum-mod-recreate-thread'),
+    path('forum/moderation/recreate-page/', mod_recreate_page, name='forum-mod-recreate-page'),
+    path('forum/moderation/recreate-page-api/', mod_recreate_page_api, name='forum-mod-recreate-page-api'),
+    path('forum/moderation/recreate-page-status/<str:task_id>/', recreate_page_status, name='forum-mod-recreate-page-status'),
+    path('forum/moderation/post/<int:post_id>/delete/', mod_delete_post, name='forum-mod-delete-post'),
 ]
 
 if settings.DEBUG:

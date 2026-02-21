@@ -1,0 +1,176 @@
+{% extends 'adminbase.html' %}
+
+{% block title %}Forum Management{% endblock %}
+
+{% block content %}
+<h2>Forum Management</h2>
+<p>Use the controls below to manage forum -> discord mappings and resync messages to Discord channels.</p>
+
+<div class="controls" style="margin-bottom:12px">
+    <a class="btn" href="{% url 'forum-mod-threads' %}">Moderator Panel — All Threads</a>
+</div>
+
+<h3>Threads (most recent)</h3>
+<table class="table">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Title</th>
+            <th>Forum</th>
+            <th>Discord Channel</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for thread in threads %}
+        <tr>
+            <td>{{ thread.id }}</td>
+            <td>{{ thread.title }}</td>
+            {% if thread.forum %}
+            <td>{{ thread.forum.name }}</td>
+            {% else %}
+            <td>-</td>
+            {% endif %}
+            <td>{{ thread.discord_channel_id }}</td>
+            <td>
+                {% if thread.discord_channel_id %}
+                <form class="resync-form" method="post" action="/admin/forum/resync-thread/{{ thread.id }}/" style="display:inline" data-thread="{{ thread.id }}">
+                    {% csrf_token %}
+                    <input type="number" name="pages" min="1" placeholder="pages" style="width:90px;margin-right:6px" />
+                    <button class="btn btn-small">Resync Channel</button>
+                </form>
+                <div id="resync-container-{{ thread.id }}" style="display:inline-block;margin-left:8px;vertical-align:middle">
+                    <div class="progress" style="width:240px;background:#eef2f6;border-radius:6px;display:none">
+                        <div id="resync-bar-{{ thread.id }}" style="height:10px;width:0%;background:linear-gradient(90deg,#1070ff,#0b5ed7);border-radius:6px"></div>
+                    </div>
+                    <span id="resync-text-{{ thread.id }}" style="margin-left:8px;font-size:13px"></span>
+                    <div id="resync-controls-{{ thread.id }}" style="display:none;margin-left:8px;">
+                        <button class="btn ghost" data-action="pause" data-thread="{{ thread.id }}">Pause</button>
+                        <button class="btn ghost" data-action="resume" data-thread="{{ thread.id }}" style="display:none">Resume</button>
+                        <button class="btn danger" data-action="stop" data-thread="{{ thread.id }}">Stop</button>
+                    </div>
+                </div>
+                {% else %}
+                -
+                {% endif %}
+                <a href="/forum/thread/{{ thread.id }}/" target="_blank">Open</a>
+                <a class="btn ghost" href="{% url 'forum-mod-thread' thread.id %}">Moderate</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<h3>Forums</h3>
+<ul>
+    {% for forum in forums %}
+    <li>{{ forum.name }} ({{ forum.threads.count }} threads) - Discord forum id: {{ forum.discord_forum_id }}</li>
+    {% endfor %}
+</ul>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+    document.querySelectorAll('form.resync-form').forEach(function(form){
+        form.addEventListener('submit', function(e){
+            e.preventDefault();
+            const threadId = form.getAttribute('data-thread');
+            const url = form.getAttribute('action');
+            const csrftoken = getCookie('csrftoken');
+
+            const pagesVal = (form.querySelector('input[name="pages"]')||{}).value || '';
+            const body = new URLSearchParams();
+            if(pagesVal) body.append('pages', pagesVal);
+            fetch(url, {method: 'POST', headers: {'X-CSRFToken': csrftoken, 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded'}, body: body.toString(), credentials: 'same-origin'})
+            .then(r => r.json())
+            .then(data => {
+                if(data.status === 'started'){
+                    startPolling(threadId);
+                }
+            }).catch(console.error);
+        });
+    });
+
+    function startPolling(threadId){
+        const container = document.getElementById('resync-container-'+threadId);
+        const bar = document.getElementById('resync-bar-'+threadId);
+        const text = document.getElementById('resync-text-'+threadId);
+        const controls = document.getElementById('resync-controls-'+threadId);
+        container.querySelector('.progress').style.display = 'inline-block';
+        controls.style.display = 'inline-block';
+
+        function update(){
+            fetch(`/admin/forum/resync-status/${threadId}/`, {credentials: 'same-origin'})
+            .then(r => r.json())
+            .then(d => {
+                if(d.status !== 'ok'){
+                    text.textContent = 'No active task';
+                    bar.style.width = '0%';
+                    controls.style.display = 'none';
+                    return;
+                }
+                const t = d.task;
+                const total = t.total || 0;
+                const processed = t.processed || 0;
+                const pct = total ? Math.round(processed / total * 100) : (processed?100:0);
+                bar.style.width = pct + '%';
+                text.textContent = `${processed} / ${total} (${t.status})`;
+
+                const pauseBtn = controls.querySelector('button[data-action="pause"]');
+                const resumeBtn = controls.querySelector('button[data-action="resume"]');
+                if(t.status === 'running'){
+                    pauseBtn.style.display = '';
+                    resumeBtn.style.display = 'none';
+                } else if(t.status === 'paused'){
+                    pauseBtn.style.display = 'none';
+                    resumeBtn.style.display = '';
+                }
+
+                if(t.processed >= t.total){
+                    text.textContent = `Done: ${t.processed} / ${t.total}`;
+                    controls.style.display = 'none';
+                    return; // stop polling
+                }
+
+                setTimeout(update, 1000);
+            }).catch(err => {
+                console.error(err);
+                setTimeout(update, 2000);
+            });
+        }
+
+        update();
+    }
+
+    // controls delegate
+    document.body.addEventListener('click', function(e){
+        const btn = e.target.closest('button[data-action]');
+        if(!btn) return;
+        const action = btn.getAttribute('data-action');
+        const threadId = btn.getAttribute('data-thread');
+        const csrftoken = getCookie('csrftoken');
+        fetch(`/admin/forum/resync-${action}/${threadId}/`, {method:'POST', headers: {'X-CSRFToken': csrftoken, 'X-Requested-With': 'XMLHttpRequest'}})
+        .then(r => r.json()).then(d => {
+            // immediate UI update handled by polling
+        }).catch(console.error);
+    });
+});
+</script>
+{% endblock %}

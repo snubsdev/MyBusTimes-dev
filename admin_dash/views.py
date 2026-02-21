@@ -45,6 +45,13 @@ from django.core.mail import EmailMessage
 import zipfile
 import tempfile
 import os
+import threading
+import time
+
+# Simple in-memory resync task tracker. Keyed by thread_id.
+RESYNC_TASKS = {}
+RESYNC_LOCK = threading.Lock()
+POSTS_PER_PAGE = 100
 
 MAX_HISTORY_ROWS_PER_MODEL = 1000
 
@@ -962,6 +969,474 @@ def admin_site_links(request):
         return redirect('/admin/permission-denied/')
     
     return render(request, 'admin_site_links.html')
+
+
+@login_required(login_url='/admin/login/')
+def forum_management_view(request):
+    if not has_permission(request.user, 'forum_manage'):
+        return redirect('/admin/permission-denied/')
+
+    # List forums and threads with discord mappings
+    from forum.models import Forum, Thread
+
+    forums = Forum.objects.all().order_by('order', 'name')
+    threads = Thread.objects.select_related('forum').order_by('-created_at')[:500]
+
+    return render(request, 'forum_management.html', {
+        'forums': forums,
+        'threads': threads,
+    })
+
+
+@login_required(login_url='/admin/login/')
+def forum_mod_threads(request):
+    if not has_permission(request.user, 'forum_manage'):
+        return redirect('/admin/permission-denied/')
+
+    from forum.models import Thread
+
+    search = request.GET.get('search', '').strip()
+    page = int(request.GET.get('page', 1))
+
+    qs = Thread.objects.select_related('forum').order_by('-created_at')
+    if search:
+        qs = qs.filter(Q(title__icontains=search) | Q(created_by__icontains=search) | Q(discord_channel_id__icontains=search))
+
+    paginator = Paginator(qs, 50)
+    threads = paginator.get_page(page)
+
+    return render(request, 'forum_mod_threads.html', {
+        'threads': threads,
+        'search': search,
+    })
+
+
+@login_required(login_url='/admin/login/')
+def forum_mod_thread_detail(request, thread_id):
+    if not has_permission(request.user, 'forum_manage'):
+        return redirect('/admin/permission-denied/')
+
+    from forum.models import Thread, Post
+
+    thread = get_object_or_404(Thread, pk=thread_id)
+
+    # search posts by author
+    author = request.GET.get('author', '').strip()
+    if author:
+        posts_qs = thread.posts.filter(author__icontains=author).order_by('created_at')
+    else:
+        posts_qs = thread.posts.order_by('created_at')
+
+    paginator = Paginator(posts_qs, 200)
+    page = request.GET.get('page')
+    posts = paginator.get_page(page)
+
+    return render(request, 'forum_mod_thread.html', {
+        'thread': thread,
+        'posts': posts,
+        'author_search': author,
+    })
+
+
+@login_required
+@require_POST
+def mod_delete_thread(request, thread_id):
+    if not has_permission(request.user, 'forum_manage'):
+        return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
+
+    from forum.models import Thread
+    th = get_object_or_404(Thread, pk=thread_id)
+    th.delete()
+    messages.success(request, 'Thread deleted')
+    return redirect('/admin/forum/moderation/')
+
+
+@login_required
+@require_POST
+def mod_recreate_thread(request, thread_id):
+    if not has_permission(request.user, 'forum_manage'):
+        return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
+
+    from forum.models import Thread, Post
+    try:
+        th = Thread.objects.get(pk=thread_id)
+    except Thread.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Thread not found'}, status=404)
+    # Read optional pages parameter to limit how many pages to sync after recreate
+    pages = None
+    try:
+        pages = int(request.POST.get('pages') or request.GET.get('pages') or 0)
+        if pages <= 0:
+            pages = None
+    except Exception:
+        pages = None
+
+    # Call the discord bot to create a new thread/channel
+    try:
+        payload = {
+            'title': th.title,
+            'content': th.posts.order_by('created_at').first().content if th.posts.exists() else ''
+        }
+        resp = requests.post(f"{settings.DISCORD_BOT_API_URL}/create-thread", json=payload, timeout=30)
+        resp.raise_for_status()
+        new_channel = resp.json().get('thread_id') or resp.json().get('channel_id')
+        if new_channel:
+            th.discord_channel_id = str(new_channel)
+            th.save(update_fields=['discord_channel_id'])
+            messages.success(request, 'Recreated thread on Discord')
+
+            # start resync in background for the newly created channel (same behavior as resync)
+            t = threading.Thread(target=_resync_thread_background, args=(th.id, 1, pages), daemon=True)
+            t.start()
+        else:
+            messages.error(request, 'Discord API returned no channel id')
+    except Exception as e:
+        messages.error(request, f'Failed to recreate thread: {e}')
+
+    return redirect(f'/admin/forum/moderation/thread/{th.id}/')
+
+
+def _recreate_page_background(task_id, thread_ids, pages_limit=None, sleep_seconds=1):
+    from forum.models import Thread
+    total = len(thread_ids)
+    with RESYNC_LOCK:
+        RESYNC_TASKS[task_id] = {'status': 'running', 'total': total, 'processed': 0}
+
+    for tid in thread_ids:
+        # check for stop
+        with RESYNC_LOCK:
+            task = RESYNC_TASKS.get(task_id)
+        if not task or task.get('status') == 'stopped':
+            break
+
+        try:
+            th = Thread.objects.get(pk=tid)
+        except Thread.DoesNotExist:
+            with RESYNC_LOCK:
+                RESYNC_TASKS[task_id]['processed'] += 1
+            continue
+
+        try:
+            payload = {
+                'title': th.title,
+                'content': th.posts.order_by('created_at').first().content if th.posts.exists() else ''
+            }
+            resp = requests.post(f"{settings.DISCORD_BOT_API_URL}/create-thread", json=payload, timeout=30)
+            resp.raise_for_status()
+            new_channel = resp.json().get('thread_id') or resp.json().get('channel_id')
+            if new_channel:
+                th.discord_channel_id = str(new_channel)
+                th.save(update_fields=['discord_channel_id'])
+                # start per-thread resync for this thread
+                t = threading.Thread(target=_resync_thread_background, args=(th.id, sleep_seconds, pages_limit), daemon=True)
+                t.start()
+        except Exception:
+            pass
+
+        # mark processed for page-level task
+        with RESYNC_LOCK:
+            if task_id in RESYNC_TASKS:
+                RESYNC_TASKS[task_id]['processed'] += 1
+
+        time.sleep(sleep_seconds)
+
+    # mark done
+    with RESYNC_LOCK:
+        if task_id in RESYNC_TASKS:
+            RESYNC_TASKS[task_id]['status'] = 'done'
+
+
+@login_required
+@require_POST
+def mod_recreate_page_api(request):
+    if not has_permission(request.user, 'forum_manage'):
+        return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
+
+    from forum.models import Thread
+
+    page = int(request.POST.get('page') or request.GET.get('page') or 1)
+    search = (request.POST.get('search') or request.GET.get('search') or '').strip()
+
+    qs = Thread.objects.select_related('forum').order_by('-created_at')
+    if search:
+        qs = qs.filter(Q(title__icontains=search) | Q(created_by__icontains=search) | Q(discord_channel_id__icontains=search))
+
+    paginator = Paginator(qs, 50)
+    threads_page = paginator.get_page(page)
+    thread_ids = [t.id for t in threads_page.object_list]
+
+    # optional pages param for per-thread resync
+    pages_limit = None
+    try:
+        pages_limit = int(request.POST.get('pages') or request.GET.get('pages') or 0)
+        if pages_limit <= 0:
+            pages_limit = None
+    except Exception:
+        pages_limit = None
+
+    # create a unique task id
+    task_id = f"page-{int(time.time()*1000)}"
+
+    # start background worker
+    t = threading.Thread(target=_recreate_page_background, args=(task_id, thread_ids, pages_limit), daemon=True)
+    t.start()
+
+    return JsonResponse({'status': 'started', 'task_id': task_id})
+
+
+@login_required
+def recreate_page_status(request, task_id):
+    if not has_permission(request.user, 'forum_manage'):
+        return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
+
+    with RESYNC_LOCK:
+        task = RESYNC_TASKS.get(task_id)
+    if not task:
+        return JsonResponse({'status': 'not_found'})
+    return JsonResponse({'status': 'ok', 'task': task})
+
+
+@login_required
+@require_POST
+def mod_recreate_page(request):
+    if not has_permission(request.user, 'forum_manage'):
+        return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
+
+    from forum.models import Thread
+
+    # read page and search from the form
+    page = int(request.POST.get('page') or request.GET.get('page') or 1)
+    search = (request.POST.get('search') or request.GET.get('search') or '').strip()
+
+    qs = Thread.objects.select_related('forum').order_by('-created_at')
+    if search:
+        qs = qs.filter(Q(title__icontains=search) | Q(created_by__icontains=search) | Q(discord_channel_id__icontains=search))
+
+    paginator = Paginator(qs, 50)
+    threads_page = paginator.get_page(page)
+
+    # optional pages param to pass to the resync worker for each recreated thread
+    pages_limit = None
+    try:
+        pages_limit = int(request.POST.get('pages') or request.GET.get('pages') or 0)
+        if pages_limit <= 0:
+            pages_limit = None
+    except Exception:
+        pages_limit = None
+
+    created = 0
+    for th in threads_page.object_list:
+        try:
+            payload = {
+                'title': th.title,
+                'content': th.posts.order_by('created_at').first().content if th.posts.exists() else ''
+            }
+            resp = requests.post(f"{settings.DISCORD_BOT_API_URL}/create-thread", json=payload, timeout=30)
+            resp.raise_for_status()
+            new_channel = resp.json().get('thread_id') or resp.json().get('channel_id')
+            if new_channel:
+                th.discord_channel_id = str(new_channel)
+                th.save(update_fields=['discord_channel_id'])
+                # start resync in background for the newly created channel
+                t = threading.Thread(target=_resync_thread_background, args=(th.id, 1, pages_limit), daemon=True)
+                t.start()
+                created += 1
+        except Exception:
+            # ignore per-thread failures and continue
+            continue
+
+    messages.success(request, f'Recreated {created} threads on this page (attempted {len(threads_page.object_list)}).')
+    return redirect(f'/admin/forum/moderation/?page={page}&search={search}')
+
+
+@login_required
+@require_POST
+def mod_delete_post(request, post_id):
+    if not has_permission(request.user, 'forum_manage'):
+        return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
+
+    from forum.models import Post
+    post = get_object_or_404(Post, pk=post_id)
+    thread_id = post.thread_id
+    post.delete()
+    messages.success(request, 'Post deleted')
+    return redirect(f'/admin/forum/moderation/thread/{thread_id}/')
+
+
+def _resync_thread_background(thread_id, sleep_seconds=1, pages=None):
+    from forum.models import Thread, Post
+    from django.conf import settings
+    try:
+        th = Thread.objects.get(pk=thread_id)
+    except Thread.DoesNotExist:
+        return
+    if not th.discord_channel_id:
+        with RESYNC_LOCK:
+            RESYNC_TASKS.pop(thread_id, None)
+        return
+
+    # Determine posts to process. If pages specified, take newest `pages` pages worth
+    if pages:
+        try:
+            pages = int(pages)
+        except Exception:
+            pages = None
+
+    if pages and pages > 0:
+        # get newest posts first, up to pages * POSTS_PER_PAGE
+        subset = list(th.posts.order_by('-created_at').all()[: pages * POSTS_PER_PAGE])
+        # we want to send in chronological order within that subset
+        posts = list(reversed(subset))
+    else:
+        posts = list(th.posts.order_by('created_at').all())
+
+    total = len(posts)
+    with RESYNC_LOCK:
+        RESYNC_TASKS[thread_id] = {
+            'status': 'running',
+            'total': total,
+            'processed': 0,
+        }
+    for post in posts:
+        # check for control signals
+        with RESYNC_LOCK:
+            task = RESYNC_TASKS.get(thread_id)
+        if not task:
+            # stopped externally
+            break
+
+        # pause handling
+        while True:
+            with RESYNC_LOCK:
+                task = RESYNC_TASKS.get(thread_id)
+                if not task:
+                    break
+                status = task.get('status')
+            if not task or status == 'stopped':
+                break
+            if status == 'paused':
+                time.sleep(1)
+                continue
+            break
+
+        with RESYNC_LOCK:
+            task = RESYNC_TASKS.get(thread_id)
+            if not task or task.get('status') == 'stopped':
+                break
+
+        try:
+            data = {
+                'channel_id': str(th.discord_channel_id),
+                'send_by': post.author,
+                'message': post.content,
+            }
+
+            files = None
+            if getattr(post, 'image', None):
+                try:
+                    img_path = post.image.path
+                    if os.path.exists(img_path):
+                        files = {'image': (os.path.basename(img_path), open(img_path, 'rb'))}
+                except Exception:
+                    files = None
+
+            # Send via Discord bot API
+            try:
+                requests.post(f"{settings.DISCORD_BOT_API_URL}/send-message", data=data, files=files, timeout=30)
+            except Exception:
+                pass
+
+            # avoid rate limits and be gentle
+            time.sleep(sleep_seconds)
+
+            # mark processed
+            with RESYNC_LOCK:
+                if thread_id in RESYNC_TASKS:
+                    RESYNC_TASKS[thread_id]['processed'] += 1
+        finally:
+            try:
+                if files and isinstance(files.get('image')[1], object):
+                    files.get('image')[1].close()
+            except Exception:
+                pass
+
+
+@login_required
+@require_POST
+def resync_thread(request, thread_id):
+    if not has_permission(request.user, 'forum_manage'):
+        return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
+    # Read optional pages parameter from POST (AJAX) to limit how many pages to sync
+    pages = None
+    try:
+        pages = int(request.POST.get('pages') or request.GET.get('pages') or 0)
+        if pages <= 0:
+            pages = None
+    except Exception:
+        pages = None
+
+    # Start background thread to slowly resend posts
+    t = threading.Thread(target=_resync_thread_background, args=(thread_id, 1, pages), daemon=True)
+    t.start()
+
+    messages.success(request, 'Resync started in background. This may take some time.')
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        return JsonResponse({'status': 'started', 'thread_id': thread_id})
+
+    return redirect('/admin/forum-management/')
+
+
+@login_required
+def resync_status(request, thread_id):
+    if not has_permission(request.user, 'forum_manage'):
+        return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
+
+    with RESYNC_LOCK:
+        task = RESYNC_TASKS.get(thread_id)
+    if not task:
+        return JsonResponse({'status': 'not_found'})
+
+    return JsonResponse({'status': 'ok', 'task': task})
+
+
+@login_required
+@require_POST
+def resync_pause(request, thread_id):
+    if not has_permission(request.user, 'forum_manage'):
+        return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
+    with RESYNC_LOCK:
+        task = RESYNC_TASKS.get(thread_id)
+        if task:
+            task['status'] = 'paused'
+            return JsonResponse({'status': 'paused'})
+    return JsonResponse({'status': 'not_found'})
+
+
+@login_required
+@require_POST
+def resync_resume(request, thread_id):
+    if not has_permission(request.user, 'forum_manage'):
+        return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
+    with RESYNC_LOCK:
+        task = RESYNC_TASKS.get(thread_id)
+        if task:
+            task['status'] = 'running'
+            return JsonResponse({'status': 'running'})
+    return JsonResponse({'status': 'not_found'})
+
+
+@login_required
+@require_POST
+def resync_stop(request, thread_id):
+    if not has_permission(request.user, 'forum_manage'):
+        return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
+    with RESYNC_LOCK:
+        if thread_id in RESYNC_TASKS:
+            RESYNC_TASKS[thread_id]['status'] = 'stopped'
+            # remove task entry after marking stopped
+            RESYNC_TASKS.pop(thread_id, None)
+            return JsonResponse({'status': 'stopped'})
+    return JsonResponse({'status': 'not_found'})
 
 
 @login_required(login_url='/admin/login/')

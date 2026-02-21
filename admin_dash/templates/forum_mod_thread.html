@@ -1,0 +1,147 @@
+{% extends 'adminbase.html' %}
+
+{% block title %}Moderator: Thread {{ thread.id }}{% endblock %}
+
+{% block content %}
+<h2>Thread: {{ thread.title }}</h2>
+<p>Forum: {% if thread.forum %}{{ thread.forum.name }}{% else %}-{% endif %} | Discord Channel: {{ thread.discord_channel_id }}</p>
+
+<div class="controls" style="margin:8px 0">
+    {% if thread.discord_channel_id %}
+    <form class="resync-form" method="post" action="/admin/forum/resync-thread/{{ thread.id }}/" data-thread="{{ thread.id }}" style="display:inline">{% csrf_token %}<input type="number" name="pages" min="1" placeholder="pages" style="width:90px;margin-right:6px" /><button class="btn">Resync Channel</button></form>
+    <div id="resync-container-{{ thread.id }}" style="display:inline-block;margin-left:8px;vertical-align:middle">
+        <div class="progress" style="width:360px;background:#eef2f6;border-radius:6px;display:none">
+            <div id="resync-bar-{{ thread.id }}" style="height:16px;width:0%;background:linear-gradient(90deg,#1070ff,#0b5ed7);border-radius:6px"></div>
+        </div>
+        <span id="resync-text-{{ thread.id }}" style="margin-left:8px;font-size:13px"></span>
+        <div id="resync-controls-{{ thread.id }}" style="display:none;margin-left:8px;">
+            <button class="btn ghost" data-action="pause" data-thread="{{ thread.id }}">Pause</button>
+            <button class="btn ghost" data-action="resume" data-thread="{{ thread.id }}" style="display:none">Resume</button>
+            <button class="btn danger" data-action="stop" data-thread="{{ thread.id }}">Stop</button>
+        </div>
+    </div>
+    {% endif %}
+
+    <form method="post" action="{% url 'forum-mod-recreate-thread' thread.id %}" style="display:inline">{% csrf_token %}<button class="btn">Recreate on Discord</button></form>
+    <form method="post" action="{% url 'forum-mod-delete-thread' thread.id %}" style="display:inline" onsubmit="return confirm('Delete thread?')">{% csrf_token %}<button class="btn danger">Delete Thread</button></form>
+
+</div>
+
+<form method="get" class="search-row">
+    <input name="author" placeholder="Search by author" value="{{ author_search }}">
+    <button class="btn">Search</button>
+</form>
+
+<div class="table-wrap">
+<table class="table">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Author</th>
+            <th>Content</th>
+            <th>Image</th>
+            <th>Created</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for post in posts %}
+        <tr>
+            <td>{{ post.id }}</td>
+            <td>{{ post.author }}</td>
+            <td style="max-width:600px;white-space:normal">{{ post.content|linebreaksbr }}</td>
+            <td>{% if post.image %}<a href="{{ post.image.url }}" target="_blank">Image</a>{% else %}-{% endif %}</td>
+            <td>{{ post.created_at }}</td>
+            <td>
+                <form method="post" action="{% url 'forum-mod-delete-post' post.id %}" style="display:inline" onsubmit="return confirm('Delete post?')">{% csrf_token %}<button class="btn danger">Delete</button></form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
+<div class="controls">
+    {% if posts.has_previous %}
+    <a href="?page={{ posts.previous_page_number }}&author={{ author_search }}" class="btn ghost">Previous</a>
+    {% endif %}
+    <span class="muted">Page {{ posts.number }} / {{ posts.paginator.num_pages }}</span>
+    {% if posts.has_next %}
+    <a href="?page={{ posts.next_page_number }}&author={{ author_search }}" class="btn ghost">Next</a>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Reuse resync controls for moderator thread page
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+    const threadId = '{{ thread.id }}';
+    const resyncForm = document.querySelector('form.resync-form[data-thread="'+threadId+'"]');
+    if(resyncForm){
+        resyncForm.addEventListener('submit', function(e){
+            e.preventDefault();
+            const url = resyncForm.getAttribute('action');
+            const csrftoken = getCookie('csrftoken');
+            const pagesVal = (resyncForm.querySelector('input[name="pages"]')||{}).value || '';
+            const body = new URLSearchParams();
+            if(pagesVal) body.append('pages', pagesVal);
+            fetch(url, {method: 'POST', headers: {'X-CSRFToken': csrftoken, 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded'}, body: body.toString(), credentials: 'same-origin'})
+            .then(r => r.json()).then(data => { if(data.status === 'started'){ startPolling(threadId); } }).catch(console.error);
+    
+        });
+    }
+
+    function startPolling(threadId){
+        const container = document.getElementById('resync-container-'+threadId);
+        const bar = document.getElementById('resync-bar-'+threadId);
+        const text = document.getElementById('resync-text-'+threadId);
+        const controls = document.getElementById('resync-controls-'+threadId);
+        if(!container) return;
+        container.querySelector('.progress').style.display = 'inline-block';
+        controls.style.display = 'inline-block';
+
+        function update(){
+            fetch(`/admin/forum/resync-status/${threadId}/`, {credentials: 'same-origin'})
+            .then(r => r.json()).then(d => {
+                if(d.status !== 'ok'){ text.textContent = 'No active task'; bar.style.width='0%'; controls.style.display='none'; return; }
+                const t = d.task; const total = t.total||0; const processed = t.processed||0; const pct = total?Math.round(processed/total*100):(processed?100:0);
+                bar.style.width = pct+'%'; text.textContent = `${processed} / ${total} (${t.status})`;
+                const pauseBtn = controls.querySelector('button[data-action="pause"]');
+                const resumeBtn = controls.querySelector('button[data-action="resume"]');
+                if(t.status === 'running'){ pauseBtn.style.display=''; resumeBtn.style.display='none'; } else if(t.status === 'paused'){ pauseBtn.style.display='none'; resumeBtn.style.display=''; }
+                if(t.processed >= t.total){ text.textContent = `Done: ${t.processed} / ${t.total}`; controls.style.display='none'; return; }
+                setTimeout(update, 1000);
+            }).catch(err=>{console.error(err); setTimeout(update,2000);});
+        }
+        update();
+    }
+
+    // controls delegate
+    document.body.addEventListener('click', function(e){ const btn = e.target.closest('button[data-action]'); if(!btn) return; const action = btn.getAttribute('data-action'); const tid = btn.getAttribute('data-thread'); const csrftoken = getCookie('csrftoken'); fetch(`/admin/forum/resync-${action}/${tid}/`, {method:'POST', headers:{'X-CSRFToken':csrftoken,'X-Requested-With':'XMLHttpRequest'}}).then(r=>r.json()).catch(console.error); });
+    
+    // on load, check if a task is already running and show progress
+    fetch(`/admin/forum/resync-status/${threadId}/`, {credentials: 'same-origin'})
+    .then(r => r.json()).then(d => {
+        if(d.status === 'ok' && d.task && (d.task.status === 'running' || d.task.status === 'paused')){
+            startPolling(threadId);
+        }
+    }).catch(()=>{});
+    {% endblock %}
+});

@@ -12,6 +12,7 @@ import traceback
 import traceback
 import sys
 import mimetypes
+import logging
 
 #app imports
 from main.models import *
@@ -563,22 +564,48 @@ def send_report_to_discord(report):
     }
 
     files = {}
-    if report.screenshot:
-        mime_type, _ = mimetypes.guess_type(report.screenshot.path)
-        mime_type = mime_type or 'application/octet-stream'
+    file_obj = None
+    try:
+        if report.screenshot:
+            try:
+                # Prefer using storage-backed file open() which works with remote storages
+                filename = os.path.basename(report.screenshot.name)
+                mime_type, _ = mimetypes.guess_type(filename)
+                mime_type = mime_type or 'application/octet-stream'
+                file_obj = report.screenshot.open('rb')
+                files['image'] = (filename, file_obj, mime_type)
+            except NotImplementedError:
+                # Storage backend doesn't support open()/path(); try to fetch via URL
+                try:
+                    url = report.screenshot.url
+                    resp = requests.get(url, timeout=5)
+                    resp.raise_for_status()
+                    from io import BytesIO
+                    file_obj = BytesIO(resp.content)
+                    ct = resp.headers.get('Content-Type') or 'application/octet-stream'
+                    files['image'] = (os.path.basename(url), file_obj, ct)
+                except Exception as e:
+                    print(f"Could not attach screenshot for report {report.id}: {e}")
 
-        files['image'] = (
-            report.screenshot.name,
-            open(report.screenshot.path, 'rb'),
-            mime_type
-        )
+        try:
+            response = requests.post(
+                f"{settings.DISCORD_BOT_API_URL}/send-message",
+                data=data,
+                files=files if files else None,
+                timeout=8,
+            )
+            if not response.ok:
+                print(f"Discord API returned non-OK status: {response.status_code} - {response.text}")
+        except Exception as e:
+            print(f"Failed to send report to Discord: {e}")
 
-    response = requests.post(
-        f"{settings.DISCORD_BOT_API_URL}/send-message",
-        data=data,
-        files=files
-    )
-    response.raise_for_status()
+    finally:
+        # Ensure file-like objects are closed
+        try:
+            if file_obj and hasattr(file_obj, 'close'):
+                file_obj.close()
+        except Exception:
+            pass
 
 @login_required
 def report_view(request):
