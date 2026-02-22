@@ -27,6 +27,7 @@ from fleet.models import mapTileSet
 
 #django imports
 from django.conf import settings
+import logging
 from django.shortcuts import render, redirect
 from django.http import JsonResponse, HttpResponseBadRequest
 from django.views.decorators.http import require_POST
@@ -277,8 +278,18 @@ def transparency(request):
 def get_random_message():
     messages = cache.get('mod_messages')
     if messages is None:
-        with default_storage.open("JSON/mod.json", "r") as f:
-            data = json.load(f)
+        try:
+            with default_storage.open("JSON/mod.json", "r") as f:
+                data = json.load(f)
+        except Exception as e:
+            logging.getLogger(__name__).warning("Could not open JSON/mod.json from storage: %s", e)
+            # Attempt local fallback in project tree
+            local_path = os.path.join(settings.BASE_DIR, 'JSON', 'mod.json')
+            if os.path.exists(local_path):
+                with open(local_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+            else:
+                data = {}
         messages = data.get('messages', [])
         cache.set('mod_messages', messages, 3600)  # Cache for 1 hour
     return random.choice(messages) if messages else "Welcome!"
@@ -320,9 +331,17 @@ def adfirst_test(request):
     for_sale_vehicles = fleet.objects.filter(for_sale=True).order_by('fleet_number').count()
 
     path = "JSON/mod.json"
-
-    with default_storage.open(path, "r") as f:
-        data = json.load(f)
+    try:
+        with default_storage.open(path, "r") as f:
+            data = json.load(f)
+    except Exception as e:
+        logging.getLogger(__name__).warning("Could not open %s from storage: %s", path, e)
+        local_path = os.path.join(settings.BASE_DIR, 'JSON', 'mod.json')
+        if os.path.exists(local_path):
+            with open(local_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        else:
+            data = {}
     messages = data.get('messages', [])
     message = random.choice(messages) if messages else "Welcome!"
 
