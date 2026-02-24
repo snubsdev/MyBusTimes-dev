@@ -200,7 +200,13 @@ class dutyTrip(models.Model):
     history = HistoricalRecords()
 
     def __str__(self):
-        return f"{self.duty.duty_name} - {self.route or 'No Route'} - {self.start_at} to {self.end_at}"
+        try:
+            duty_name = self.duty.duty_name
+        except duty.DoesNotExist:
+            duty_name = '<deleted duty>'
+        except Exception:
+            duty_name = getattr(self, 'duty_id', '<no duty>')
+        return f"{duty_name} - {self.route or 'No Route'} - {self.start_at} to {self.end_at}"
 
 class transitAuthoritiesColour(models.Model):
     authority_code = models.CharField(max_length=100, unique=True)
