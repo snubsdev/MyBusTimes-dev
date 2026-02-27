@@ -36,6 +36,7 @@ from django.core.paginator import Paginator
 from django.utils.dateparse import parse_time
 from simple_history.models import HistoricalRecords
 from django.core.files.storage import default_storage
+from django.conf import settings
 from django.core.cache import cache
 
 # Django REST Framework imports
@@ -75,8 +76,20 @@ def safe_json_load(path, default=None):
     Returns `default` on failure to avoid blowing up the request process.
     """
     try:
+        # Prefer a local MEDIA_ROOT file if it exists (e.g. /media/JSON/features.json)
+        try:
+            media_path = os.path.join(settings.MEDIA_ROOT, path)
+        except Exception:
+            media_path = None
+
+        if media_path and os.path.exists(media_path):
+            with open(media_path, "r") as f:
+                return json.load(f)
+
+        # Fallback to configured storage backend (S3, etc.)
         with default_storage.open(path, "r") as f:
             return json.load(f)
+
     except MemoryError:
         # Very large file; return default and let caller decide how to proceed.
         return default if default is not None else {}
