@@ -493,6 +493,13 @@
 
     const locations = points.map(p => ({ lat: p.lat, lon: p.lon }));
 
+    function getCookie(name) {
+      return document.cookie
+        .split("; ")
+        .find(row => row.startsWith(name + "="))
+        ?.split("=")[1];
+    }
+
     const body = {
         locations: locations,
         costing: "bus",
@@ -512,7 +519,11 @@
     try {
         const res = await fetch(url, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            headers: {
+              "Content-Type": "application/json",
+              "X-CSRFToken": getCookie("csrftoken")
+            },
             body: JSON.stringify(body)
         });
 

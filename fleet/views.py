@@ -38,6 +38,8 @@ from simple_history.models import HistoricalRecords
 from django.core.files.storage import default_storage
 from django.conf import settings
 from django.core.cache import cache
+from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_protect
 
 # Django REST Framework imports
 from rest_framework.exceptions import NotFound
@@ -5944,23 +5946,25 @@ def route_edit_stops(request, operator_slug, route_id, direction):
     }
     return render(request, 'route_edit_route.html', context)
 
-from django.views.decorators.csrf import csrf_exempt
-
-@csrf_exempt
+@login_required
+@require_POST
+@csrf_protect
 def valhalla_proxy(request):
     url = settings.ROUTEING_URL
     headers = {"Content-Type": "application/json"}
 
+    valhalla_user = getattr(settings, "VALHALLA_USER", None)
+    valhalla_pass = getattr(settings, "VALHALLA_PASS", None)
+    auth = (valhalla_user, valhalla_pass) if valhalla_user and valhalla_pass else None
+
     try:
-        r = requests.post(url, data=request.body, headers=headers)
+        r = requests.post(url, data=request.body, headers=headers, auth=auth, timeout=30)
     except Exception as e:
         return JsonResponse({"error": f"Proxy request failed: {e}"}, status=500)
 
-    # Try JSON first
     try:
         return JsonResponse(r.json(), safe=False, status=r.status_code)
     except ValueError:
-        # Fallback: return raw text/HTML from Valhalla
         return HttpResponse(r.text, status=r.status_code)
 
 @login_required
