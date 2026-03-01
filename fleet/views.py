@@ -1589,6 +1589,12 @@ def vehicle_edit(request, operator_slug, vehicle_id):
     operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
     vehicle = get_object_or_404(fleet, id=vehicle_id, operator=operator)
 
+    vehicle = get_object_or_404(fleet, id=vehicle_id)
+
+    if operator != vehicle.operator:
+        messages.error(request, "This vehicle does not belong to the specified operator.")
+        return redirect(f'/operator/{operator_slug}/')
+
     userPerms = get_helper_permissions(request.user, operator)
 
     if request.user != operator.owner and 'Edit Buses' not in userPerms and not request.user.is_superuser:
@@ -4833,6 +4839,11 @@ def vehicle_mass_edit(request, operator_slug):
     vehicle_ids = [int(id.strip()) for id in vehicle_ids_str.split(",") if id.strip().isdigit()]
     vehicles = list(fleet.objects.filter(id__in=vehicle_ids, operator=operator))
 
+    # If some requested IDs were filtered out (i.e. mismatched operator or missing), fail fast.
+    if len(vehicles) != len(vehicle_ids):
+        messages.error(request, "One or more selected vehicles do not belong to the specified operator or could not be found.")
+        return redirect(f'/operator/{operator_slug}/vehicles/')
+
     if not vehicles:
         messages.error(request, "No valid vehicles selected for editing.")
         return redirect(f'/operator/{operator_slug}/vehicles/')
@@ -5339,6 +5350,10 @@ def route_edit(request, operator_slug, route_id):
     
     operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
     route_instance = get_object_or_404(route, id=route_id)
+
+    if operator not in route_instance.route_operators.all():
+        messages.error(request, "This route does not belong to the specified operator.")
+        return redirect(f'/operator/{operator_slug}/')
 
     has_inbound_stops = routeStop.objects.filter(route=route_instance, inbound=True).exists()
     has_outbound_stops = routeStop.objects.filter(route=route_instance, inbound=False).exists()
