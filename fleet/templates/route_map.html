@@ -112,7 +112,7 @@
   btMarkers.forEach(m => m.remove());
   btMarkers = [];
 
-  function createLiveryIcon({ label = '', rotation = 0, bg = '#0000', css = null, textColour = '#fff', textStroke = "#0000", strokeWidth = "0px", carriages = 1 } = {}) {
+  function createLiveryIcon({ label = '', rotation = 0, bg = '#0000', css = null, isColour = false, textColour = '#fff', textStroke = "#0000", strokeWidth = "0px", carriages = 1 } = {}) {
       const normalisedRotation = ((rotation % 360) + 360) % 360;
       const cellRotation = (normalisedRotation < 90 || normalisedRotation > 270) ? 0 : 180;
       const backgroundStyle = css ? `background: ${css};` : `background: ${bg};`;
@@ -120,6 +120,13 @@
       
       // Ensure carriages is at least 1
       const numCarriages = Math.min(16, Math.max(1, parseInt(carriages) || 1));
+      let localTextColour = textColour;
+      let localTextStroke = textStroke;
+      if (isColour) {
+        localTextColour = '#000';
+        localTextStroke = '#fff';
+        strokeWidth = "2px";
+      }
       
       // Build carriage SVGs - last carriage (front) has label, rest are empty
       let carriageSvgs = '';
@@ -127,7 +134,7 @@
         const isLastCarriage = i === numCarriages - 1;
         const carriageLabel = isLastCarriage ? label : '';
         carriageSvgs += `
-          <svg width="24" height="16" class="vehicle-marker" style="stroke: ${textStroke}; text-align: center; ${backgroundStyle} transform: rotate(${cellRotation}deg); border: 1px solid rgba(0,0,0); color: ${textColour}; fill: ${textColour}; stroke-width: ${strokeWidth}; ${i > 0 ? 'margin-left: 3px;' : ''}">
+          <svg width="24" height="16" class="vehicle-marker" style="stroke: ${localTextStroke}; text-align: center; ${backgroundStyle} transform: rotate(${cellRotation}deg); border: 1px solid rgba(0,0,0); color: ${localTextColour}; fill: ${localTextColour}; stroke-width: ${strokeWidth}; ${i > 0 ? 'margin-left: 3px;' : ''}">
             <text x="12" y="12">${carriageLabel}</text>
           </svg>
         `;
@@ -214,6 +221,12 @@
         textColour = '#000';
         css = "#fff";
       }
+
+      // Stroke logic: treat plain-colour liveries as colour-only vehicles
+      let isColour = false;
+      if (vehicleColour && v.vehicle?.livery && v.vehicle?.livery.left_css == '' && v.vehicle?.livery.right_css == '') {
+        isColour = true;
+      }
       
       if (v.vehicle?.css) {
         css = v.vehicle.css;
@@ -245,6 +258,7 @@
         el = createLiveryIcon({
           label: line,
           css,
+          isColour,
           textColour,
           rotation: heading,
           textStroke,

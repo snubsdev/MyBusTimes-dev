@@ -346,9 +346,13 @@
     }
   }
 
-  document.getElementById('closeOperatorFilter').addEventListener('click', () => {
-    document.getElementById('operatorFilterPanel').classList.remove('open');
-  });
+  const closeOperatorFilterBtn = document.getElementById('closeOperatorFilter');
+  if (closeOperatorFilterBtn) {
+    closeOperatorFilterBtn.addEventListener('click', () => {
+      const panel = document.getElementById('operatorFilterPanel');
+      if (panel) panel.classList.remove('open');
+    });
+  }
 
   function buildOperatorListFromVehicles(vehicles) {
     const operatorMap = new Map();
@@ -428,7 +432,7 @@
       });
 
       item.querySelector('input').addEventListener('change', (e) => {
-        handleOperatorToggle(item.dataset.checked, e.target.checked);
+        handleOperatorToggle(item.dataset.slug, e.target.checked);
       });
     });
   }
@@ -463,31 +467,40 @@
     operatorFilterControl.updateBadge(hiddenActiveCount);
   }
 
-  document.getElementById('operatorSearchInput').addEventListener('input', (e) => {
-    operatorSearchTerm = e.target.value;
-    renderOperatorList();
-  });
+  const operatorSearchInput = document.getElementById('operatorSearchInput');
+  if (operatorSearchInput) {
+    operatorSearchInput.addEventListener('input', (e) => {
+      operatorSearchTerm = e.target.value;
+      renderOperatorList();
+    });
+  }
 
-  document.getElementById('showAllOperators').addEventListener('click', () => {
-    const activeSlugs = activeOperators.map(op => op.slug);
-    hiddenOperatorIds = hiddenOperatorIds.filter(slug => !activeSlugs.includes(slug));
-    saveHiddenOperators();
-    updateHiddenBadge();
-    renderOperatorList();
-    renderBTMarkers();
-  });
+  const showAllOperatorsBtn = document.getElementById('showAllOperators');
+  if (showAllOperatorsBtn) {
+    showAllOperatorsBtn.addEventListener('click', () => {
+      const activeSlugs = activeOperators.map(op => op.slug);
+      hiddenOperatorIds = hiddenOperatorIds.filter(slug => !activeSlugs.includes(slug));
+      saveHiddenOperators();
+      updateHiddenBadge();
+      renderOperatorList();
+      renderBTMarkers();
+    });
+  }
 
-  document.getElementById('hideAllOperators').addEventListener('click', () => {
-    for (const op of activeOperators) {
-      if (!hiddenOperatorIds.includes(op.slug)) {
-        hiddenOperatorIds.push(op.slug);
+  const hideAllOperatorsBtn = document.getElementById('hideAllOperators');
+  if (hideAllOperatorsBtn) {
+    hideAllOperatorsBtn.addEventListener('click', () => {
+      for (const op of activeOperators) {
+        if (!hiddenOperatorIds.includes(op.slug)) {
+          hiddenOperatorIds.push(op.slug);
+        }
       }
-    }
-    saveHiddenOperators();
-    updateHiddenBadge();
-    renderOperatorList();
-    renderBTMarkers();
-  });
+      saveHiddenOperators();
+      updateHiddenBadge();
+      renderOperatorList();
+      renderBTMarkers();
+    });
+  }
 
   updateHiddenBadge();
 
@@ -503,11 +516,22 @@
     return `${days} day${days !== 1 ? 's' : ''} ago`;
   }
 
-  function createLiveryIcon({ label = '', rotation = 0, bg = '#0000', css = null, textColour = '#fff', textStroke = "#0000", strokeWidth = "0px", carriages = 1 } = {}) {
+  function createLiveryIcon({ label = '', rotation = 0, bg = '#000', css = null, isColour = false, textColour = '#fff', textStroke = "#0000", strokeWidth = "0px", carriages = 1 } = {}) {
     const normalisedRotation = ((rotation % 360) + 360) % 360;
     const cellRotation = (normalisedRotation < 90 || normalisedRotation > 270) ? 0 : 180;
     const backgroundStyle = css ? `background: ${css};` : `background: ${bg};`;
     const html = document.createElement('div');
+    let localTextColour = textColour;
+    let localTextStroke = textStroke;
+
+    if (isColour) {
+      console.log('Using colour livery for', label, 'with base colour', bg);
+      localTextColour = '#000';
+      localTextStroke = '#fff';
+      strokeWidth = "2px";
+    }
+
+    console.log(css);
 
     const numCarriages = Math.min(16, Math.max(1, parseInt(carriages) || 1));
 
@@ -516,7 +540,7 @@
       const isLastCarriage = i === numCarriages - 1;
       const carriageLabel = isLastCarriage ? label : '';
       carriageSvgs += `
-        <svg width="24" height="16" class="vehicle-marker" style="stroke: ${textStroke}; text-align: center; ${backgroundStyle} transform: rotate(${cellRotation}deg); border: 1px solid rgba(0,0,0); color: ${textColour}; fill: ${textColour}; stroke-width: ${strokeWidth}; ${i > 0 ? 'margin-left: 3px;' : ''}">
+        <svg width="24" height="16" class="vehicle-marker" style="stroke: ${localTextStroke}; text-align: center; ${backgroundStyle} transform: rotate(${cellRotation}deg); border: 1px solid rgba(0,0,0); color: ${localTextColour}; fill: ${localTextColour}; stroke-width: ${strokeWidth}; ${i > 0 ? 'margin-left: 3px;' : ''}">
           <text x="12" y="12">${carriageLabel}</text>
         </svg>
       `;
@@ -578,7 +602,12 @@
         const routeNum = v.tracking_route?.route_num || v.route || '?';
         const veh = v.tracking_vehicle || {};
         const liveryCss = veh.livery?.left_css || veh.livery?.css || veh.livery?.colour || null;
-        const textColour = veh.livery?.text_colour || '#000';
+        let textColour = veh.livery?.text_colour || '#000';
+        let isColour = false;
+
+        if (veh.livery?.colour && !veh.livery.left_css && !veh.livery.right_css && !veh.livery.css) {
+          isColour = true;
+        }
 
         if (vehicleMarkers[id]) {
           const marker = vehicleMarkers[id];
@@ -606,6 +635,7 @@
             bg: veh.livery?.colour || '#ccc',
             css: liveryCss,
             textColour,
+            isColour: isColour,
             rotation: heading
           });
 
@@ -736,6 +766,7 @@
       const whiteText = v.vehicle?.white_text ?? false;
       let textStroke = v.vehicle?.stroke_colour ?? false;
       const livery = v.vehicle?.livery || null;
+      let isColour = false;
 
       heading = heading + 180;
       const rotation = heading;
@@ -743,6 +774,12 @@
 
       const left_css = v.vehicle?.left_css || null;
       const right_css = v.vehicle?.right_css || null;
+
+      if (vehicleColour && v.vehicle?.livery.left_css == '' && v.vehicle?.livery.right_css == '') {
+        isColour = true;
+      }
+
+      console.log(vehicleColour, v.vehicle?.livery.left_css, v.vehicle?.livery.right_css, 'isColour:', isColour);
 
       let css = left_css;
       if (rotation > 180 && rotation < 360) {
@@ -789,7 +826,7 @@
       let el;
       if (showDetailedIcon) {
         el = createLiveryIcon({
-          label: line, css, textColour, rotation: heading, textStroke, strokeWidth, carriages: displayCarriages
+          label: line, css, isColour, textColour, rotation: heading, textStroke, strokeWidth, carriages: displayCarriages
         });
       } else {
         // "Small circles from the first version": simple coloured dot
