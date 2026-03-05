@@ -14,7 +14,8 @@ class Command(BaseCommand):
 
     def handle(self, *args, **kwargs):
         code = kwargs['code']
-        if not code:
+        dry_run = kwargs['dry_run']
+        if not code and not dry_run:
             self.stdout.write(self.style.ERROR("Please provide an operator code using --code"))
             return
 
@@ -34,7 +35,7 @@ class Command(BaseCommand):
 
         # Move them to the selected operator
 
-        if (not kwargs['dry_run']):
+        if (not dry_run):
             for r in unused_routes:
                 r.operators.add(operator)
             self.stdout.write(self.style.SUCCESS(f"Moved {count} unused routes to operator '{operator.operator_name}' (code: {operator.operator_code})."))
