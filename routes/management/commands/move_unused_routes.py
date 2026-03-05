@@ -19,14 +19,15 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR("Please provide an operator code using --code"))
             return
 
-        try:
-            operator = MBTOperator.objects.get(operator_code=code)
-        except MBTOperator.DoesNotExist:
-            self.stdout.write(self.style.ERROR(f"No operator found with code '{code}'"))
-            return
+        if code and not dry_run:
+            try:
+                operator = MBTOperator.objects.get(operator_code=code)
+            except MBTOperator.DoesNotExist:
+                self.stdout.write(self.style.ERROR(f"No operator found with code '{code}'"))
+                return
 
         # Find routes with no operators
-        unused_routes = route.objects.filter(operators__isnull=True)
+        unused_routes = route.objects.filter(route_operators__isnull=True)
         count = unused_routes.count()
 
         if count == 0:
@@ -37,8 +38,8 @@ class Command(BaseCommand):
 
         if (not dry_run):
             for r in unused_routes:
-                r.operators.add(operator)
+                r.route_operators.add(operator)
             self.stdout.write(self.style.SUCCESS(f"Moved {count} unused routes to operator '{operator.operator_name}' (code: {operator.operator_code})."))
         else:
-            self.stdout.write(self.style.SUCCESS(f"[DRY RUN] Would move {count} unused routes to operator '{operator.operator_name}' (code: {operator.operator_code})."))
+            self.stdout.write(self.style.SUCCESS(f"[DRY RUN] Would move {count} unused routes to operator 'DRY RUN' (code: DRY RUN)."))
         
