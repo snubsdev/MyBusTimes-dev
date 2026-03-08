@@ -2,6 +2,7 @@ from boto3.s3.transfer import TransferConfig
 from dotenv import load_dotenv
 from pathlib import Path
 import os
+import urllib.parse as urlparse
 
 from django.utils.translation import gettext_lazy as _
 
@@ -248,45 +249,73 @@ CHANNEL_LAYERS = {
 try:
     from .settings_local import *
 except ImportError:
-    if os.getenv("DB_REPLICA_HOST") == "True":
-        DATABASE_ROUTERS = ["mybustimes.db_router.PrimaryReplicaRouter"]
-
-        DATABASES = {
-            "default": {  # PRIMARY (BM2)
-                "ENGINE": "django.db.backends.postgresql",
-                'NAME': os.getenv("DB_NAME"),
-                'USER': os.getenv("DB_USER"),
-                'PASSWORD': os.getenv("DB_PASSWORD"),
-                'HOST': os.getenv("DB_HOST_PRIMARY"),
-                'PORT': os.getenv("DB_PORT"),
-                "CONN_MAX_AGE": 60,
-                "DISABLE_SERVER_SIDE_CURSORS": True,
-            },
-
-            "replica": {  # READ ONLY (BM1)
-                "ENGINE": "django.db.backends.postgresql",
-                'NAME': os.getenv("DB_NAME"),
-                'USER': os.getenv("DB_USER"),
-                'PASSWORD': os.getenv("DB_PASSWORD"),
-                'HOST': os.getenv("DB_HOST_REPLICA"),
-                'PORT': os.getenv("DB_PORT"),
-                "CONN_MAX_AGE": 60,
-                "DISABLE_SERVER_SIDE_CURSORS": True,
-            },
+    def _parse_database_url(db_url):
+        p = urlparse.urlparse(db_url)
+        engine = "django.db.backends.postgresql" if p.scheme and p.scheme.startswith("postgres") else "django.db.backends.sqlite3"
+        return {
+            "ENGINE": engine,
+            "NAME": p.path.lstrip("/"),
+            "USER": urlparse.unquote(p.username) if p.username else None,
+            "PASSWORD": urlparse.unquote(p.password) if p.password else None,
+            "HOST": p.hostname,
+            "PORT": p.port,
+            "CONN_MAX_AGE": 60,
+            "DISABLE_SERVER_SIDE_CURSORS": True,
         }
-    else:
-        DATABASES = {
-            'default': {
-                'ENGINE': 'django.db.backends.postgresql',
-                'NAME': os.getenv("DB_NAME"),
-                'USER': os.getenv("DB_USER"),
-                'PASSWORD': os.getenv("DB_PASSWORD"),
-                'HOST': os.getenv("DB_HOST"),
-                'PORT': os.getenv("DB_PORT"),
-                "CONN_MAX_AGE": 60,
-                "DISABLE_SERVER_SIDE_CURSORS": True,
+
+    # Allow a single DATABASE_URL (and optional DATABASE_REPLICA_URL) in .env
+    _database_url = os.getenv("DATABASE_URL")
+    if _database_url:
+        if os.getenv("DB_REPLICA_HOST") == "True" and os.getenv("DATABASE_REPLICA_URL"):
+            DATABASE_ROUTERS = ["mybustimes.db_router.PrimaryReplicaRouter"]
+            DATABASES = {
+                "default": _parse_database_url(_database_url),
+                "replica": _parse_database_url(os.getenv("DATABASE_REPLICA_URL")),
             }
-        }
+        else:
+            DATABASES = {"default": _parse_database_url(_database_url)}
+
+    # Fall back to the existing individual env var configuration when no DATABASE_URL
+    if not _database_url:
+        if os.getenv("DB_REPLICA_HOST") == "True":
+            DATABASE_ROUTERS = ["mybustimes.db_router.PrimaryReplicaRouter"]
+
+            DATABASES = {
+                "default": {  # PRIMARY (BM2)
+                    "ENGINE": "django.db.backends.postgresql",
+                    'NAME': os.getenv("DB_NAME"),
+                    'USER': os.getenv("DB_USER"),
+                    'PASSWORD': os.getenv("DB_PASSWORD"),
+                    'HOST': os.getenv("DB_HOST_PRIMARY"),
+                    'PORT': os.getenv("DB_PORT"),
+                    "CONN_MAX_AGE": 60,
+                    "DISABLE_SERVER_SIDE_CURSORS": True,
+                },
+
+                "replica": {  # READ ONLY (BM1)
+                    "ENGINE": "django.db.backends.postgresql",
+                    'NAME': os.getenv("DB_NAME"),
+                    'USER': os.getenv("DB_USER"),
+                    'PASSWORD': os.getenv("DB_PASSWORD"),
+                    'HOST': os.getenv("DB_HOST_REPLICA"),
+                    'PORT': os.getenv("DB_PORT"),
+                    "CONN_MAX_AGE": 60,
+                    "DISABLE_SERVER_SIDE_CURSORS": True,
+                },
+            }
+        else:
+            DATABASES = {
+                'default': {
+                    'ENGINE': 'django.db.backends.postgresql',
+                    'NAME': os.getenv("DB_NAME"),
+                    'USER': os.getenv("DB_USER"),
+                    'PASSWORD': os.getenv("DB_PASSWORD"),
+                    'HOST': os.getenv("DB_HOST"),
+                    'PORT': os.getenv("DB_PORT"),
+                    "CONN_MAX_AGE": 60,
+                    "DISABLE_SERVER_SIDE_CURSORS": True,
+                }
+            }
 
     for db_alias in DATABASES:
         DATABASES[db_alias]["OPTIONS"] = {
