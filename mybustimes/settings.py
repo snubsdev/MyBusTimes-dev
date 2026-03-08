@@ -16,6 +16,29 @@ DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
 SECRET_KEY = os.environ["SECRET_KEY"]
 ALLOWED_HOSTS = ['*']
 
+
+def _env_float(name, default):
+    try:
+        return float(os.getenv(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _env_int(name, default):
+    try:
+        return int(os.getenv(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+MEMORY_DIAGNOSTICS_ENABLED = os.getenv("MEMORY_DIAGNOSTICS_ENABLED", "False").lower() in ("true", "1", "yes")
+MEMORY_DIAGNOSTICS_THRESHOLD_MB = _env_float("MEMORY_DIAGNOSTICS_THRESHOLD_MB", 500.0)
+MEMORY_DIAGNOSTICS_DELTA_MB = _env_float("MEMORY_DIAGNOSTICS_DELTA_MB", 100.0)
+MEMORY_DIAGNOSTICS_SAMPLE_RATE = min(max(_env_float("MEMORY_DIAGNOSTICS_SAMPLE_RATE", 1.0), 0.0), 1.0)
+MEMORY_DIAGNOSTICS_TRACE_LIMIT = max(_env_int("MEMORY_DIAGNOSTICS_TRACE_LIMIT", 8), 1)
+MEMORY_DIAGNOSTICS_TRACE_FRAMES = max(_env_int("MEMORY_DIAGNOSTICS_TRACE_FRAMES", 25), 1)
+MEMORY_DIAGNOSTICS_IGNORED_PATH_PREFIXES = ('/static/', '/media/', '/favicon.ico', '/robots.txt')
+
 DISCORD_GUILD_ID = os.environ["DISCORD_GUILD_ID"]
 DISCORD_BOT_TOKEN = os.environ["DISCORD_BOT_API_TOKEN"]
 
@@ -412,6 +435,11 @@ LOGGING = {
         'level': 'INFO',
     },
     'loggers': {
+        'memory_diagnostics': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
         'mozilla_django_oidc': {
             'handlers': ['console'],
             'level': 'DEBUG',

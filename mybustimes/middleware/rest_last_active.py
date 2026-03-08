@@ -1,6 +1,10 @@
+import logging
 import ipaddress
 import uuid
 import hashlib
+import random
+import time
+import tracemalloc
 from django.utils import timezone
 from django.db.models import F
 from django.conf import settings
@@ -11,6 +15,70 @@ from django.core.cache import cache
 
 # Import DeviceBan model for banning by device fingerprint
 from main.models import DeviceBan, Device, DeviceUsage
+
+try:
+    import psutil
+except ImportError:  # pragma: no cover - handled gracefully if dependency is missing
+    psutil = None
+
+
+memory_logger = logging.getLogger('memory_diagnostics')
+DEFAULT_MEMORY_IGNORED_PATH_PREFIXES = ('/static/', '/media/', '/favicon.ico', '/robots.txt')
+
+
+def _bytes_to_mb(value):
+    if value is None:
+        return None
+    return value / (1024 * 1024)
+
+
+def _format_mb(value):
+    if value is None:
+        return 'n/a'
+    return f'{_bytes_to_mb(value):.1f}MB'
+
+
+def _get_rss_bytes(process):
+    if process is None:
+        return None
+
+    try:
+        return process.memory_info().rss
+    except Exception:
+        return None
+
+
+def _should_profile_request(request):
+    if not getattr(settings, 'MEMORY_DIAGNOSTICS_ENABLED', False):
+        return False
+
+    ignored_prefixes = tuple(
+        getattr(settings, 'MEMORY_DIAGNOSTICS_IGNORED_PATH_PREFIXES', DEFAULT_MEMORY_IGNORED_PATH_PREFIXES)
+    )
+    if ignored_prefixes and request.path.startswith(ignored_prefixes):
+        return False
+
+    sample_rate = getattr(settings, 'MEMORY_DIAGNOSTICS_SAMPLE_RATE', 1.0)
+    if sample_rate <= 0:
+        return False
+    if sample_rate >= 1:
+        return True
+
+    return random.random() <= sample_rate
+
+
+def _log_top_allocations():
+    if not tracemalloc.is_tracing():
+        return
+
+    limit = max(getattr(settings, 'MEMORY_DIAGNOSTICS_TRACE_LIMIT', 8), 1)
+
+    try:
+        snapshot = tracemalloc.take_snapshot()
+        for index, stat in enumerate(snapshot.statistics('lineno')[:limit], start=1):
+            memory_logger.warning('[MEM] top_alloc_%s %s', index, stat)
+    except Exception as exc:
+        memory_logger.warning('[MEM] failed_to_capture_tracemalloc_snapshot error=%s', exc)
 
 
 def is_cloudflare_ip(ip):
@@ -154,10 +222,32 @@ class ResetProMiddleware:
 class UpdateLastActiveMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
+        self._memory_process = psutil.Process() if psutil and getattr(settings, 'MEMORY_DIAGNOSTICS_ENABLED', False) else None
+
+        if getattr(settings, 'MEMORY_DIAGNOSTICS_ENABLED', False):
+            if psutil is None:
+                memory_logger.warning('[MEM] diagnostics_enabled_without_psutil rss_logging_disabled=true')
+
+            trace_frames = max(getattr(settings, 'MEMORY_DIAGNOSTICS_TRACE_FRAMES', 25), 1)
+            if not tracemalloc.is_tracing():
+                tracemalloc.start(trace_frames)
 
     def __call__(self, request):
+        memory_profile = None
+        if _should_profile_request(request):
+            memory_profile = {
+                'started_at': time.perf_counter(),
+                'rss_before': _get_rss_bytes(self._memory_process),
+            }
+
         # Process the request and get the response
-        response = self.get_response(request)
+        try:
+            response = self.get_response(request)
+        except Exception as exc:
+            self._log_memory_profile(request, response=None, profile=memory_profile, exception=exc)
+            raise
+
+        self._log_memory_profile(request, response=response, profile=memory_profile)
         
         # Post-processing: set device fingerprint cookie if generated
         gen = getattr(request, '_generated_device_fp', None)
@@ -245,8 +335,53 @@ class UpdateLastActiveMiddleware:
         
         return response
 
+    def _log_memory_profile(self, request, response, profile, exception=None):
+        if not profile:
+            return
+
+        rss_after = _get_rss_bytes(self._memory_process)
+        rss_before = profile.get('rss_before')
+        rss_delta = None if rss_before is None or rss_after is None else rss_after - rss_before
+        duration_ms = (time.perf_counter() - profile['started_at']) * 1000
+
+        threshold_bytes = int(getattr(settings, 'MEMORY_DIAGNOSTICS_THRESHOLD_MB', 500) * 1024 * 1024)
+        delta_threshold_bytes = int(getattr(settings, 'MEMORY_DIAGNOSTICS_DELTA_MB', 100) * 1024 * 1024)
+
+        over_absolute_threshold = rss_after is not None and rss_after >= threshold_bytes
+        over_delta_threshold = rss_delta is not None and rss_delta >= delta_threshold_bytes
+
+        status_code = getattr(response, 'status_code', 500)
+        view_name = getattr(request, '_memory_view_name', None)
+        if not view_name:
+            resolver_match = getattr(request, 'resolver_match', None)
+            view_name = getattr(resolver_match, 'view_name', None) or 'unknown'
+
+        level = logging.INFO
+        if exception is not None:
+            level = logging.ERROR
+        elif over_absolute_threshold or over_delta_threshold:
+            level = logging.WARNING
+
+        memory_logger.log(
+            level,
+            '[MEM] method=%s path=%s view=%s status=%s duration_ms=%.1f rss_before=%s rss_after=%s rss_delta=%s exception=%s',
+            request.method,
+            request.path,
+            view_name,
+            status_code,
+            duration_ms,
+            _format_mb(rss_before),
+            _format_mb(rss_after),
+            _format_mb(rss_delta),
+            exception.__class__.__name__ if exception else 'none',
+        )
+
+        if over_absolute_threshold or over_delta_threshold or exception is not None:
+            _log_top_allocations()
+
     def process_view(self, request, view_func, view_args, view_kwargs):
         """Pre-process before view is called. Return None to continue, or HttpResponse to short-circuit."""
+        request._memory_view_name = f'{view_func.__module__}.{getattr(view_func, "__name__", view_func.__class__.__name__)}'
         
         # Update last_active for authenticated users - but only if >1 minute since last update
         # This reduces database writes significantly
