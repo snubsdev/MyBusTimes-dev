@@ -5,6 +5,7 @@ import os
 import urllib.parse as urlparse
 
 from django.utils.translation import gettext_lazy as _
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -262,60 +263,19 @@ except ImportError:
             "CONN_MAX_AGE": 60,
             "DISABLE_SERVER_SIDE_CURSORS": True,
         }
-
-    # Allow a single DATABASE_URL (and optional DATABASE_REPLICA_URL) in .env
+    # Require a single DATABASE_URL (and optional DATABASE_REPLICA_URL) in .env
     _database_url = os.getenv("DATABASE_URL")
-    if _database_url:
-        if os.getenv("DB_REPLICA_HOST") == "True" and os.getenv("DATABASE_REPLICA_URL"):
-            DATABASE_ROUTERS = ["mybustimes.db_router.PrimaryReplicaRouter"]
-            DATABASES = {
-                "default": _parse_database_url(_database_url),
-                "replica": _parse_database_url(os.getenv("DATABASE_REPLICA_URL")),
-            }
-        else:
-            DATABASES = {"default": _parse_database_url(_database_url)}
-
-    # Fall back to the existing individual env var configuration when no DATABASE_URL
     if not _database_url:
-        if os.getenv("DB_REPLICA_HOST") == "True":
-            DATABASE_ROUTERS = ["mybustimes.db_router.PrimaryReplicaRouter"]
+        raise ImproperlyConfigured("DATABASE_URL must be set in the environment or provided via settings_local.py")
 
-            DATABASES = {
-                "default": {  # PRIMARY (BM2)
-                    "ENGINE": "django.db.backends.postgresql",
-                    'NAME': os.getenv("DB_NAME"),
-                    'USER': os.getenv("DB_USER"),
-                    'PASSWORD': os.getenv("DB_PASSWORD"),
-                    'HOST': os.getenv("DB_HOST_PRIMARY"),
-                    'PORT': os.getenv("DB_PORT"),
-                    "CONN_MAX_AGE": 60,
-                    "DISABLE_SERVER_SIDE_CURSORS": True,
-                },
-
-                "replica": {  # READ ONLY (BM1)
-                    "ENGINE": "django.db.backends.postgresql",
-                    'NAME': os.getenv("DB_NAME"),
-                    'USER': os.getenv("DB_USER"),
-                    'PASSWORD': os.getenv("DB_PASSWORD"),
-                    'HOST': os.getenv("DB_HOST_REPLICA"),
-                    'PORT': os.getenv("DB_PORT"),
-                    "CONN_MAX_AGE": 60,
-                    "DISABLE_SERVER_SIDE_CURSORS": True,
-                },
-            }
-        else:
-            DATABASES = {
-                'default': {
-                    'ENGINE': 'django.db.backends.postgresql',
-                    'NAME': os.getenv("DB_NAME"),
-                    'USER': os.getenv("DB_USER"),
-                    'PASSWORD': os.getenv("DB_PASSWORD"),
-                    'HOST': os.getenv("DB_HOST"),
-                    'PORT': os.getenv("DB_PORT"),
-                    "CONN_MAX_AGE": 60,
-                    "DISABLE_SERVER_SIDE_CURSORS": True,
-                }
-            }
+    if os.getenv("DB_REPLICA_HOST") == "True" and os.getenv("DATABASE_REPLICA_URL"):
+        DATABASE_ROUTERS = ["mybustimes.db_router.PrimaryReplicaRouter"]
+        DATABASES = {
+            "default": _parse_database_url(_database_url),
+            "replica": _parse_database_url(os.getenv("DATABASE_REPLICA_URL")),
+        }
+    else:
+        DATABASES = {"default": _parse_database_url(_database_url)}
 
     for db_alias in DATABASES:
         db = DATABASES[db_alias]
@@ -324,10 +284,12 @@ except ImportError:
         # Only set the statement_timeout startup option for real Postgres
         # servers. pgbouncer rejects startup parameters like this, so
         # skip adding it when the host looks like pgbouncer.
-        if engine.startswith("django.db.backends.postgresql") and "pgbouncer" not in host:
-            opts = db.get("OPTIONS", {})
-            opts.update({"options": "-c statement_timeout=30000"})
-            db["OPTIONS"] = opts
+        if engine.startswith("django.db.backends.postgresql"):
+            skip_keywords = ("pgbouncer", "proxy", "railway", "rlwy")
+            if not any(k in host for k in skip_keywords):
+                opts = db.get("OPTIONS", {})
+                opts.update({"options": "-c statement_timeout=30000"})
+                db["OPTIONS"] = opts
 
 AUTH_PASSWORD_VALIDATORS = [
     {
