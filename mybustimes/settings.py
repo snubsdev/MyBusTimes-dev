@@ -318,9 +318,16 @@ except ImportError:
             }
 
     for db_alias in DATABASES:
-        DATABASES[db_alias]["OPTIONS"] = {
-            "options": "-c statement_timeout=30000"
-        }
+        db = DATABASES[db_alias]
+        engine = db.get("ENGINE", "")
+        host = (db.get("HOST") or "").lower()
+        # Only set the statement_timeout startup option for real Postgres
+        # servers. pgbouncer rejects startup parameters like this, so
+        # skip adding it when the host looks like pgbouncer.
+        if engine.startswith("django.db.backends.postgresql") and "pgbouncer" not in host:
+            opts = db.get("OPTIONS", {})
+            opts.update({"options": "-c statement_timeout=30000"})
+            db["OPTIONS"] = opts
 
 AUTH_PASSWORD_VALIDATORS = [
     {
