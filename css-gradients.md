@@ -1,8 +1,20 @@
-# How to make a CSS livery
+# MyTransportTimes Livery Team Training Guide
 
-## 1. Basic CSS gradients
 
-### 1.1 Straight lines (2 colours)
+- [How to make livery](#how-to-make-a-css-livery)
+   - [1 Straight lines]()
+       - [1.1 Stacking Gradients](#11-straight-lines-2-colours)
+       - [1.2 More Colours](#12-more-colours)
+       - [1.3 Stacking Gradients](#13-stacking-gradients)
+       - [1.4 Gradient directions](#14-gradient-directions)
+   - [2. Radial Gradients](#2-radial-gradients)
+        - [2.1 Radial gradients](#21-radial-gradients)
+
+## How to make a CSS livery
+
+### 1. Basic CSS gradients
+
+#### 1.1 Straight lines (2 colours)
 
 The most basic for of CSS gradients is the linear gradient
 
@@ -22,7 +34,7 @@ linear-gradient  /*This is the type of gradient*/
 
 We dont need to add 0% or 100% to these because it is just the 2 colours.
 
-### 1.2 More Colours
+#### 1.2 More Colours
 If we add a 3rd colour we would need to define where that colour starts and where it ends.
 
 brakedown:<br>
@@ -37,7 +49,7 @@ linear-gradient      /*This is the type of gradient*/
 
 Here we have to tell it that we want the colour #ff0000 to start at 45% and go until 55%.
 
-### 1.3 Stacking Gradients
+#### 1.3 Stacking Gradients
 We can also stack gradients to create diffrent shapes.
 
 Example:
@@ -70,16 +82,17 @@ linear-gradient
 Here we use a , to start two CSS gradients on top of each other.<br>
 We use transparent / #0000 to allow the other gradient underneath to show.
 
-### 1.4 Gradient directions
+#### 1.4 Gradient directions
 
 With CSS gradients we have 2 main options for defining there there directions
 
 1. We can use terms such as "to top", "to bottom", "to top left"
 2. We can also define a spacfic angle be using "20deg", This allows us to set it to any angle we want
 
-## 2. Radial Gradients
+### 2. Radial Gradients
 
-2.1 Radial gradients allow us to make ellipse and circles and can stacked in the same way as a linear gradient.<br>
+#### 2.1 Radial gradients
+Radial gradients allow us to make ellipse and circles and can stacked in the same way as a linear gradient.<br>
 You can also stack any type of gradient on top of any other types
 
 Examples:
