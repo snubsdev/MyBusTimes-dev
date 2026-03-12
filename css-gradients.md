@@ -1,24 +1,33 @@
 # MyTransportTimes Livery Team Training Guide
 - [How to make livery](#how-to-make-a-css-livery)
-   - [1 Straight lines]()
-       - [1.1 Stacking Gradients](#11-straight-lines-2-colours)
+   - [1. Basic CSS Gradients](#1-basic-css-gradients)
+       - [1.1 Straight lines (2 colours)](#11-straight-lines-2-colours)
        - [1.2 More Colours](#12-more-colours)
        - [1.3 Stacking Gradients](#13-stacking-gradients)
        - [1.4 Gradient directions](#14-gradient-directions)
    - [2. Radial Gradients](#2-radial-gradients)
-        - [2.1 Radial gradients](#21-radial-gradients)
-        - [2.2 Radial gradient position](#22-radial-gradient-position)
-        - [2.3 Radial gradient examples](#23-radial-gradient-examples)
+       - [2.1 Radial gradients](#21-radial-gradients)
+       - [2.2 Radial gradient position](#22-radial-gradient-position)
+       - [2.3 Radial gradient examples](#23-radial-gradient-examples)
    - [3. Conic Gradients](#3-conic-gradients)
-        - [3.1 What is a conic gradient?](#31-what-is-a-conic-gradient)
-        - [3.2 Conic gradient position and start angle](#32-conic-gradient-position-and-start-angle)
-        - [3.3 Stacking conic gradients](#33-stacking-conic-gradients)
-        - [3.4 Repeating conic gradients](#34-repeating-conic-gradients)
-        - [3.5 Conic gradient examples](#35-conic-gradient-examples)
+       - [3.1 What is a conic gradient?](#31-what-is-a-conic-gradient)
+       - [3.2 Conic gradient position and start angle](#32-conic-gradient-position-and-start-angle)
+       - [3.3 Stacking conic gradients](#33-stacking-conic-gradients)
+       - [3.4 Repeating conic gradients](#34-repeating-conic-gradients)
+       - [3.5 Conic gradient examples](#35-conic-gradient-examples)
    - [4. Flipping Liverys](#4-flipping-liverys)
-        - [4.1 Flipping linear gradients](#41-flipping-linear-gradients)
-        - [4.2 Flipping radial gradients](#42-flipping-radial-gradients)
-        - [4.3 Flipping conic gradients](#43-flipping-conic-gradients)
+       - [4.1 Flipping linear gradients](#41-flipping-linear-gradients)
+       - [4.2 Flipping radial gradients](#42-flipping-radial-gradients)
+       - [4.3 Flipping conic gradients](#43-flipping-conic-gradients)
+- [Handling Tickets](#5-handling-tickets)
+   - [5.1 General Conduct](#51-general-conduct)
+   - [5.2 Claiming and Unclaiming Tickets](#52-claiming-and-unclaiming-tickets)
+   - [5.3 What to Ask the Member](#53-what-to-ask-the-member)
+   - [5.4 Handing Off a Ticket](#54-handing-off-a-ticket)
+- [Approving and Declining Liverys](#6-approving-and-declining-liverys)
+   - [6.1 When to Decline a Livery](#61-when-to-decline-a-livery)
+   - [6.2 When to Edit Rather Than Decline](#62-when-to-edit-rather-than-decline)
+   - [6.3 Summary](#63-summary)
 
 ## How to make a CSS livery
 ### 1. Basic CSS gradients
@@ -360,3 +369,80 @@ Changes made:
 - Radial X positions also updated to match (68% → 32%)
 
 **General tip for conic flips:** work through each layer one at a time, adjust the `at X%`, adjust the `from` angle, then check whether the stop order needs reversing.
+
+---
+
+## 5. Handling Tickets
+
+### 5.1 General Conduct
+
+Staff should **always** remain kind and respectful when handling tickets, regardless of the situation.
+
+### 5.2 Claiming and Unclaiming Tickets
+
+If you are not going to be able to complete a ticket, or need someone else to take over, please **unclaim it** and make it clear that it is available for another team member to pick up.
+
+### 5.3 What to Ask the Member
+
+When a ticket is opened, please ask the member for the following:
+
+- A **photo of the livery** they want recreated
+- The **hex / RGB colour codes** if they know them — ask them to send these along too
+
+### 5.4 Handing Off a Ticket
+
+Once you have made the livery, please send:
+
+- A **photo of the completed livery**
+- The **CSS for both the left and right sides**
+
+This ensures that if you need to unclaim the ticket, another team member can pick up exactly where you left off.
+
+---
+
+## 6. Approving and Declining Liverys
+
+### 6.1 When to Decline a Livery
+
+Decline a livery submission if **any** of the following apply:
+
+- It has an **inappropriate name**
+- It is **missing one of the two sides** (left or right)
+- The **two sides are completely different** from each other
+- It has **no name**
+- The name is **just a hex code** — e.g. `#ffffff`
+- The name is **just a colour word** — e.g. `white`, `black`
+
+### 6.2 When to Edit Rather Than Decline
+
+In many cases a livery should be **edited rather than declined** — only decline when there is no reasonable way to fix it yourself.
+
+#### Flipped Sides
+If only **one side is flipped** when it shouldn't be (or isn't flipped when it should be), please flip it yourself. There is no need to decline a livery that can simply be corrected.
+
+#### Missing Blob
+If the livery is **missing a blob** (the coloured circle), please add one. It should be the **main colour of the livery**.
+
+#### Text and Stroke Colour
+
+**Text colour:** In 99% of cases, the text colour should be either **white** or **black**. If it is anything else, please edit it to be one or the other.
+
+**Stroke colour:** The cleanest option is to use the **main background colour that the text sits on top of** as the stroke colour. If this makes the text hard to read, use one of the following combinations — whichever is easier to read:
+
+- White text with black stroke
+- Black text with white stroke
+
+### 6.3 Summary
+
+| Situation | Action |
+|---|---|
+| Inappropriate name | ❌ Decline |
+| Missing a side | ❌ Decline |
+| Both sides completely different | ❌ Decline |
+| No name | ❌ Decline |
+| Name is a hex code or colour word | ❌ Decline |
+| One side not flipped | ✏️ Fix it — flip the side |
+| Missing blob | ✏️ Fix it — add the main colour |
+| Text colour not white or black | ✏️ Fix it — change to white or black |
+| Stroke colour hard to read | ✏️ Fix it — use best contrast combination |
+| Everything looks good | ✅ Approve |
