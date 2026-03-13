@@ -161,6 +161,90 @@ function createSimpleCircle({ colour = '#000', borderColour = '#000' } = {}) {
   return el;
 }
 
+function normaliseApiUrl(url) {
+  if (!url) return null;
+
+  try {
+    const parsed = new URL(url, window.location.origin);
+
+    // Some API responses return http links even on https pages.
+    if (parsed.hostname === window.location.hostname) {
+      parsed.protocol = window.location.protocol;
+    }
+
+    return parsed.toString();
+  } catch (err) {
+    return url;
+  }
+}
+
+async function fetchPaginatedResults(initialUrl) {
+  const firstUrl = normaliseApiUrl(initialUrl);
+  if (!firstUrl) return [];
+
+  const firstRes = await fetch(firstUrl);
+  if (!firstRes.ok) {
+    throw new Error(`Request failed (${firstRes.status}) for ${firstUrl}`);
+  }
+
+  const firstData = await firstRes.json();
+  if (Array.isArray(firstData)) {
+    return firstData;
+  }
+
+  const combinedResults = Array.isArray(firstData.results) ? [...firstData.results] : [];
+  if (!firstData.next) {
+    return combinedResults;
+  }
+
+  const firstUrlObj = new URL(firstUrl, window.location.origin);
+  const nextUrlObj = new URL(normaliseApiUrl(firstData.next), window.location.origin);
+
+  const totalCount = Number.isFinite(firstData.count) ? firstData.count : combinedResults.length;
+  const initialOffset = Number(firstUrlObj.searchParams.get('offset') || '0');
+  const limit = Number(
+    nextUrlObj.searchParams.get('limit') ||
+    firstUrlObj.searchParams.get('limit') ||
+    combinedResults.length ||
+    100
+  );
+
+  if (!limit || totalCount <= combinedResults.length) {
+    return combinedResults;
+  }
+
+  const offsets = [];
+  for (let offset = initialOffset + limit; offset < initialOffset + totalCount; offset += limit) {
+    offsets.push(offset);
+  }
+
+  const concurrency = 3;
+  for (let i = 0; i < offsets.length; i += concurrency) {
+    const batchOffsets = offsets.slice(i, i + concurrency);
+    const batchResponses = await Promise.all(
+      batchOffsets.map(async (offset) => {
+        const pageUrl = new URL(firstUrlObj.toString());
+        pageUrl.searchParams.set('offset', String(offset));
+        pageUrl.searchParams.set('limit', String(limit));
+
+        const res = await fetch(normaliseApiUrl(pageUrl.toString()));
+        if (!res.ok) {
+          throw new Error(`Request failed (${res.status}) for ${pageUrl.toString()}`);
+        }
+
+        const data = await res.json();
+        return Array.isArray(data.results) ? data.results : [];
+      })
+    );
+
+    for (const pageResults of batchResponses) {
+      combinedResults.push(...pageResults);
+    }
+  }
+
+  return combinedResults;
+}
+
 //
 // ------------------------------
 //         VEHICLE TRACKING
@@ -300,9 +384,9 @@ async function loadOperatorRoutes() {
   routeLayers = [];
 
   // Fetch operator routes
-  const res = await fetch(`/api/operator/route/?route_operators=${operatorId}&stops_have_cords=true`);
-  const data = await res.json();
-  const routes = data.results ?? [];
+  const routes = await fetchPaginatedResults(
+    `/api/operator/route/?route_operators=${operatorId}&stops_have_cords=true`
+  );
 
   const bounds = new maplibregl.LngLatBounds();
 
