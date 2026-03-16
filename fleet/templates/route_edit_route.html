@@ -503,16 +503,16 @@
     const body = {
         locations: locations,
         costing: "bus",
-        costing_options: {
-          bus: {
-              use_bus: 1.0,          // preference for bus-suitable roads
-              top_speed: 95,         // km/h max speed assumption
-              maneuver_penalty: 5,   // seconds penalty for turns
-              gate_cost: 30,         // cost for passing gates
-              gate_penalty: 300,     // avoid gated areas
-              shortest: true         // false = fastest route, true = shortest distance
-          }
-        },
+        //costing_options: {
+        //  bus: {
+        //      use_bus: 1.0,          // preference for bus-suitable roads
+        //      top_speed: 95,         // km/h max speed assumption
+        //      maneuver_penalty: 5,   // seconds penalty for turns
+        //      gate_cost: 30,         // cost for passing gates
+        //      gate_penalty: 300,     // avoid gated areas
+        //      shortest: true         // false = fastest route, true = shortest distance
+        //  }
+        //},
         directions_options: { units: "meters" }
     };
 
