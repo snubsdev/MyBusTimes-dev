@@ -147,7 +147,7 @@ def send_to_discord_embed(channel_id, title, message, colour=0x00BFFF):
 
 
 def validate_turnstile(token, remoteip=None):
-    if debug:
+    if settings.SKIP_CAPTCHA == True:
         return {'success': True}
     else:
         url = 'https://challenges.cloudflare.com/turnstile/v0/siteverify'
