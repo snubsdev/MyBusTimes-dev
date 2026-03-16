@@ -84,7 +84,7 @@ rest-framework-simplejwt==0.0.2
 service-identity==24.2.0
 six==1.17.0
 soupsieve==2.7
-sqlparse==0.5.3
+sqlparse==0.5.4
 stripe==12.2.0
 Twisted==25.5.0
 txaio==25.6.1
