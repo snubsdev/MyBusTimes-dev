@@ -42,6 +42,14 @@
     border-radius: 5px;
     border: 1px solid var(--border-color);
   }
+
+    .filter-actions {
+      display: block;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 15px;
+    }
 </style>
 {% endblock %}
 
@@ -49,10 +57,14 @@
 <h1>Select Vehicles to Mass Edit</h1>
 
 <!-- Dropdown Filter -->
-<label for="typeFilter"><strong>Filter by Vehicle Type:</strong></label>
-<select id="typeFilter">
-  <option value="">All Types</option>
-</select>
+<div class="filter-actions">
+  <label for="typeFilter"><strong>Filter by Vehicle Type:</strong></label>
+  <select id="typeFilter">
+    <option value="">All Types</option>
+  </select>
+  <button type="button" id="selectAllTypeBtn" class="btn">Select All of Type</button>
+  <span id="selectedCount">0 selected</span>
+</div>
 
 <form method="POST">
   {% csrf_token %}
@@ -87,6 +99,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const rows = Array.from(document.querySelectorAll('table.fleet tbody tr'));
   const dropdown = document.getElementById('typeFilter');
   const checkboxes = Array.from(document.querySelectorAll('input[name="selected_vehicles"]'));
+  const selectAllTypeBtn = document.getElementById('selectAllTypeBtn');
+  const selectedCount = document.getElementById('selectedCount');
 
   const typeSet = new Set();
   rows.forEach(row => {
@@ -104,16 +118,61 @@ document.addEventListener('DOMContentLoaded', () => {
   dropdown.appendChild(fragment);
 
   const selectedTypeNames = new Set();
+
+  function rebuildSelectedTypes() {
+    selectedTypeNames.clear();
+    checkboxes.forEach(cb => {
+      if (cb.checked) {
+        const typeName = cb.closest('tr').dataset.type || '';
+        selectedTypeNames.add(typeName);
+      }
+    });
+  }
+
+  function updateSelectionControls() {
+    const totalSelected = checkboxes.filter(cb => cb.checked).length;
+    selectedCount.textContent = `${totalSelected} selected`;
+
+    const selectedType = dropdown.value;
+    if (!selectedType) {
+      selectAllTypeBtn.disabled = true;
+      selectAllTypeBtn.textContent = 'Select All of Type';
+      return;
+    }
+
+    selectAllTypeBtn.disabled = false;
+    const typeCheckboxes = checkboxes.filter(cb => (cb.closest('tr').dataset.type || '') === selectedType);
+    const checkedOfType = typeCheckboxes.filter(cb => cb.checked).length;
+    const allOfTypeSelected = typeCheckboxes.length > 0 && checkedOfType === typeCheckboxes.length;
+    selectAllTypeBtn.textContent = allOfTypeSelected ? 'Unselect All of Type' : 'Select All of Type';
+  }
+
   checkboxes.forEach(cb => {
     cb.addEventListener('change', () => {
-      const typeName = cb.closest('tr').dataset.type || '';
-      if (cb.checked) {
-        selectedTypeNames.add(typeName);
-      } else {
-        selectedTypeNames.delete(typeName);
-      }
+      rebuildSelectedTypes();
+      updateSelectionControls();
       scheduleFilter();
     });
+  });
+
+  selectAllTypeBtn.addEventListener('click', () => {
+    const selectedType = dropdown.value;
+    if (!selectedType) return;
+
+    const typeCheckboxes = checkboxes.filter(cb => {
+      const row = cb.closest('tr');
+      return (row.dataset.type || '') === selectedType;
+    });
+
+    const allOfTypeSelected = typeCheckboxes.length > 0 && typeCheckboxes.every(cb => cb.checked);
+
+    typeCheckboxes.forEach(cb => {
+      cb.checked = !allOfTypeSelected;
+    });
+
+    rebuildSelectedTypes();
+    updateSelectionControls();
+    scheduleFilter();
   });
 
   function filterRows() {
@@ -136,7 +195,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  dropdown.addEventListener('change', scheduleFilter);
+  dropdown.addEventListener('change', () => {
+    updateSelectionControls();
+    scheduleFilter();
+  });
+  updateSelectionControls();
+  filterRows();
 });
 </script>
 {% endblock %}
