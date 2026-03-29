@@ -1,0 +1,29 @@
+{% extends "mbtbase.html" %}
+{% load static %}
+
+{% block title %}Top Vehicle Type Editors{% endblock %}
+
+{% block content %}
+<h2>Top 10 Vehicle Type Editors (Approved Edits)</h2>
+
+<table class="vehicle-requests-table">
+  <thead>
+    <tr>
+      <th>Username</th>
+      <th>Approved Edits</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for e in editors %}
+    <tr>
+      <td>{{ e.requested_by__username|default:'Unknown' }}</td>
+      <td>{{ e.edits }}</td>
+    </tr>
+    {% empty %}
+    <tr>
+      <td colspan="2">No approved edits found.</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

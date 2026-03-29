@@ -6536,6 +6536,22 @@ def vehicle_types(request):
     }
     return render(request, 'vehicle_types.html', context)
 
+def vehicle_types_stats(request):
+    types = vehicleType.objects.filter(hidden=False).order_by('type_name').annotate(
+        vehicle_count=Count('fleet', distinct=True)
+    )
+
+    breadcrumbs = [
+        {'name': 'Home', 'url': '/'},
+        {'name': 'Vehicle Types Stats', 'url': '/operator/vehicle-types/stats/'},
+    ]
+
+    context = {
+        'breadcrumbs': breadcrumbs,
+        'vehicle_types': types,
+    }
+    return render(request, 'vehicle_types_stats.html', context)
+
 @login_required
 def vehicle_types_admin(request):
     if not request.user.is_superuser:
@@ -6561,6 +6577,34 @@ def vehicle_types_admin(request):
         'pending_requests': pending_requests,
     }
     return render(request, 'vehicle_types_admin.html', context)
+
+
+@login_required
+def vehicle_types_stats(request):
+    # Only superusers can view this page
+    if not request.user.is_superuser:
+        messages.error(request, "Only superusers can view vehicle type editor statistics.")
+        return redirect('/operator/vehicle-types/')
+
+    # Count approved edit requests grouped by requesting user
+    editors = (
+        VehicleTypeChangeRequest.objects.filter(request_type='edit', status='approved')
+        .values('requested_by__id', 'requested_by__username')
+        .annotate(edits=Count('id'))
+        .order_by('-edits')[:10]
+    )
+
+    breadcrumbs = [
+        {'name': 'Home', 'url': '/'},
+        {'name': 'Vehicle Types', 'url': '/operator/vehicle-types/'},
+        {'name': 'Top Editors', 'url': '/operator/vehicle-types/stats/'},
+    ]
+
+    context = {
+        'breadcrumbs': breadcrumbs,
+        'editors': editors,
+    }
+    return render(request, 'vehicle_types_stats.html', context)
 
 def vehicle_type_detail_view(request, type_id):
     vehicle_type = get_object_or_404(vehicleType, id=type_id)
