@@ -6581,12 +6581,6 @@ def vehicle_types_admin(request):
 
 @login_required
 def vehicle_types_stats(request):
-    # Only superusers can view this page
-    if not request.user.is_superuser:
-        messages.error(request, "Only superusers can view vehicle type editor statistics.")
-        return redirect('/operator/vehicle-types/')
-
-    # Count approved edit requests grouped by requesting user
     editors = (
         VehicleTypeChangeRequest.objects.filter(request_type='edit', status='approved')
         .values('requested_by__id', 'requested_by__username')
