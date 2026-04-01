@@ -200,7 +200,17 @@ class TripSerializer(serializers.ModelSerializer):
         fields = ['trip_id', 'trip_route', 'trip_end_location', 'trip_end_at', 'trip_start_at', 'trip_ended']
 
 def alphanum_key(fleet_number):
-    return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', fleet_number or '')]
+    key_parts = []
+
+    for text in re.split(r'([0-9]+)', fleet_number or ''):
+        if not text:
+            continue
+        if text.isdigit():
+            key_parts.append((0, int(text)))
+        else:
+            key_parts.append((1, text.lower()))
+
+    return tuple(key_parts)
 
 
 class fleetSerializer(serializers.ModelSerializer):

@@ -5114,7 +5114,17 @@ def duty_select_mass_edit(request, operator_slug):
         return redirect(f'/operator/{operator_slug}/')
 
     def alphanum_key(name):
-        return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', name or '')]
+        key_parts = []
+
+        for text in re.split(r'([0-9]+)', name or ''):
+            if not text:
+                continue
+            if text.isdigit():
+                key_parts.append((0, int(text)))
+            else:
+                key_parts.append((1, text.lower()))
+
+        return tuple(key_parts)
 
     duties_qs = list(duty.objects.filter(duty_operator=operator))
     duties_qs.sort(key=lambda d: alphanum_key(d.duty_name))
