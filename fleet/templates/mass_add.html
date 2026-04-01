@@ -496,73 +496,39 @@ function autoFillRegistrations() {
   const firstRegInput = document.getElementById('reg_1');
   const firstReg = firstRegInput.value.trim().toUpperCase();
 
-  // Match old prefix style (S201 SBC) or modern style (YX14 FDD)
-  const match = firstReg.match(
-    /^([A-Z]{2}\d{2})\s([A-Z]{3})$|^([A-Z])(\d{1,3})\s([A-Z]{3})$/
-  );
-
+  const match = firstReg.match(/^([A-Z]{2}\d{2})\s([A-Z]{3})$/);
   if (!match) {
-    alert("Please enter a registration like 'YX14 FDD' or 'S201 SBC'.");
+    alert("Please enter a registration in the format like 'YX14 FDD'.");
     return;
   }
 
-  let prefix, number, suffix;
-  let isOldPrefix = false;
+  const prefix = match[1];
+  const suffix = match[2];
 
-  if (match[1] && match[2]) {
-    // Modern plate
-    prefix = match[1];
-    suffix = match[2];
-  } else if (match[3] && match[4] && match[5]) {
-    // Old prefix style
-    isOldPrefix = true;
-    prefix = match[3];       // Letter prefix, e.g., 'S'
-    number = parseInt(match[4]); // Number after letter, e.g., 201
-    suffix = match[5];       // Last 3 letters, e.g., 'SBC'
-  }
-
+  let offset = 0;
   let filled = 0;
 
   while (filled < count) {
-    let newReg;
+    const newSuffix = incrementRegSuffix(suffix, offset);
+    offset++;
 
-    if (isOldPrefix) {
-      // Increment the number
-      newReg = `${prefix}${number} ${suffix}`;
-      number++; // Increment for next plate
-    } else {
-      // Modern style: increment suffix letters only
-      const newSuffix = incrementRegSuffix(suffix, filled);
-      newReg = `${prefix} ${newSuffix}`;
+    if (!newSuffix) {
+      alert("Cannot generate registration past the legal suffix range.");
+      return;
+    }
+
+    // Skip if 2nd and last letter are the same
+    if (prefix[1] === newSuffix[2]) {
+      continue;
     }
 
     const input = document.getElementById(`reg_${filled + 1}`);
     if (input) {
-      input.value = newReg;
+      input.value = `${prefix} ${newSuffix}`;
     }
 
     filled++;
   }
-}
-
-// Keep your existing incrementRegSuffix function for modern plates
-function incrementRegSuffix(suffix, offset) {
-  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  let num = suffix
-    .split('')
-    .reduce((acc, char) => acc * 26 + letters.indexOf(char), 0);
-
-  num += offset;
-
-  if (num >= 26 * 26 * 26) return null;
-
-  let newSuffix = '';
-  for (let i = 0; i < 3; i++) {
-    newSuffix = letters[num % 26] + newSuffix;
-    num = Math.floor(num / 26);
-  }
-
-  return newSuffix;
 }
 
   document.addEventListener('DOMContentLoaded', function () {
