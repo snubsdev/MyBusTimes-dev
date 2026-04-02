@@ -140,7 +140,8 @@
     min-width: 50px;
     padding: 0.25rem 0.5rem;
     background: var(--brand-color);
-    color: var(--text-color) border-radius: 0.25rem;
+    color: var(--text-color);
+    border-radius: 0.25rem;
     font-size: 0.875rem;
     font-weight: 700;
   }
@@ -183,7 +184,7 @@
     cursor: not-allowed;
   }
 
-  /* Searchable Board Dropdown - matching trip pages style */
+  /* Searchable Board Dropdown */
   .board-search-wrapper {
     position: relative;
     width: 100%;
@@ -207,15 +208,6 @@
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-color) 15%, transparent);
   }
 
-  .board-search-icon {
-    position: absolute;
-    right: 0.5rem;
-    top: 50%;
-    transform: translateY(-50%);
-    opacity: 0.5;
-    pointer-events: none;
-  }
-
   .board-dropdown {
     position: absolute;
     top: 100%;
@@ -234,18 +226,6 @@
 
   .board-dropdown.open {
     display: block;
-  }
-
-  .board-option-group-label {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.6875rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--text-color);
-    background: var(--background-color);
-    position: sticky;
-    top: 0;
   }
 
   .board-option {
@@ -286,13 +266,8 @@
     flex-shrink: 0;
   }
 
-  .board-type-badge.duty {
-    color: #fff;
-  }
-
-  .board-type-badge.running {
-    color: #fff;
-  }
+  .board-type-badge.duty { color: #fff; }
+  .board-type-badge.running { color: #fff; }
 
   .board-option .board-name {
     flex: 1;
@@ -348,7 +323,8 @@
     gap: 0.375rem;
     padding: 0.625rem 1.5rem;
     background: var(--brand-color);
-    color: var(--text-color) border: none;
+    color: var(--text-color);
+    border: none;
     border-radius: 0.5rem;
     font-size: 0.9375rem;
     font-weight: 500;
@@ -447,7 +423,7 @@
   .btn-close-progress:hover {
     background: #ef4444;
     border-color: #ef4444;
-    color: var(--text-color)
+    color: #fff;
   }
 
   .btn-close-progress.visible {
@@ -501,17 +477,10 @@
     gap: 0.5rem;
   }
 
-  .log-entry.success {
-    color: #22c55e;
-  }
-
-  .log-entry.warning {
-    color: #f59e0b;
-  }
-
-  .log-entry.error {
-    color: #ef4444;
-  }
+  .log-entry.success { color: #22c55e; }
+  .log-entry.warning { color: #f59e0b; }
+  .log-entry.error   { color: #ef4444; }
+  .log-entry.info    { color: var(--text-color); opacity: 0.6; }
 
   .log-entry-details {
     margin-left: 1.25rem;
@@ -592,14 +561,16 @@
     <div class="mass-log-header">
       <h2>
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-          <line x1="16" y1="2" x2="16" y2="6" />
-          <line x1="8" y1="2" x2="8" y2="6" />
-          <line x1="3" y1="10" x2="21" y2="10" /></svg>
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/>
+          <line x1="8"  y1="2" x2="8"  y2="6"/>
+          <line x1="3"  y1="10" x2="21" y2="10"/>
+        </svg>
         Mass Log Trips
       </h2>
     </div>
 
+    <!-- Settings Row 1: Date + global type + action buttons -->
     <div class="settings-bar">
       <div class="settings-group">
         <label>Date</label>
@@ -618,55 +589,63 @@
         <div style="display:flex;gap:0.5rem;">
           <button type="button" class="btn-clear" id="clear-all-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" /></svg>
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6"  y1="6" x2="18" y2="18"/>
+            </svg>
             Clear All
           </button>
           <button type="button" class="btn-clear" id="auto-fill-btn" title="Auto fill boards by vehicle category">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 2v4" />
-              <path d="M12 18v4" />
-              <path d="M4.93 4.93l2.83 2.83" />
-              <path d="M16.24 16.24l2.83 2.83" /></svg>
+              <path d="M12 2v4"/>
+              <path d="M12 18v4"/>
+              <path d="M4.93 4.93l2.83 2.83"/>
+              <path d="M16.24 16.24l2.83 2.83"/>
+            </svg>
             Auto Fill
           </button>
         </div>
       </div>
     </div>
 
+    <!-- Settings Row 2: Override toggle -->
     <div class="settings-bar">
-      <div class="settings-group" style="display: block;">
-        <label>Override</label>
-        <input type="checkbox" id="override-existing" name="override-existing" style="min-width: 0;">
-        <label style="display:flex;align-items:center;gap:0.5rem;">
-          Clear existing trips for date
+      <div class="settings-group" style="flex-direction:row;align-items:center;gap:0.5rem;">
+        <input type="checkbox" id="override-existing" name="override-existing" style="min-width:0;width:auto;">
+        <label for="override-existing" style="text-transform:none;opacity:1;font-size:0.875rem;cursor:pointer;">
+          Clear existing trips for this date before assigning
         </label>
       </div>
     </div>
 
+    <!-- Top action bar -->
     <div class="action-bar">
       <div class="action-bar-left">
-        <span class="assignment-count" id="assignment-count-1">0 assignments ready</span>
+        <span class="assignment-count" id="assignment-count-top">0 assignments ready</span>
       </div>
-      <button type="button" class="btn-save" id="start-log-btn-1">
+      <button type="button" class="btn-save save-btn" id="start-log-btn-top">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-          <polyline points="17 21 17 13 7 13 7 21" />
-          <polyline points="7 3 7 8 15 8" /></svg>
+          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+          <polyline points="17 21 17 13 7 13 7 21"/>
+          <polyline points="7 3 7 8 15 8"/>
+        </svg>
         Save Assignments
       </button>
     </div>
 
+    <!-- Column headers -->
     <div class="list-header">
       <span>Vehicle</span>
       <span>Type</span>
       <span>Board</span>
     </div>
 
+    <!-- Vehicle rows -->
     <div class="vehicle-list">
       {% for v in vehicles %}
-      <div class="vehicle-row" data-vehicle="{{ v.id }}"
-        data-vehicle-category="{% if v.vehicle_category %}{{ v.vehicle_category.id }}{% else %}none{% endif %}">
+      <div class="vehicle-row"
+           data-vehicle="{{ v.id }}"
+           data-vehicle-category="{% if v.vehicle_category %}{{ v.vehicle_category.id }}{% else %}none{% endif %}">
+
         <div class="vehicle-info">
           <span class="vehicle-fleet-num">{{ v.fleet_number }}</span>
           <div class="vehicle-details">
@@ -692,31 +671,36 @@
         </select>
 
         <div class="board-search-wrapper" data-vehicle="{{ v.id }}">
-          <select class="board-select" name="assignments[{{ v.id }}][board_id]" data-vehicle="{{ v.id }}"
-            style="width:100%"></select>
+          <select class="board-select"
+                  name="assignments[{{ v.id }}][board_id]"
+                  data-vehicle="{{ v.id }}"
+                  style="width:100%"></select>
         </div>
       </div>
       {% empty %}
       <div class="empty-state">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="1" y="3" width="15" height="13" />
-          <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
-          <circle cx="5.5" cy="18.5" r="2.5" />
-          <circle cx="18.5" cy="18.5" r="2.5" /></svg>
+          <rect x="1" y="3" width="15" height="13"/>
+          <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
+          <circle cx="5.5"  cy="18.5" r="2.5"/>
+          <circle cx="18.5" cy="18.5" r="2.5"/>
+        </svg>
         <p>No vehicles available for assignment</p>
       </div>
       {% endfor %}
     </div>
 
+    <!-- Bottom action bar -->
     <div class="action-bar">
       <div class="action-bar-left">
-        <span class="assignment-count" id="assignment-count">0 assignments ready</span>
+        <span class="assignment-count" id="assignment-count-bottom">0 assignments ready</span>
       </div>
-      <button type="button" class="btn-save" id="start-log-btn">
+      <button type="button" class="btn-save save-btn" id="start-log-btn-bottom">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-          <polyline points="17 21 17 13 7 13 7 21" />
-          <polyline points="7 3 7 8 15 8" /></svg>
+          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+          <polyline points="17 21 17 13 7 13 7 21"/>
+          <polyline points="7 3 7 8 15 8"/>
+        </svg>
         Save Assignments
       </button>
     </div>
@@ -729,13 +713,15 @@
     <div class="progress-header">
       <h3>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
         Logging Progress
       </h3>
       <button type="button" class="btn-close-progress" id="close-progress-btn">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="18" y1="6" x2="6" y2="18" />
-          <line x1="6" y1="6" x2="18" y2="18" /></svg>
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6"  y1="6" x2="18" y2="18"/>
+        </svg>
       </button>
     </div>
     <div class="progress-bar-container">
@@ -751,515 +737,546 @@
 
 <script src="{% static 'js/select2.min.js' %}"></script>
 <script>
-  document.addEventListener("DOMContentLoaded", function () {
+document.addEventListener("DOMContentLoaded", function () {
 
-    
-      const boardsUrl = "{% url 'boards_api' operator.operator_slug %}";
+  // ─── Constants ───────────────────────────────────────────────────────────────
+  const BOARDS_URL   = "{% url 'boards_api' operator.operator_slug %}";
+  const ASSIGN_URL   = "{% url 'mass_assign_single_vehicle_api' operator.operator_slug %}";
+  const CSRF_TOKEN   = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
-        // -------------------------------
-        // Stable key generator
-        // -------------------------------
-        function getKey(el) {
-          if (el.classList.contains("board-type"))
-            return "massassign_vehicle_" + el.dataset.vehicle + "_type";
-          if (el.classList.contains("board-id") || el.classList.contains("board-select"))
-            return "massassign_vehicle_" + el.dataset.vehicle + "_id";
-          if (el.id === "global-board-type")
-            return "massassign_global_type";
-          if (el.id === "assign-date")
-            return "massassign_date";
-          return "massassign_" + el.id;
-        }
+  // SSE timeout: how long to wait for the first "started" event before giving up
+  const SSE_CONNECT_TIMEOUT_MS = 15000;
+  // SSE total timeout: max time to wait for the "done" event after "started"
+  const SSE_DONE_TIMEOUT_MS    = 120000;
+  // Retry attempts per vehicle before marking as failed
+  const MAX_RETRIES            = 3;
+  // Delay between retries (ms)
+  const RETRY_DELAY_MS         = 3000;
 
-        // -------------------------------
-        // Save on change
-        // -------------------------------
-        function saveElement(el) {
-          const value = el.type === "checkbox" ? (el.checked ? "1" : "0") : el.value;
-          localStorage.setItem(getKey(el), value);
-        }
+  // ─── DOM refs ────────────────────────────────────────────────────────────────
+  const saveButtons         = document.querySelectorAll('.save-btn');
+  const progressContainer   = document.getElementById('progress-container');
+  const progressBar         = document.getElementById('log-progress');
+  const progressText        = document.getElementById('progress-text');
+  const progressPercent     = document.getElementById('progress-percent');
+  const logStatus           = document.getElementById('log-status');
+  const dateInput           = document.getElementById('assign-date');
+  const closeProgressBtn    = document.getElementById('close-progress-btn');
+  const overrideInput       = document.getElementById('override-existing');
+  const globalBoardType     = document.getElementById('global-board-type');
+  const clearAllBtn         = document.getElementById('clear-all-btn');
+  const autoFillBtn         = document.getElementById('auto-fill-btn');
+  const countEls            = document.querySelectorAll('.assignment-count');
 
-        // -------------------------------
-        // Searchable Board Dropdown (matching trip pages style)
-        // -------------------------------
-        function initBoardSelect2s() {
-          if (!window.jQuery || !jQuery().select2) return;
+  // ─── localStorage helpers ────────────────────────────────────────────────────
+  function storageKey(el) {
+    if (el.classList.contains('board-type'))   return 'massassign_vehicle_' + el.dataset.vehicle + '_type';
+    if (el.classList.contains('board-select')) return 'massassign_vehicle_' + el.dataset.vehicle + '_id';
+    if (el.id === 'global-board-type')         return 'massassign_global_type';
+    if (el.id === 'assign-date')               return 'massassign_date';
+    return 'massassign_' + el.id;
+  }
 
-          document.querySelectorAll('.board-select').forEach(sel => {
-            const vehicleId = sel.dataset.vehicle;
+  function saveEl(el) {
+    try {
+      const val = el.type === 'checkbox' ? (el.checked ? '1' : '0') : el.value;
+      localStorage.setItem(storageKey(el), val);
+    } catch (_) {}
+  }
 
-            $(sel).select2({
-              placeholder: 'Select board...',
-              allowClear: true,
-              width: 'resolve',
-              ajax: {
-                url: boardsUrl,
-                dataType: 'json',
-                delay: 250,
-                data: function (params) {
-                  const typeEl = document.querySelector(`.board-type[data-vehicle="${vehicleId}"]`);
-                  const type = typeEl ? typeEl.value : '';
-                  // collect used IDs and exclude them (but allow current select's value)
-                  const used = Array.from(document.querySelectorAll('.board-select')).map(s => s.value)
-                    .filter(Boolean);
-                  const excluded = used.filter(id => id !== sel.value).join(',');
-                  return {
-                    q: params.term || '',
-                    type: type,
-                    excluded: excluded
-                  };
-                },
-                processResults: function (data) {
-                  return {
-                    results: data.results
-                  };
-                }
-              },
-              templateResult: function (item) {
-                if (!item.id) return item.text;
-                return item.text + (item.category ? ' — ' + item.category : '');
-              }
-            }).on('select2:selecting', function (e) {
-              // Prevent selecting an already-used board on another row
-              const val = e.params.args.data.id;
-              const used = new Set();
-              document.querySelectorAll('.board-select').forEach(s => {
-                if (s.value) used.add(s.value);
-              });
-              if (used.has(String(val)) && this.value !== String(val)) {
-                alert('That board is already assigned to another vehicle.');
-                e.preventDefault();
-              }
-            }).on('select2:select', function (e) {
-              saveElement(this);
-              updateUsedBoards();
-              updateRowStyling();
-              updateAssignmentCount();
-            }).on('change', function () {
-              saveElement(this);
-              updateUsedBoards();
-              updateRowStyling();
-              updateAssignmentCount();
-            });
+  function loadEl(el) {
+    try {
+      const stored = localStorage.getItem(storageKey(el));
+      if (stored === null) return;
+      if (el.type === 'checkbox') { el.checked = stored === '1'; }
+      else { el.value = stored; }
+    } catch (_) {}
+  }
 
-            // Load saved value
-            const saved = localStorage.getItem(getKey(sel));
-            if (saved) {
-              $(sel).val(saved).trigger('change');
-            }
-          });
-        }
+  // ─── Select2 initialisation ───────────────────────────────────────────────────
+  function initSelect2s() {
+    if (!window.jQuery || !jQuery().select2) return;
 
-        // Close legacy dropdowns when clicking outside
-        document.addEventListener('click', (e) => {
-          if (!e.target.closest('.board-search-wrapper')) {
-            document.querySelectorAll('.board-dropdown').forEach(d => d.classList.remove('open'));
+    document.querySelectorAll('.board-select').forEach(sel => {
+      const vehicleId = sel.dataset.vehicle;
+
+      $(sel).select2({
+        placeholder: 'Select board...',
+        allowClear: true,
+        width: 'resolve',
+        ajax: {
+          url: BOARDS_URL,
+          dataType: 'json',
+          delay: 250,
+          data: function (params) {
+            const typeEl  = document.querySelector(`.board-type[data-vehicle="${vehicleId}"]`);
+            const type    = typeEl ? typeEl.value : '';
+            const usedIds = Array.from(document.querySelectorAll('.board-select'))
+                              .map(s => s.value).filter(Boolean);
+            const excluded = usedIds.filter(id => id !== sel.value).join(',');
+            return { q: params.term || '', type, excluded };
+          },
+          processResults: function (data) {
+            return { results: data.results || [] };
           }
-        });
-
-        // Initialize Select2-powered board selects
-        initBoardSelect2s();
-
-        const boardsCache = new Map();
-
-        async function fetchBoardsForCategory(category) {
-          if (boardsCache.has(category)) {
-            return boardsCache.get(category);
-          }
-
-          const params = new URLSearchParams();
-          if (category === "none") {
-            params.set("category", "none");
-          } else if (category) {
-            params.set("category", category);
-          }
-
-          const url = params.toString() ? `${boardsUrl}?${params.toString()}` : boardsUrl;
-          try {
-            const response = await fetch(url);
-            if (!response.ok) {
-              return [];
-            }
-            const data = await response.json();
-            const boards = (data.results || []).map(board => ({
-              id: String(board.id),
-              text: board.text,
-              type: board.type === "running-boards" ? "running" : board.type
-            }));
-            boardsCache.set(category, boards);
-            return boards;
-          } catch (err) {
-            return [];
-          }
+        },
+        templateResult: function (item) {
+          if (!item.id) return item.text;
+          return item.text + (item.category ? ' — ' + item.category : '');
         }
-
-        // Auto-fill: randomly select a board matching vehicle's category for unassigned rows
-        document.getElementById('auto-fill-btn').addEventListener('click', async function () {
-          const used = new Set(Array.from(document.querySelectorAll('.board-select')).map(s => s.value).filter(
-            Boolean));
-
-          const rowsByCategory = new Map();
-          document.querySelectorAll('.vehicle-row').forEach(row => {
-            const sel = row.querySelector('.board-select');
-            if (!sel || sel.value) return;
-            const cat = row.getAttribute('data-vehicle-category') || 'none';
-            if (!rowsByCategory.has(cat)) rowsByCategory.set(cat, []);
-            rowsByCategory.get(cat).push(row);
-          });
-
-          for (const [cat, rows] of rowsByCategory.entries()) {
-            const boards = await fetchBoardsForCategory(cat);
-            if (!boards.length) continue;
-
-            rows.forEach(row => {
-              const sel = row.querySelector('.board-select');
-              const typeSel = row.querySelector('.board-type');
-              if (!sel || sel.value) return;
-
-              const pool = boards.filter(b => !used.has(String(b.id)));
-              if (!pool.length) return;
-              const pick = pool[Math.floor(Math.random() * pool.length)];
-
-              if (typeSel) {
-                typeSel.value = pick.type;
-                saveElement(typeSel);
-                typeSel.dispatchEvent(new Event('change'));
-              }
-
-              if (window.jQuery && jQuery().select2) {
-                const $sel = $(sel);
-                if ($sel.find('option[value="' + pick.id + '"]').length === 0) {
-                  $sel.append(new Option(pick.text, pick.id, false, false));
-                }
-                $sel.val(pick.id).trigger('change');
-              } else {
-                sel.value = pick.id;
-              }
-
-              saveElement(sel);
-              used.add(String(pick.id));
-            });
-          }
-
-          updateUsedBoards();
-          updateRowStyling();
-          updateAssignmentCount();
-        });
-
-        // -------------------------------
-        // Load saved values for other elements
-        // -------------------------------
-        document.querySelectorAll(".board-type, #assign-date, #global-board-type, #override-existing")
-          .forEach(el => {
-            const stored = localStorage.getItem(getKey(el));
-            if (stored !== null) {
-              if (el.type === "checkbox") {
-                el.checked = stored === "1";
-              } else {
-                el.value = stored;
-              }
-            }
-          });
-
-        // -------------------------------
-        // Update row styling
-        // -------------------------------
-        function updateRowStyling() {
-          document.querySelectorAll('.vehicle-row').forEach(row => {
-            const boardId = row.querySelector('.board-select');
-            const boardType = row.querySelector('.board-type');
-            if (boardId && boardType && boardId.value && boardType.value) {
-              row.classList.add('assigned');
-            } else {
-              row.classList.remove('assigned');
-            }
-          });
+      })
+      .on('select2:selecting', function (e) {
+        const val = String(e.params.args.data.id);
+        const used = new Set(
+          Array.from(document.querySelectorAll('.board-select'))
+            .map(s => s.value).filter(Boolean)
+        );
+        if (used.has(val) && this.value !== val) {
+          alert('That board is already assigned to another vehicle.');
+          e.preventDefault();
         }
-
-        // -------------------------------
-        // Update assignment count
-        // -------------------------------
-        function updateAssignmentCount() {
-          let count = 0;
-          document.querySelectorAll('.vehicle-row').forEach(row => {
-            const boardId = row.querySelector('.board-select');
-            const boardType = row.querySelector('.board-type');
-            if (boardId && boardType && boardId.value && boardType.value) {
-              count++;
-            }
-          });
-          const countEl = document.getElementById('assignment-count');
-          const countEl1 = document.getElementById('assignment-count-1');
-          countEl.textContent = count + ' assignment' + (count !== 1 ? 's' : '') + ' ready';
-          countEl1.textContent = count + ' assignment' + (count !== 1 ? 's' : '') + ' ready';
-        }
-
-        document.querySelectorAll(".board-type, #assign-date, #global-board-type, #override-existing")
-          .forEach(el => el.addEventListener("change", () => {
-            saveElement(el);
-
-            if (el.id === "global-board-type")
-              applyGlobalBoardType();
-
-            if (el.classList.contains("board-type")) {
-              filterBoardsByType(el);
-            }
-
-            updateRowStyling();
-            updateAssignmentCount();
-          }));
-
-        // -------------------------------
-        // Filter boards by type selection
-        // -------------------------------
-        function filterBoardsByType(typeSelect) {
-          const vehicle = typeSelect.dataset.vehicle;
-          const type = typeSelect.value;
-          const wrapper = document.querySelector(`.board-search-wrapper[data-vehicle="${vehicle}"]`);
-          const sel = wrapper.querySelector('.board-select');
-          if (sel) {
-            // if selected item doesn't match new type, clear
-            try {
-              const selected = $(sel).select2('data')[0];
-              if (selected && selected.type && selected.type !== type) {
-                $(sel).val(null).trigger('change');
-                saveElement(sel);
-              }
-            } catch (err) {
-              // ignore if select2 not yet initialized
-            }
-          }
-
-          updateRowStyling();
-          updateAssignmentCount();
-        }
-
-        // -------------------------------
-        // Apply global type
-        // -------------------------------
-        function applyGlobalBoardType() {
-          const globalType = document.getElementById("global-board-type").value;
-
-          document.querySelectorAll(".board-type").forEach(el => {
-            if (!el.value || globalType !== localStorage.getItem(getKey(el))) {
-              el.value = globalType;
-              saveElement(el);
-              filterBoardsByType(el);
-            }
-          });
-
-          updateRowStyling();
-          updateAssignmentCount();
-        }
-
-        // -------------------------------
-        // Clear all
-        // -------------------------------
-        document.getElementById('clear-all-btn').addEventListener('click', () => {
-          document.querySelectorAll('.board-type').forEach(el => {
-            el.value = '';
-            saveElement(el);
-          });
-          document.querySelectorAll('.board-select').forEach(el => {
-            if (window.jQuery && jQuery().select2) $(el).val(null).trigger('change');
-            el.value = '';
-            saveElement(el);
-          });
-          document.querySelectorAll('.board-search-wrapper').forEach(wrapper => {
-            // legacy cleanup for any remaining markup
-            const input = wrapper.querySelector('.board-search-input');
-            if (input) input.value = '';
-          });
-          document.getElementById('global-board-type').value = '';
-          saveElement(document.getElementById('global-board-type'));
-          updateRowStyling();
-          updateAssignmentCount();
-          updateUsedBoards();
-        });
-
-        // -------------------------------
-        // Initial load
-        // -------------------------------
-        applyGlobalBoardType();
-        document.querySelectorAll(".board-type").forEach(el => filterBoardsByType(el));
-
-        // -----------------------------------------
-        // Track used board IDs & mark as used
-        // -----------------------------------------
-        function updateUsedBoards() {
-          const used = new Set();
-          document.querySelectorAll('.board-select').forEach(s => {
-            if (s.value) used.add(s.value);
-          });
-          // We don't mark options in remote Select2 results; instead we prevent selecting used IDs on select attempt.
-          return used;
-        }
-
+      })
+      .on('select2:select select2:unselect change', function () {
+        saveEl(this);
         updateUsedBoards();
         updateRowStyling();
         updateAssignmentCount();
+      });
 
-        // -------------------------------
-        // Mass Logging Logic
-        // -------------------------------
-        const startBtn = document.getElementById("start-log-btn");
-        const startBtn1 = document.getElementById("start-log-btn-1");
-        const progressContainer = document.getElementById("progress-container");
-        const progressBar = document.getElementById("log-progress");
-        const progressText = document.getElementById("progress-text");
-        const progressPercent = document.getElementById("progress-percent");
-        const logStatus = document.getElementById("log-status");
-        const dateInput = document.getElementById("assign-date");
-        const closeProgressBtn = document.getElementById("close-progress-btn");
-        const overrideInput = document.getElementById("override-existing");
+      // Restore saved value
+      const saved = localStorage.getItem(storageKey(sel));
+      if (saved) $(sel).val(saved).trigger('change');
+    });
+  }
 
-        async function startMassLog() {
-          const date = dateInput.value;
-          if (!date) { alert("Please select a date."); return; }
+  // Close legacy dropdowns when clicking outside
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.board-search-wrapper')) {
+      document.querySelectorAll('.board-dropdown').forEach(d => d.classList.remove('open'));
+    }
+  });
 
-          const assignments = [];
-          const overrideExisting = !!(overrideInput && overrideInput.checked);
+  initSelect2s();
 
-          document.querySelectorAll(".board-type").forEach(typeSelect => {
-            const vehicleId = typeSelect.dataset.vehicle;
-            const type = typeSelect.value;
-            const wrapper = document.querySelector(`.board-search-wrapper[data-vehicle="${vehicleId}"]`);
-            const boardIdEl = wrapper.querySelector('.board-select');
-            const boardId = boardIdEl ? boardIdEl.value : '';
-            const vehicleRow = typeSelect.closest('.vehicle-row');
-            const fleetNum = vehicleRow.querySelector('.vehicle-fleet-num').textContent;
-            if (type && boardId) {
-              assignments.push({ vehicle_id: vehicleId, fleet_num: fleetNum, board_type: type, board_id: boardId, date, override: overrideExisting });
-            }
-          });
+  // ─── Boards cache for auto-fill ──────────────────────────────────────────────
+  const boardsCache = new Map();
 
-          if (assignments.length === 0) {
-            alert("No assignments to log.");
+  async function fetchBoardsForCategory(category) {
+    if (boardsCache.has(category)) return boardsCache.get(category);
+    const params = new URLSearchParams();
+    if (category) params.set('category', category);
+    const url = params.toString() ? `${BOARDS_URL}?${params}` : BOARDS_URL;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return [];
+      const data = await res.json();
+      const boards = (data.results || []).map(b => ({
+        id:   String(b.id),
+        text: b.text,
+        type: b.type === 'running-boards' ? 'running' : b.type,
+      }));
+      boardsCache.set(category, boards);
+      return boards;
+    } catch (_) { return []; }
+  }
+
+  // ─── Auto-fill ────────────────────────────────────────────────────────────────
+  autoFillBtn.addEventListener('click', async function () {
+    const used = new Set(
+      Array.from(document.querySelectorAll('.board-select')).map(s => s.value).filter(Boolean)
+    );
+
+    const rowsByCategory = new Map();
+    document.querySelectorAll('.vehicle-row').forEach(row => {
+      const sel = row.querySelector('.board-select');
+      if (!sel || sel.value) return;
+      const cat = row.getAttribute('data-vehicle-category') || 'none';
+      if (!rowsByCategory.has(cat)) rowsByCategory.set(cat, []);
+      rowsByCategory.get(cat).push(row);
+    });
+
+    for (const [cat, rows] of rowsByCategory.entries()) {
+      const boards = await fetchBoardsForCategory(cat);
+      if (!boards.length) continue;
+
+      rows.forEach(row => {
+        const sel     = row.querySelector('.board-select');
+        const typeSel = row.querySelector('.board-type');
+        if (!sel || sel.value) return;
+
+        const pool = boards.filter(b => !used.has(String(b.id)));
+        if (!pool.length) return;
+
+        const pick = pool[Math.floor(Math.random() * pool.length)];
+
+        if (typeSel) {
+          typeSel.value = pick.type;
+          saveEl(typeSel);
+          typeSel.dispatchEvent(new Event('change'));
+        }
+
+        if (window.jQuery && jQuery().select2) {
+          const $sel = $(sel);
+          if (!$sel.find(`option[value="${pick.id}"]`).length) {
+            $sel.append(new Option(pick.text, pick.id, false, false));
+          }
+          $sel.val(pick.id).trigger('change');
+        } else {
+          sel.value = pick.id;
+        }
+
+        saveEl(sel);
+        used.add(String(pick.id));
+      });
+    }
+
+    updateUsedBoards();
+    updateRowStyling();
+    updateAssignmentCount();
+  });
+
+  // ─── Restore non-select2 fields ──────────────────────────────────────────────
+  document.querySelectorAll('.board-type, #assign-date, #global-board-type, #override-existing')
+    .forEach(el => loadEl(el));
+
+  // ─── Row styling & count ─────────────────────────────────────────────────────
+  function updateRowStyling() {
+    document.querySelectorAll('.vehicle-row').forEach(row => {
+      const boardId   = row.querySelector('.board-select');
+      const boardType = row.querySelector('.board-type');
+      const assigned  = boardId && boardType && boardId.value && boardType.value;
+      row.classList.toggle('assigned', !!assigned);
+    });
+  }
+
+  function updateAssignmentCount() {
+    let count = 0;
+    document.querySelectorAll('.vehicle-row').forEach(row => {
+      const boardId   = row.querySelector('.board-select');
+      const boardType = row.querySelector('.board-type');
+      if (boardId && boardType && boardId.value && boardType.value) count++;
+    });
+    const label = count + ' assignment' + (count !== 1 ? 's' : '') + ' ready';
+    countEls.forEach(el => el.textContent = label);
+  }
+
+  // ─── Type change handlers ─────────────────────────────────────────────────────
+  function filterBoardsByType(typeSelect) {
+    const vehicleId = typeSelect.dataset.vehicle;
+    const type      = typeSelect.value;
+    const sel       = document.querySelector(`.board-search-wrapper[data-vehicle="${vehicleId}"] .board-select`);
+    if (!sel) return;
+
+    if (window.jQuery && jQuery().select2) {
+      try {
+        const selected = $(sel).select2('data')[0];
+        if (selected && selected.id && selected.type && selected.type !== type) {
+          $(sel).val(null).trigger('change');
+          saveEl(sel);
+        }
+      } catch (_) {}
+    }
+    updateRowStyling();
+    updateAssignmentCount();
+  }
+
+  function applyGlobalBoardType() {
+    const globalType = globalBoardType.value;
+    document.querySelectorAll('.board-type').forEach(el => {
+      if (globalType) {
+        el.value = globalType;
+        saveEl(el);
+        filterBoardsByType(el);
+      }
+    });
+    updateRowStyling();
+    updateAssignmentCount();
+  }
+
+  document.querySelectorAll('.board-type').forEach(el => {
+    el.addEventListener('change', () => {
+      saveEl(el);
+      filterBoardsByType(el);
+    });
+  });
+
+  document.querySelectorAll('#assign-date, #global-board-type, #override-existing').forEach(el => {
+    el.addEventListener('change', () => {
+      saveEl(el);
+      if (el.id === 'global-board-type') applyGlobalBoardType();
+    });
+  });
+
+  // ─── Clear all ───────────────────────────────────────────────────────────────
+  clearAllBtn.addEventListener('click', () => {
+    document.querySelectorAll('.board-type').forEach(el => { el.value = ''; saveEl(el); });
+    document.querySelectorAll('.board-select').forEach(el => {
+      if (window.jQuery && jQuery().select2) $(el).val(null).trigger('change');
+      el.value = '';
+      saveEl(el);
+    });
+    globalBoardType.value = '';
+    saveEl(globalBoardType);
+    updateUsedBoards();
+    updateRowStyling();
+    updateAssignmentCount();
+  });
+
+  // ─── Track used boards ───────────────────────────────────────────────────────
+  function updateUsedBoards() {
+    // Used IDs are checked inline during Select2 "selecting" event; nothing extra needed here.
+    // Kept as a hook for future use (e.g. visual dimming).
+  }
+
+  // ─── Initial state ───────────────────────────────────────────────────────────
+  applyGlobalBoardType();
+  document.querySelectorAll('.board-type').forEach(el => filterBoardsByType(el));
+  updateUsedBoards();
+  updateRowStyling();
+  updateAssignmentCount();
+
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // SSE-based mass logging
+  // ═══════════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Post one vehicle assignment via SSE.
+   *
+   * The server immediately yields  data: {"type":"started"}\n\n
+   * to prevent 502 timeouts, then yields  data: {"type":"done",...}\n\n
+   * when the DB work is complete.
+   *
+   * Returns a result object: { success, message?, error?, skipped?, overwritten? }
+   */
+  async function assignVehicleSSE(task) {
+    return new Promise((resolve) => {
+      const formData = new FormData();
+      formData.append('vehicle_id',          task.vehicle_id);
+      formData.append('board_type',          task.board_type);
+      formData.append('board_id',            task.board_id);
+      formData.append('date',                task.date);
+      formData.append('override',            task.override ? 'true' : 'false');
+      formData.append('csrfmiddlewaretoken', CSRF_TOKEN);
+
+      let settled            = false;
+      let connectTimeoutId   = null;
+      let doneTimeoutId      = null;
+      let reader             = null;
+
+      function settle(result) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(connectTimeoutId);
+        clearTimeout(doneTimeoutId);
+        if (reader) { try { reader.cancel(); } catch (_) {} }
+        resolve(result);
+      }
+
+      // Hard timeout waiting for the initial "started" event
+      connectTimeoutId = setTimeout(() => {
+        settle({ success: false, error: 'Connection timeout — server did not respond in time.' });
+      }, SSE_CONNECT_TIMEOUT_MS);
+
+      fetch(ASSIGN_URL, { method: 'POST', body: formData })
+        .then(response => {
+          if (!response.ok) {
+            return response.text().then(txt => {
+              settle({ success: false, error: `HTTP ${response.status}: ${txt.slice(0, 200)}` });
+            });
+          }
+
+          if (!response.body) {
+            settle({ success: false, error: 'Streaming not supported by this browser.' });
             return;
           }
 
-          startBtn.disabled = true;
-          startBtn1.disabled = true;
-          progressContainer.classList.add('visible');
-          progressBar.max = assignments.length;
-          progressBar.value = 0;
-          logStatus.innerHTML = "";
-          let completed = 0;
-          let errors = 0;
+          const decoder = new TextDecoder();
+          reader        = response.body.getReader();
+          let buffer    = '';
+          let started   = false;
 
-          for (const task of assignments) {
-            const result = await fetchWithSSE(task);
-
-            if (result.success) {
-              const overwriteNote = result.overwritten
-                ? ` Overwrote ${result.overwritten} trip${result.overwritten === 1 ? "" : "s"}.`
-                : "";
-              if (result.skipped && result.skipped.length > 0) {
-                logStatus.innerHTML += `<div class="log-entry warning">⚠ ${task.fleet_num}: ${result.message}${overwriteNote}</div>`;
-                let skippedHtml = '<div class="log-entry-details">';
-                result.skipped.forEach(d => { skippedHtml += `<div>• ${d}</div>`; });
-                skippedHtml += '</div>';
-                logStatus.innerHTML += skippedHtml;
-              } else {
-                logStatus.innerHTML += `<div class="log-entry success">✓ ${task.fleet_num}: ${result.message}${overwriteNote}</div>`;
-              }
-            } else {
-              errors++;
-              logStatus.innerHTML += `<div class="log-entry error">✗ ${task.fleet_num}: Failed — ${result.error}</div>`;
+          function processChunk({ done, value }) {
+            if (settled) return;
+            if (done) {
+              settle({ success: false, error: 'Stream ended without a result.' });
+              return;
             }
 
-            completed++;
-            progressBar.value = completed;
-            progressText.innerText = `${completed} / ${assignments.length}`;
-            progressPercent.innerText = `${Math.round((completed / assignments.length) * 100)}%`;
-            logStatus.scrollTop = logStatus.scrollHeight;
+            buffer += decoder.decode(value, { stream: true });
+
+            // Split on double-newline (SSE event separator)
+            const parts = buffer.split('\n\n');
+            buffer = parts.pop(); // keep the incomplete trailing chunk
+
+            for (const part of parts) {
+              for (const line of part.split('\n')) {
+                if (!line.startsWith('data: ')) continue;
+                let msg;
+                try { msg = JSON.parse(line.slice(6)); }
+                catch (_) { continue; }
+
+                if (msg.type === 'started' && !started) {
+                  started = true;
+                  clearTimeout(connectTimeoutId);
+                  // Now set a longer timeout for the actual DB work to finish
+                  doneTimeoutId = setTimeout(() => {
+                    settle({ success: false, error: 'Operation timeout — DB took too long.' });
+                  }, SSE_DONE_TIMEOUT_MS);
+                }
+
+                if (msg.type === 'done') {
+                  settle(msg);
+                  return;
+                }
+              }
+            }
+
+            // Keep reading
+            reader.read().then(processChunk).catch(err => {
+              settle({ success: false, error: 'Stream read error: ' + err.message });
+            });
           }
 
-          startBtn.disabled = false;
-          startBtn1.disabled = false;
-          closeProgressBtn.classList.add('visible');
-
-          logStatus.innerHTML += errors > 0
-            ? `<div class="log-entry warning" style="margin-top:.5rem;padding-top:.5rem;border-top:1px solid var(--border-color)">Completed with ${errors} error(s)</div>`
-            : `<div class="log-entry success" style="margin-top:.5rem;padding-top:.5rem;border-top:1px solid var(--border-color)">All ${completed} assignments completed successfully!</div>`;
-
-          closeProgressBtn.addEventListener("click", () => {
-            progressContainer.classList.remove('visible');
-            closeProgressBtn.classList.remove('visible');
+          reader.read().then(processChunk).catch(err => {
+            settle({ success: false, error: 'Stream error: ' + err.message });
           });
-        }
-
-        // Replaces the old fetch+retry block — reads SSE until the "done" event arrives
-        async function fetchWithSSE(task) {
-          return new Promise((resolve) => {
-            (async () => {
-              try {
-                const formData = new FormData();
-                formData.append("vehicle_id", task.vehicle_id);
-                formData.append("board_type", task.board_type);
-                formData.append("board_id", task.board_id);
-                formData.append("date", task.date);
-                formData.append("override", task.override ? "true" : "false");
-                formData.append("csrfmiddlewaretoken", document.querySelector('[name=csrfmiddlewaretoken]').value);
-
-                const response = await fetch("{% url 'mass_assign_single_vehicle_api' operator.operator_slug %}", {
-                  method: "POST",
-                  body: formData,
-                });
-
-                if (!response.ok || !response.body) {
-                  resolve({ success: false, error: `HTTP ${response.status}` });
-                  return;
-                }
-
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let buffer = "";
-
-                try {
-                  while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-
-                    buffer += decoder.decode(value, { stream: true });
-                    const lines = buffer.split("\n");
-                    buffer = lines.pop(); // keep incomplete line
-
-                    for (const line of lines) {
-                      if (!line.startsWith("data: ")) continue;
-                      try {
-                        const msg = JSON.parse(line.slice(6));
-                        if (msg.type === "done") {
-                          resolve(msg);
-                          return;
-                        }
-                        // msg.type === "started" — connection is alive, keep waiting
-                      } catch {
-                        // malformed line, skip
-                      }
-                    }
-                  }
-                } catch (err) {
-                  resolve({ success: false, error: `Stream error: ${err.message}` });
-                  return;
-                }
-
-                resolve({ success: false, error: "Stream ended without a result." });
-              } catch (err) {
-                resolve({ success: false, error: `Network error: ${err.message}` });
-              }
-            })();
-          });
-        }
-
-        startBtn.addEventListener("click", async () => {
-          await startMassLog();
+        })
+        .catch(err => {
+          settle({ success: false, error: 'Network error: ' + err.message });
         });
+    });
+  }
 
-        startBtn1.addEventListener("click", async () => {
-          await startMassLog();
-        });
-      });
+  /**
+   * Attempt one assignment with automatic retries.
+   * Logs retry warnings to the progress log.
+   */
+  async function assignWithRetry(task) {
+    let lastError = '';
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      const result = await assignVehicleSSE(task);
+      if (result.success) return result;
+      lastError = result.error || 'Unknown error';
+      if (attempt < MAX_RETRIES) {
+        appendLog('warning',
+          `⚠ ${task.fleet_num}: ${lastError} — retrying (${attempt}/${MAX_RETRIES})…`
+        );
+        await sleep(RETRY_DELAY_MS);
+      }
+    }
+    return { success: false, error: lastError };
+  }
+
+  // ─── UI helpers ──────────────────────────────────────────────────────────────
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  function appendLog(cls, html) {
+    const div     = document.createElement('div');
+    div.className = 'log-entry ' + cls;
+    div.innerHTML = html;
+    logStatus.appendChild(div);
+    logStatus.scrollTop = logStatus.scrollHeight;
+  }
+
+  function setSaveButtonsDisabled(disabled) {
+    saveButtons.forEach(btn => btn.disabled = disabled);
+  }
+
+  // ─── Main mass-log entry point ────────────────────────────────────────────────
+  async function startMassLog() {
+    const date = dateInput.value;
+    if (!date) { alert('Please select a date.'); return; }
+
+    // Gather all valid assignments
+    const assignments = [];
+    const overrideExisting = !!(overrideInput && overrideInput.checked);
+
+    document.querySelectorAll('.board-type').forEach(typeSelect => {
+      const vehicleId  = typeSelect.dataset.vehicle;
+      const type       = typeSelect.value;
+      const wrapper    = document.querySelector(`.board-search-wrapper[data-vehicle="${vehicleId}"]`);
+      const boardIdEl  = wrapper ? wrapper.querySelector('.board-select') : null;
+      const boardId    = boardIdEl ? boardIdEl.value : '';
+      const vehicleRow = typeSelect.closest('.vehicle-row');
+      const fleetNum   = vehicleRow ? vehicleRow.querySelector('.vehicle-fleet-num').textContent.trim() : vehicleId;
+
+      if (type && boardId) {
+        assignments.push({ vehicle_id: vehicleId, fleet_num: fleetNum, board_type: type, board_id: boardId, date, override: overrideExisting });
+      }
+    });
+
+    if (assignments.length === 0) {
+      alert('No assignments to log. Please select a board type and board for at least one vehicle.');
+      return;
+    }
+
+    // Reset UI
+    setSaveButtonsDisabled(true);
+    progressContainer.classList.add('visible');
+    closeProgressBtn.classList.remove('visible');
+    progressBar.max   = assignments.length;
+    progressBar.value = 0;
+    logStatus.innerHTML = '';
+
+    let completed = 0;
+    let errCount  = 0;
+
+    for (const task of assignments) {
+      appendLog('info', `↻ ${task.fleet_num}: sending…`);
+
+      const result = await assignWithRetry(task);
+
+      // Remove the "sending…" line
+      const sending = logStatus.lastElementChild;
+      if (sending && sending.textContent.includes('sending…')) logStatus.removeChild(sending);
+
+      if (result.success) {
+        const overwriteNote = result.overwritten
+          ? ` Overwrote ${result.overwritten} trip${result.overwritten === 1 ? '' : 's'}.`
+          : '';
+
+        if (result.skipped && result.skipped.length > 0) {
+          appendLog('warning', `⚠ ${task.fleet_num}: ${result.message}${overwriteNote}`);
+          const details = document.createElement('div');
+          details.className = 'log-entry-details';
+          details.innerHTML = result.skipped.map(d => `<div>• ${d}</div>`).join('');
+          logStatus.appendChild(details);
+        } else {
+          appendLog('success', `✓ ${task.fleet_num}: ${result.message}${overwriteNote}`);
+        }
+      } else {
+        errCount++;
+        appendLog('error', `✗ ${task.fleet_num}: Failed — ${result.error}`);
+      }
+
+      completed++;
+      progressBar.value      = completed;
+      progressText.textContent   = `${completed} / ${assignments.length}`;
+      progressPercent.textContent = `${Math.round((completed / assignments.length) * 100)}%`;
+      logStatus.scrollTop = logStatus.scrollHeight;
+    }
+
+    setSaveButtonsDisabled(false);
+    closeProgressBtn.classList.add('visible');
+
+    const divider = 'margin-top:.5rem;padding-top:.5rem;border-top:1px solid var(--border-color)';
+    if (errCount > 0) {
+      appendLog('warning', `<span style="${divider};display:block">Completed with ${errCount} error(s). ${completed - errCount} succeeded.</span>`);
+    } else {
+      appendLog('success', `<span style="${divider};display:block">All ${completed} assignments completed successfully!</span>`);
+    }
+  }
+
+  // ─── Button wiring ────────────────────────────────────────────────────────────
+  saveButtons.forEach(btn => btn.addEventListener('click', () => startMassLog()));
+
+  closeProgressBtn.addEventListener('click', () => {
+    progressContainer.classList.remove('visible');
+    closeProgressBtn.classList.remove('visible');
+  });
+
+});
 </script>
 
 {% endblock %}
