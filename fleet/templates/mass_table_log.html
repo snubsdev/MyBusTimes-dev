@@ -1191,59 +1191,64 @@
 
         // Replaces the old fetch+retry block — reads SSE until the "done" event arrives
         async function fetchWithSSE(task) {
-          return new Promise(async (resolve) => {
-            const formData = new FormData();
-            formData.append("vehicle_id", task.vehicle_id);
-            formData.append("board_type", task.board_type);
-            formData.append("board_id", task.board_id);
-            formData.append("date", task.date);
-            formData.append("override", task.override ? "true" : "false");
-            formData.append("csrfmiddlewaretoken", document.querySelector('[name=csrfmiddlewaretoken]').value);
+          return new Promise((resolve) => {
+            (async () => {
+              try {
+                const formData = new FormData();
+                formData.append("vehicle_id", task.vehicle_id);
+                formData.append("board_type", task.board_type);
+                formData.append("board_id", task.board_id);
+                formData.append("date", task.date);
+                formData.append("override", task.override ? "true" : "false");
+                formData.append("csrfmiddlewaretoken", document.querySelector('[name=csrfmiddlewaretoken]').value);
 
-            let response;
-            try {
-              response = await fetch("{% url 'mass_assign_single_vehicle_api' operator.operator_slug %}", {
-                method: "POST",
-                body: formData,
-              });
-            } catch (err) {
-              resolve({ success: false, error: `Network error: ${err.message}` });
-              return;
-            }
+                const response = await fetch("{% url 'mass_assign_single_vehicle_api' operator.operator_slug %}", {
+                  method: "POST",
+                  body: formData,
+                });
 
-            if (!response.ok || !response.body) {
-              resolve({ success: false, error: `HTTP ${response.status}` });
-              return;
-            }
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = "";
-
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-
-              buffer += decoder.decode(value, { stream: true });
-              const lines = buffer.split("\n");
-              buffer = lines.pop(); // keep incomplete line
-
-              for (const line of lines) {
-                if (!line.startsWith("data: ")) continue;
-                try {
-                  const msg = JSON.parse(line.slice(6));
-                  if (msg.type === "done") {
-                    resolve(msg);
-                    return;
-                  }
-                  // msg.type === "started" — connection is alive, keep waiting
-                } catch {
-                  // malformed line, skip
+                if (!response.ok || !response.body) {
+                  resolve({ success: false, error: `HTTP ${response.status}` });
+                  return;
                 }
-              }
-            }
 
-            resolve({ success: false, error: "Stream ended without a result." });
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = "";
+
+                try {
+                  while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split("\n");
+                    buffer = lines.pop(); // keep incomplete line
+
+                    for (const line of lines) {
+                      if (!line.startsWith("data: ")) continue;
+                      try {
+                        const msg = JSON.parse(line.slice(6));
+                        if (msg.type === "done") {
+                          resolve(msg);
+                          return;
+                        }
+                        // msg.type === "started" — connection is alive, keep waiting
+                      } catch {
+                        // malformed line, skip
+                      }
+                    }
+                  }
+                } catch (err) {
+                  resolve({ success: false, error: `Stream error: ${err.message}` });
+                  return;
+                }
+
+                resolve({ success: false, error: "Stream ended without a result." });
+              } catch (err) {
+                resolve({ success: false, error: `Network error: ${err.message}` });
+              }
+            })();
           });
         }
 
