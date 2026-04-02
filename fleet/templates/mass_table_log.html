@@ -1115,42 +1115,31 @@
 
         async function startMassLog() {
           const date = dateInput.value;
-          if (!date) {
-            alert("Please select a date.");
-            return;
-          }
+          if (!date) { alert("Please select a date."); return; }
 
           const assignments = [];
           const overrideExisting = !!(overrideInput && overrideInput.checked);
+
           document.querySelectorAll(".board-type").forEach(typeSelect => {
             const vehicleId = typeSelect.dataset.vehicle;
             const type = typeSelect.value;
-
             const wrapper = document.querySelector(`.board-search-wrapper[data-vehicle="${vehicleId}"]`);
             const boardIdEl = wrapper.querySelector('.board-select');
             const boardId = boardIdEl ? boardIdEl.value : '';
             const vehicleRow = typeSelect.closest('.vehicle-row');
             const fleetNum = vehicleRow.querySelector('.vehicle-fleet-num').textContent;
-
             if (type && boardId) {
-              assignments.push({
-                vehicle_id: vehicleId,
-                fleet_num: fleetNum,
-                board_type: type,
-                board_id: boardId,
-                date: date,
-                override: overrideExisting
-              });
+              assignments.push({ vehicle_id: vehicleId, fleet_num: fleetNum, board_type: type, board_id: boardId, date, override: overrideExisting });
             }
           });
 
           if (assignments.length === 0) {
-            alert("No assignments to log. Please select board types and boards for vehicles.");
+            alert("No assignments to log.");
             return;
           }
 
-          // UI Setup
           startBtn.disabled = true;
+          startBtn1.disabled = true;
           progressContainer.classList.add('visible');
           progressBar.max = assignments.length;
           progressBar.value = 0;
@@ -1158,79 +1147,25 @@
           let completed = 0;
           let errors = 0;
 
-          // Process
           for (const task of assignments) {
-            let success = false;
-            let lastError = "";
-            const maxAttempts = 6;
+            const result = await fetchWithSSE(task);
 
-            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-              const formData = new FormData();
-              formData.append("vehicle_id", task.vehicle_id);
-              formData.append("board_type", task.board_type);
-              formData.append("board_id", task.board_id);
-              formData.append("date", task.date);
-              formData.append("override", task.override ? "true" : "false");
-              formData.append("csrfmiddlewaretoken", document.querySelector('[name=csrfmiddlewaretoken]').value);
-              const controller = new AbortController();
-              const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-              try {
-                const response = await fetch("{% url 'mass_assign_single_vehicle_api' operator.operator_slug %}", {
-                  method: "POST",
-                  body: formData,
-                  signal: controller.signal
-                });
-                clearTimeout(timeoutId);
-                const contentType = response.headers.get("content-type") || "";
-                let result = null;
-
-                if (contentType.includes("application/json")) {
-                  result = await response.json();
-                } else {
-                  const text = await response.text();
-                  lastError = `Non-JSON response (${response.status}): ${text.slice(0, 120)}`;
-                  break;
-                }
-
-                if (result.success) {
-                  const overwriteNote = result.overwritten
-                    ? ` Overwrote ${result.overwritten} trip${result.overwritten === 1 ? "" : "s"}.`
-                    : "";
-                  if (result.skipped && result.skipped.length > 0) {
-                    logStatus.innerHTML +=
-                      `<div class="log-entry warning">⚠ ${task.fleet_num}: ${result.message}${overwriteNote}</div>`;
-                    let skippedHtml = '<div class="log-entry-details">';
-                    result.skipped.forEach(detail => {
-                      skippedHtml += `<div>• ${detail}</div>`;
-                    });
-                    skippedHtml += '</div>';
-                    logStatus.innerHTML += skippedHtml;
-                  } else {
-                    logStatus.innerHTML +=
-                      `<div class="log-entry success">✓ ${task.fleet_num}: ${result.message}${overwriteNote}</div>`;
-                  }
-                  success = true;
-                  break;
-                } else {
-                  lastError = result.error;
-                }
-              } catch (err) {
-                clearTimeout(timeoutId);
-                lastError = err.name === 'AbortError' ? "Request timeout" : `Network error: ${err.message}`;
+            if (result.success) {
+              const overwriteNote = result.overwritten
+                ? ` Overwrote ${result.overwritten} trip${result.overwritten === 1 ? "" : "s"}.`
+                : "";
+              if (result.skipped && result.skipped.length > 0) {
+                logStatus.innerHTML += `<div class="log-entry warning">⚠ ${task.fleet_num}: ${result.message}${overwriteNote}</div>`;
+                let skippedHtml = '<div class="log-entry-details">';
+                result.skipped.forEach(d => { skippedHtml += `<div>• ${d}</div>`; });
+                skippedHtml += '</div>';
+                logStatus.innerHTML += skippedHtml;
+              } else {
+                logStatus.innerHTML += `<div class="log-entry success">✓ ${task.fleet_num}: ${result.message}${overwriteNote}</div>`;
               }
-
-              if (attempt < maxAttempts) {
-                logStatus.innerHTML +=
-                  `<div class="log-entry warning">⚠ ${task.fleet_num}: ${lastError}. Retrying... (${attempt}/${maxAttempts})</div>`;
-                logStatus.scrollTop = logStatus.scrollHeight;
-                await new Promise(resolve => setTimeout(resolve, 10000));
-              }
-            }
-
-            if (!success) {
+            } else {
               errors++;
-              logStatus.innerHTML += `<div class="log-entry error">✗ ${task.fleet_num}: Failed - ${lastError}</div>`;
+              logStatus.innerHTML += `<div class="log-entry error">✗ ${task.fleet_num}: Failed — ${result.error}</div>`;
             }
 
             completed++;
@@ -1241,19 +1176,74 @@
           }
 
           startBtn.disabled = false;
+          startBtn1.disabled = false;
           closeProgressBtn.classList.add('visible');
 
-          if (errors > 0) {
-            logStatus.innerHTML +=
-              `<div class="log-entry warning" style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border-color);">Completed with ${errors} error(s)</div>`;
-          } else {
-            logStatus.innerHTML +=
-              `<div class="log-entry success" style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border-color);">All ${completed} assignments completed successfully!</div>`;
-          }
+          logStatus.innerHTML += errors > 0
+            ? `<div class="log-entry warning" style="margin-top:.5rem;padding-top:.5rem;border-top:1px solid var(--border-color)">Completed with ${errors} error(s)</div>`
+            : `<div class="log-entry success" style="margin-top:.5rem;padding-top:.5rem;border-top:1px solid var(--border-color)">All ${completed} assignments completed successfully!</div>`;
 
           closeProgressBtn.addEventListener("click", () => {
             progressContainer.classList.remove('visible');
             closeProgressBtn.classList.remove('visible');
+          });
+        }
+
+        // Replaces the old fetch+retry block — reads SSE until the "done" event arrives
+        async function fetchWithSSE(task) {
+          return new Promise(async (resolve) => {
+            const formData = new FormData();
+            formData.append("vehicle_id", task.vehicle_id);
+            formData.append("board_type", task.board_type);
+            formData.append("board_id", task.board_id);
+            formData.append("date", task.date);
+            formData.append("override", task.override ? "true" : "false");
+            formData.append("csrfmiddlewaretoken", document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+            let response;
+            try {
+              response = await fetch("{% url 'mass_assign_single_vehicle_api' operator.operator_slug %}", {
+                method: "POST",
+                body: formData,
+              });
+            } catch (err) {
+              resolve({ success: false, error: `Network error: ${err.message}` });
+              return;
+            }
+
+            if (!response.ok || !response.body) {
+              resolve({ success: false, error: `HTTP ${response.status}` });
+              return;
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split("\n");
+              buffer = lines.pop(); // keep incomplete line
+
+              for (const line of lines) {
+                if (!line.startsWith("data: ")) continue;
+                try {
+                  const msg = JSON.parse(line.slice(6));
+                  if (msg.type === "done") {
+                    resolve(msg);
+                    return;
+                  }
+                  // msg.type === "started" — connection is alive, keep waiting
+                } catch {
+                  // malformed line, skip
+                }
+              }
+            }
+
+            resolve({ success: false, error: "Stream ended without a result." });
           });
         }
 

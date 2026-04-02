@@ -21,6 +21,7 @@ from django.db.models import Prefetch
 
 # Django imports
 from django.shortcuts import render, redirect, get_object_or_404
+from django.http import StreamingHttpResponse
 from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
@@ -7599,12 +7600,8 @@ def mass_log_trips(request, operator_slug):
 @login_required
 @require_http_methods(["POST"])
 def mass_assign_single_vehicle_api(request, operator_slug):
-    """
-    API endpoint to assign a board to a single vehicle.
-    """
     operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
 
-    # Permissions
     userPerms = get_helper_permissions(request.user, operator)
     if (
         request.user != operator.owner
@@ -7627,121 +7624,118 @@ def mass_assign_single_vehicle_api(request, operator_slug):
     except ValueError:
         return JsonResponse({'success': False, 'error': "Invalid date format."}, status=400)
 
-    vehicle = get_object_or_404(fleet, id=vehicle_id)
-
-    # Load duty or running board
-    if board_type == "duty":
-        board_obj = get_object_or_404(
-            duty,
-            id=board_id,
-            board_type="duty",
-            duty_operator=operator
-        )
-    else:
-        board_obj = get_object_or_404(
-            duty,
-            id=board_id,
-            board_type="running-boards",
-            duty_operator=operator
-        )
-
-    trip_set = board_obj.duty_trips.select_related("route_link")
-    
-    created_count = 0
-    skipped_count = 0
-    skipped_details = []
-    errors = []
-    overwritten_count = 0
-
-    trip_windows = []
-    for trip in trip_set:
-        start_dt = make_aware(datetime.combine(selected_date, trip.start_time))
-        end_dt = make_aware(datetime.combine(selected_date, trip.end_time))
-        trip_windows.append((trip, start_dt, end_dt))
-
-    existing_windows = []
-    if trip_windows:
-        min_start = min(window[1] for window in trip_windows)
-        max_end = max(window[2] for window in trip_windows)
-
-        if override_existing:
-            day_start = make_aware(datetime.combine(selected_date, time.min))
-            day_end = make_aware(datetime.combine(selected_date, time.max))
-            deleted_count, _ = Trip.objects.filter(
-                trip_vehicle=vehicle,
-                trip_start_at__lt=day_end,
-                trip_end_at__gt=day_start,
-            ).delete()
-            overwritten_count = deleted_count
-        else:
-            existing_trips = Trip.objects.filter(
-                trip_vehicle=vehicle,
-                trip_start_at__lt=max_end,
-                trip_end_at__gt=min_start,
-            ).only("trip_start_at", "trip_end_at", "trip_route_num")
-            existing_windows = [
-                (t.trip_start_at, t.trip_end_at, t.trip_route_num) for t in existing_trips
-            ]
-
-    # Create trips for this board
-    for trip, start_dt, end_dt in trip_windows:
-        overlapping_trip = None
-        for existing_start, existing_end, existing_route_num in existing_windows:
-            if existing_start < end_dt and existing_end > start_dt:
-                overlapping_trip = existing_route_num or "existing trip"
-                break
-
-        if overlapping_trip:
-            skipped_count += 1
-            skipped_details.append(
-                f"{trip.start_time.strftime('%H:%M')}-{trip.end_time.strftime('%H:%M')} (conflicts with {overlapping_trip})"
-            )
-            continue
-
-        created_trip = Trip(
-            trip_vehicle=vehicle,
-            trip_route=trip.route_link,
-            trip_route_num=(
-                trip.route_link.route_num
-                if trip.route_link and hasattr(trip.route_link, "route_num")
-                else trip.route
-            ),
-            trip_inbound=trip.inbound,
-            trip_start_location=trip.start_at,
-            trip_end_location=trip.end_at,
-            trip_start_at=start_dt,
-            trip_end_at=end_dt,
-            trip_board=board_obj,
-        )
+    def event_stream():
+        # Send "started" immediately — this resets the upstream 502 timer
+        yield f"data: {json.dumps({'type': 'started'})}\n\n"
 
         try:
-            created_trip.full_clean()
-            created_trip.save()
-            created_count += 1
-        except ValidationError as e:
-            for field, field_errors in e.message_dict.items():
-                for error in field_errors:
-                    errors.append(f"{error}")
+            vehicle = fleet.objects.get(id=vehicle_id)
+        except fleet.DoesNotExist:
+            yield f"data: {json.dumps({'type': 'done', 'success': False, 'error': 'Vehicle not found.'})}\n\n"
+            return
 
-    # Real errors (validation failures) - return failure
-    if errors:
-        return JsonResponse({'success': False, 'error': "; ".join(errors)}, status=400)
+        try:
+            board_obj = duty.objects.get(
+                id=board_id,
+                board_type="duty" if board_type == "duty" else "running-boards",
+                duty_operator=operator
+            )
+        except duty.DoesNotExist:
+            yield f"data: {json.dumps({'type': 'done', 'success': False, 'error': 'Board not found.'})}\n\n"
+            return
 
-    # Skipped trips due to conflicts - return partial success
-    if skipped_count > 0:
-        return JsonResponse({
-            'success': True,
-            'message': f"Logged {created_count} trips for {vehicle.fleet_number}. Skipped {skipped_count} due to conflicts.",
-            'skipped': skipped_details,
-            'overwritten': overwritten_count,
-        })
+        trip_set = board_obj.duty_trips.select_related("route_link")
 
-    return JsonResponse({
-        'success': True,
-        'message': f"Logged {created_count} trips for {vehicle.fleet_number}.",
-        'overwritten': overwritten_count,
-    })
+        created_count = 0
+        skipped_count = 0
+        skipped_details = []
+        errors = []
+        overwritten_count = 0
 
+        trip_windows = []
+        for trip in trip_set:
+            start_dt = make_aware(datetime.combine(selected_date, trip.start_time))
+            end_dt = make_aware(datetime.combine(selected_date, trip.end_time))
+            trip_windows.append((trip, start_dt, end_dt))
+
+        existing_windows = []
+        if trip_windows:
+            min_start = min(w[1] for w in trip_windows)
+            max_end = max(w[2] for w in trip_windows)
+
+            if override_existing:
+                day_start = make_aware(datetime.combine(selected_date, time.min))
+                day_end = make_aware(datetime.combine(selected_date, time.max))
+                deleted_count, _ = Trip.objects.filter(
+                    trip_vehicle=vehicle,
+                    trip_start_at__lt=day_end,
+                    trip_end_at__gt=day_start,
+                ).delete()
+                overwritten_count = deleted_count
+            else:
+                existing_trips = Trip.objects.filter(
+                    trip_vehicle=vehicle,
+                    trip_start_at__lt=max_end,
+                    trip_end_at__gt=min_start,
+                ).only("trip_start_at", "trip_end_at", "trip_route_num")
+                existing_windows = [
+                    (t.trip_start_at, t.trip_end_at, t.trip_route_num) for t in existing_trips
+                ]
+
+        for trip, start_dt, end_dt in trip_windows:
+            overlapping_trip = None
+            for existing_start, existing_end, existing_route_num in existing_windows:
+                if existing_start < end_dt and existing_end > start_dt:
+                    overlapping_trip = existing_route_num or "existing trip"
+                    break
+
+            if overlapping_trip:
+                skipped_count += 1
+                skipped_details.append(
+                    f"{trip.start_time.strftime('%H:%M')}-{trip.end_time.strftime('%H:%M')} "
+                    f"(conflicts with {overlapping_trip})"
+                )
+                continue
+
+            created_trip = Trip(
+                trip_vehicle=vehicle,
+                trip_route=trip.route_link,
+                trip_route_num=(
+                    trip.route_link.route_num
+                    if trip.route_link and hasattr(trip.route_link, "route_num")
+                    else trip.route
+                ),
+                trip_inbound=trip.inbound,
+                trip_start_location=trip.start_at,
+                trip_end_location=trip.end_at,
+                trip_start_at=start_dt,
+                trip_end_at=end_dt,
+                trip_board=board_obj,
+            )
+
+            try:
+                created_trip.full_clean()
+                created_trip.save()
+                created_count += 1
+            except ValidationError as e:
+                for field, field_errors in e.message_dict.items():
+                    for error in field_errors:
+                        errors.append(str(error))
+
+        if errors:
+            yield f"data: {json.dumps({'type': 'done', 'success': False, 'error': '; '.join(errors)})}\n\n"
+            return
+
+        if skipped_count > 0:
+            yield f"data: {json.dumps({'type': 'done', 'success': True, 'message': f'Logged {created_count} trips for {vehicle.fleet_number}. Skipped {skipped_count} due to conflicts.', 'skipped': skipped_details, 'overwritten': overwritten_count})}\n\n"
+            return
+
+        yield f"data: {json.dumps({'type': 'done', 'success': True, 'message': f'Logged {created_count} trips for {vehicle.fleet_number}.', 'overwritten': overwritten_count})}\n\n"
+
+    response = StreamingHttpResponse(event_stream(), content_type="text/event-stream")
+    response["Cache-Control"] = "no-cache"
+    response["X-Accel-Buffering"] = "no"  # Disables Nginx buffering — critical for SSE
+    return response
 
 @login_required
 @require_http_methods(["GET"])
