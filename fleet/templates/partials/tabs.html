@@ -68,7 +68,7 @@
     {% if 'owner' in helper_permissions or 'Add Duties' in helper_permissions %}
     <li class="chip"><a href="/operator/{{ operator.operator_slug }}/duties/">Duties</a></li>
     {% endif %}
-    {% if 'owner' in helper_permissions or 'Add Running Boards' in helper_permissions %}
+    {% if 'owner' in helper_permissions or 'Add Duties' in helper_permissions %}
     <li class="chip"><a href="/operator/{{ operator.operator_slug }}/running-boards/">Running Boards</a></li>
     {% endif %}
     {% if 'owner' in helper_permissions or 'Add Tickets' in helper_permissions %}
