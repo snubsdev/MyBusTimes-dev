@@ -111,101 +111,142 @@ class Command(BaseCommand):
     # ==============================
     # ROUTE + STOP IMPORT
     # ==============================
-    def import_routes(self, mbt_operator, operator_noc):
-        self.stdout.write(self.style.SUCCESS("\n=== Importing Routes + Stops ==="))
+   def import_routes(self, mbt_operator, operator_noc):
+    import requests
 
-        services_url = f"https://bustimes.org/api/services/?operator={operator_noc}"
-        services = []
+    self.stdout.write(self.style.SUCCESS("\n=== Importing Routes + Stops (STABLE MODE) ==="))
 
-        while services_url:
-            r = requests.get(services_url)
-            r.raise_for_status()
-            data = r.json()
-            services += data.get('results', [])
-            services_url = data.get('next')
+    # -------------------------------
+    # LOAD SERVICES
+    # -------------------------------
+    services_url = f"https://bustimes.org/api/services/?operator={operator_noc}"
+    services = []
 
-        stop_cache = list(stop.objects.all())
+    while services_url:
+        res = requests.get(services_url, timeout=15)
+        res.raise_for_status()
+        data = res.json()
 
-        for s in services:
-            line = s.get('line_name', '')
-            desc = s.get('description', '')
-            sid = s.get('id')
+        services += data.get('results', [])
+        services_url = data.get('next')
 
-            inbound, outbound = self.parse_route_description(desc)
+    self.stdout.write(f"Loaded {len(services)} services")
 
-            route_obj, _ = route.objects.get_or_create(
-                route_num=line,
-                inbound_destination=inbound,
-                outbound_destination=outbound,
+    # -------------------------------
+    # LOAD MASTER STOPS (IMPORTANT FIX)
+    # -------------------------------
+    stops_url = "https://bustimes.org/api/stops/"
+    stop_lookup = {}
+
+    while stops_url:
+        res = requests.get(stops_url, timeout=15)
+        res.raise_for_status()
+        data = res.json()
+
+        for s in data.get("results", []):
+            key = (s.get("name"), round(s.get("lat") or 0, 5), round(s.get("lon") or 0, 5))
+            stop_lookup[key] = s
+
+        stops_url = data.get("next")
+
+    self.stdout.write(f"Loaded {len(stop_lookup)} stops")
+
+    # -------------------------------
+    # PROCESS SERVICES
+    # -------------------------------
+    for service in services:
+        line = service.get("line_name")
+        desc = service.get("description")
+        sid = service.get("id")
+
+        inbound, outbound = self.parse_route_description(desc)
+
+        route_obj, _ = route.objects.get_or_create(
+            route_num=line,
+            inbound_destination=inbound,
+            outbound_destination=outbound,
+        )
+
+        route_obj.route_operators.add(mbt_operator)
+
+        self.stdout.write(f"\nRoute {line}")
+
+        # -------------------------------
+        # GET VEHICLE JOURNEYS (CORRECT ENDPOINT)
+        # -------------------------------
+        journeys = []
+        url = f"https://bustimes.org/api/vehiclejourneys/?service={sid}"
+
+        while url:
+            try:
+                res = requests.get(url, timeout=15)
+
+                if res.status_code == 404:
+                    self.stdout.write(f"  - No journeys for service {sid}")
+                    break
+
+                res.raise_for_status()
+                data = res.json()
+
+                journeys += data.get("results", [])
+                url = data.get("next")
+
+            except Exception as e:
+                self.stdout.write(f"  - Journey error {sid}: {e}")
+                break
+
+        if not journeys:
+            continue
+
+        # -------------------------------
+        # GROUP BY DIRECTION
+        # -------------------------------
+        grouped = {}
+        for j in journeys:
+            grouped.setdefault(j.get("direction", "outbound"), []).append(j)
+
+        # -------------------------------
+        # BUILD ROUTE STOPS
+        # -------------------------------
+        for direction, jlist in grouped.items():
+
+            best = max(jlist, key=lambda x: len(x.get("stops") or []))
+            raw_stops = best.get("stops") or best.get("stop_times") or []
+
+            stop_list = []
+
+            for s in raw_stops:
+                name = s.get("name")
+                lat = s.get("lat")
+                lon = s.get("lon")
+
+                if not name or lat is None or lon is None:
+                    continue
+
+                key = (name, round(lat, 5), round(lon, 5))
+                api_stop = stop_lookup.get(key)
+
+                stop_list.append({
+                    "name": name,
+                    "lat": lat,
+                    "lon": lon,
+                    "api_id": api_stop.get("id") if api_stop else None
+                })
+
+            inbound_flag = direction.lower() == "inbound"
+
+            rs, created = routeStop.objects.get_or_create(
+                route=route_obj,
+                inbound=inbound_flag,
+                defaults={
+                    "stops": stop_list,
+                    "circular": False
+                }
             )
-            route_obj.route_operators.add(mbt_operator)
 
-            self.stdout.write(f"\nRoute {line}")
-
-            # fetch journeys
-            url = f"https://bustimes.org/api/journeys/?service={sid}"
-            journeys = []
-
-            while url:
-                r = requests.get(url)
-                r.raise_for_status()
-                d = r.json()
-                journeys += d.get('results', [])
-                url = d.get('next')
-
-            # group by direction
-            grouped = {}
-            for j in journeys:
-                grouped.setdefault(j.get("direction", "outbound"), []).append(j)
-
-            for direction, jlist in grouped.items():
-                best = max(jlist, key=lambda j: len(j.get('stops') or []))
-                stops_data = best.get('stops') or []
-
-                stop_list = []
-
-                for st in stops_data:
-                    name = st.get('name')
-                    lat = st.get('lat')
-                    lon = st.get('lon')
-
-                    if not name or lat is None or lon is None:
-                        continue
-
-                    obj = self.find_existing_stop(stop_cache, name, lat, lon)
-
-                    if not obj:
-                        obj = stop.objects.create(
-                            stop_name=name,
-                            latitude=lat,
-                            longitude=lon,
-                            source="bustimes"
-                        )
-                        stop_cache.append(obj)
-                    else:
-                        if obj.latitude != lat or obj.longitude != lon:
-                            obj.latitude = lat
-                            obj.longitude = lon
-                            obj.save()
-
-                    stop_list.append({
-                        "id": obj.id,
-                        "name": obj.stop_name,
-                        "lat": obj.latitude,
-                        "lon": obj.longitude
-                    })
-
-                inbound_flag = direction.lower() == "inbound"
-
-                rs, created = routeStop.objects.get_or_create(
-                    route=route_obj,
-                    inbound=inbound_flag,
-                    defaults={"stops": stop_list}
-                )
-
-                if not created and rs.stops != stop_list:
-                    rs.stops = stop_list
-                    rs.save()
+            if not created and rs.stops != stop_list:
+                rs.stops = stop_list
+                rs.save()
 
     # ==============================
     # FLEET IMPORT
