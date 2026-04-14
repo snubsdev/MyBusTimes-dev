@@ -111,6 +111,21 @@ sudo systemctl enable postgresql
 sudo systemctl start postgresql
 ```
 
+To run MBT local you can use sqlite
+
+settings_local.py
+```python
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+    }
+}
+
 Create DB and user:
 
 ```bash
