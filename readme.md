@@ -101,16 +101,7 @@ Notes:
 - Add your domain to `CSRF_TRUSTED_ORIGINS` in settings.
 - Keep `DEBUG=True` in local dev to bypass captcha checks.
 
-## Database Setup (Local Postgres)
-If you prefer PostgreSQL locally:
-
-```bash
-sudo apt update
-sudo apt install postgresql postgresql-contrib -y
-sudo systemctl enable postgresql
-sudo systemctl start postgresql
-```
-
+## Database Setup (Local)
 To run MBT local you can use sqlite
 
 settings_local.py
@@ -125,6 +116,15 @@ DATABASES = {
         "NAME": BASE_DIR / "db.sqlite3",
     }
 }
+
+If you prefer PostgreSQL locally:
+
+```bash
+sudo apt update
+sudo apt install postgresql postgresql-contrib -y
+sudo systemctl enable postgresql
+sudo systemctl start postgresql
+```
 
 Create DB and user:
 
