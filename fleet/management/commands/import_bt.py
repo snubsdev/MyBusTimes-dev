@@ -150,8 +150,9 @@ class Command(BaseCommand):
 			
 			# Check if route already exists for this operator with same route number
 			existing_route = route.objects.filter(
-				route_operators=mbt_operator,
-				route_num=line_name
+			    route_operators=mbt_operator,
+			    inbound_destination=inbound_dest,
+			    outbound_destination=outbound_dest,
 			).first()
 			
 			if existing_route:
