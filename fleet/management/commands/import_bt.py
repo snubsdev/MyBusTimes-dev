@@ -112,6 +112,8 @@ class Command(BaseCommand):
     # ROUTE + STOP IMPORT
     # ==============================
    def import_routes(self, mbt_operator, operator_noc):
+    import requests
+
     self.stdout.write(self.style.SUCCESS("\n=== Importing Routes + Stops (STABLE MODE) ==="))
 
     # -------------------------------
