@@ -114,12 +114,13 @@ def send_to_discord_delete(count, channel_id, operator_name):
 
     files = {}
 
-    response = requests.post(
-        f"{settings.DISCORD_BOT_API_URL}/send-message-clean",
-        data=data,
-        files=files
-    )
-    response.raise_for_status()
+    if not settings.DISABLE_JESS:
+        response = requests.post(
+            f"{settings.DISCORD_BOT_API_URL}/send-message-clean",
+            data=data,
+            files=files
+        )
+        response.raise_for_status()
 
 def send_to_discord_embed(channel_id, title, message, colour=0x00BFFF):
     embed = {
@@ -144,11 +145,12 @@ def send_to_discord_embed(channel_id, title, message, colour=0x00BFFF):
         'embed': embed
     }
 
-    response = requests.post(
-        f"{settings.DISCORD_BOT_API_URL}/send-embed",
-        json=data
-    )
-    response.raise_for_status()
+    if not settings.DISABLE_JESS:
+        response = requests.post(
+            f"{settings.DISCORD_BOT_API_URL}/send-embed",
+            json=data
+        )
+        response.raise_for_status()
 
 def send_to_discord_embed_Sales(channel_id, title, message, colour=0x00BFFF, content=None):
     embed = {
@@ -176,11 +178,12 @@ def send_to_discord_embed_Sales(channel_id, title, message, colour=0x00BFFF, con
     if content:  # <-- include ping here
         data['content'] = content
 
-    response = requests.post(
-        f"{settings.DISCORD_BOT_API_URL}/send-embed",
-        json=data
-    )
-    response.raise_for_status()
+    if not settings.DISABLE_JESS:
+        response = requests.post(
+            f"{settings.DISCORD_BOT_API_URL}/send-embed",
+            json=data
+        )
+        response.raise_for_status()
 
 
 
@@ -2139,6 +2142,9 @@ def send_to_discord_for_sale_embed(channel_id, title, message, colour=0x00BFFF, 
         'channel_id': int(channel_id),
         'embed': embed
     }
+
+    if settings.DISABLE_JESS:
+        return True, None
 
     # send optional plain content first (role ping)
     try:

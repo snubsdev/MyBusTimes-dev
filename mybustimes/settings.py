@@ -370,6 +370,7 @@ EMAIL_USE_TLS = False
 EMAIL_USE_SSL = True
 
 SKIP_CAPTCHA = os.getenv("SKIP_CAPTCHA", "False").lower() in ("true", "1", "yes")
+DISABLE_JESS = os.getenv("DISABLE_JESS", "False").lower() in ("true", "1", "yes")
 
 AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')

@@ -606,17 +606,18 @@ def send_report_to_discord(report):
                 except Exception as e:
                     print(f"Could not attach screenshot for report {report.id}: {e}")
 
-        try:
-            response = requests.post(
-                f"{settings.DISCORD_BOT_API_URL}/send-message",
-                data=data,
-                files=files if files else None,
-                timeout=8,
-            )
-            if not response.ok:
-                print(f"Discord API returned non-OK status: {response.status_code} - {response.text}")
-        except Exception as e:
-            print(f"Failed to send report to Discord: {e}")
+        if not settings.DISABLE_JESS:
+            try:
+                response = requests.post(
+                    f"{settings.DISCORD_BOT_API_URL}/send-message",
+                    data=data,
+                    files=files if files else None,
+                    timeout=8,
+                )
+                if not response.ok:
+                    print(f"Discord API returned non-OK status: {response.status_code} - {response.text}")
+            except Exception as e:
+                print(f"Failed to send report to Discord: {e}")
 
     finally:
         # Ensure file-like objects are closed
@@ -687,11 +688,12 @@ def create_game(request):
                 'message': content,
             }
 
-            response = requests.post(
-                f"{settings.DISCORD_BOT_API_URL}/send-message",
-                data=data,
-                files={}
-            )
+            if not settings.DISABLE_JESS:
+                response = requests.post(
+                    f"{settings.DISCORD_BOT_API_URL}/send-message",
+                    data=data,
+                    files={}
+                )
 
             return redirect('create_game')
     else:
@@ -755,12 +757,13 @@ def create_livery(request):
 
         files = {}
 
-        response = requests.post(
-            f"{settings.DISCORD_BOT_API_URL}/send-message",
-            data=data,
-            files=files
-        )
-        response.raise_for_status()
+        if not settings.DISABLE_JESS:
+            response = requests.post(
+                f"{settings.DISCORD_BOT_API_URL}/send-message",
+                data=data,
+                files=files
+            )
+            response.raise_for_status()
 
         return redirect(f'/create/livery/progress/{new_livery.id}/')
 
@@ -1131,12 +1134,13 @@ def send_migration_error_notification(message, user):
     }
     files = {}
 
-    response = requests.post(
-        f"{settings.DISCORD_BOT_API_URL}/send-message",
-        data=data,
-        files=files
-    )
-    response.raise_for_status()
+    if not settings.DISABLE_JESS:
+        response = requests.post(
+            f"{settings.DISCORD_BOT_API_URL}/send-message",
+            data=data,
+            files=files
+        )
+        response.raise_for_status()
 
 def process_import_job(job_id, file_path):
     import time

@@ -28,11 +28,12 @@ def send_to_discord(count):
         'embed': embed
     }
 
-    response = requests.post(
-        f"{settings.DISCORD_BOT_API_URL}/send-embed",
-        json=data
-    )
-    response.raise_for_status()
+    if not settings.DISABLE_JESS:
+        response = requests.post(
+            f"{settings.DISCORD_BOT_API_URL}/send-embed",
+            json=data
+        )
+        response.raise_for_status()
 
 def send_service_to_discord(count):
     embed = {
@@ -57,11 +58,12 @@ def send_service_to_discord(count):
         'embed': embed
     }
 
-    response = requests.post(
-        f"{settings.DISCORD_BOT_API_URL}/send-embed",
-        json=data
-    )
-    response.raise_for_status()
+    if not settings.DISABLE_JESS:
+        response = requests.post(
+            f"{settings.DISCORD_BOT_API_URL}/send-embed",
+            json=data
+        )
+        response.raise_for_status()
 
 
 

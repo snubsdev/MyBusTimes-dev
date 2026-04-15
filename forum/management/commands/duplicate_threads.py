@@ -28,6 +28,10 @@ class Command(BaseCommand):
         for idx, old_thread in enumerate(threads, start=1):
             self.stdout.write(f"[{idx}/{total}] Processing thread ID {old_thread.id}: '{old_thread.title}'")
 
+            if settings.DISABLE_JESS:
+                self.stdout.write("Skipping Discord API call because DISABLE_JESS=True")
+                continue
+
             # Create new thread on Discord
             try:
                 response = requests.post(

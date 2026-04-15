@@ -411,12 +411,13 @@ def thread_detail(request, thread_id):
                             if img is not None:
                                 img.close()
 
-                    response = requests.post(
-                        f"{settings.DISCORD_BOT_API_URL}/send-message",
-                        data=data,
-                        files=files if files else None
-                    )
-                    response.raise_for_status()
+                    if not settings.DISABLE_JESS:
+                        response = requests.post(
+                            f"{settings.DISCORD_BOT_API_URL}/send-message",
+                            data=data,
+                            files=files if files else None
+                        )
+                        response.raise_for_status()
                 except requests.RequestException as e:
                     print(f"[Discord API Error] Failed to send post: {e}")
 
@@ -509,21 +510,22 @@ def new_thread(request):
             )
 
             # 🔁 Call the Discord Bot API to create a new thread
-            try:
-                response = requests.post(f"{settings.DISCORD_BOT_API_URL}/create-thread", json={
-                    'title': thread.title,
-                    'content': form.cleaned_data['content']
-                })
-                response.raise_for_status()
+            if not settings.DISABLE_JESS:
+                try:
+                    response = requests.post(f"{settings.DISCORD_BOT_API_URL}/create-thread", json={
+                        'title': thread.title,
+                        'content': form.cleaned_data['content']
+                    })
+                    response.raise_for_status()
 
-                thread_id = response.json().get('thread_id')
-                if thread_id:
-                    thread.discord_channel_id = thread_id
-                    thread.save(update_fields=['discord_channel_id'])
+                    thread_id = response.json().get('thread_id')
+                    if thread_id:
+                        thread.discord_channel_id = thread_id
+                        thread.save(update_fields=['discord_channel_id'])
 
-            except requests.RequestException as e:
-                print(f"[Discord API Error] {e}")
-                return HttpResponseServerError("Failed to communicate with Discord API.")
+                except requests.RequestException as e:
+                    print(f"[Discord API Error] {e}")
+                    return HttpResponseServerError("Failed to communicate with Discord API.")
 
             return redirect('thread_detail', thread_id=thread.id)
     else:

@@ -53,9 +53,10 @@ def rebuild_ticket_channel(request, ticket_id):
     # ---- 1. Delete old channel (optional but recommended) ----
     if ticket.discord_channel_id:
         try:
-            requests.post(settings.DISCORD_BOT_API_URL + "/delete-channel", data={
-                "channel_id": ticket.discord_channel_id
-            }, timeout=5)
+            if not settings.DISABLE_JESS:
+                requests.post(settings.DISCORD_BOT_API_URL + "/delete-channel", data={
+                    "channel_id": ticket.discord_channel_id
+                }, timeout=5)
         except Exception as e:
             print("Failed to delete old channel:", e)
 
@@ -64,6 +65,9 @@ def rebuild_ticket_channel(request, ticket_id):
         "channel_name": f"mbt-ticket-{ticket.id}",
         "category_id": ticket.ticket_type.discord_category_id,
     }
+
+    if settings.DISABLE_JESS:
+        return JsonResponse({"error": "Discord bot API is disabled (DISABLE_JESS=True)."}, status=503)
 
     resp = requests.post(settings.DISCORD_BOT_API_URL + "/create-channel", data=create_payload)
     print("RAW CREATE RESPONSE:", resp.text)
@@ -93,11 +97,12 @@ def rebuild_ticket_channel(request, ticket_id):
     )
 
     # Send header first
-    requests.post(settings.DISCORD_BOT_API_URL + "/send-message", data={
-        "channel_id": new_channel_id,
-        "send_by": "SYSTEM",
-        "message": header,
-    })
+    if not settings.DISABLE_JESS:
+        requests.post(settings.DISCORD_BOT_API_URL + "/send-message", data={
+            "channel_id": new_channel_id,
+            "send_by": "SYSTEM",
+            "message": header,
+        })
 
     # ---- 4. Send each message individually (better formatting, supports files) ----
     messages = (
@@ -121,15 +126,16 @@ def rebuild_ticket_channel(request, ticket_id):
             text += f"\n\n{msg.files.url}?raw=1"
 
         try:
-            requests.post(
-                settings.DISCORD_BOT_API_URL + "/send-message",
-                data={
-                    "channel_id": new_channel_id,
-                    "send_by": sender,
-                    "message": text,
-                },
-                files=file_payload
-            )
+            if not settings.DISABLE_JESS:
+                requests.post(
+                    settings.DISCORD_BOT_API_URL + "/send-message",
+                    data={
+                        "channel_id": new_channel_id,
+                        "send_by": sender,
+                        "message": text,
+                    },
+                    files=file_payload
+                )
         except Exception as e:
             print("Failed to resend message:", e)
 
@@ -243,9 +249,12 @@ def ticket_messages_api(request, ticket_id):
             }
 
             files = {}
-            response = requests.post(settings.DISCORD_BOT_API_URL + "/send-message", data=data, files=files)
+            discord_status = None
+            if not settings.DISABLE_JESS:
+                response = requests.post(settings.DISCORD_BOT_API_URL + "/send-message", data=data, files=files)
+                discord_status = response.status_code
 
-            return JsonResponse({"status": "ok", "discord_status": response.status_code})
+            return JsonResponse({"status": "ok", "discord_status": discord_status})
         return JsonResponse({"status": "ok"})
 
     messages = (
@@ -327,20 +336,21 @@ def create_ticket_api_key_auth(request):
             "category_id": ticket.ticket_type.discord_category_id,
         }
 
-        response = requests.post(settings.DISCORD_BOT_API_URL + "/create-channel", data=data)
-        print("RAW DISCORD RESPONSE >>>", repr(response.text))
+        if not settings.DISABLE_JESS:
+            response = requests.post(settings.DISCORD_BOT_API_URL + "/create-channel", data=data)
+            print("RAW DISCORD RESPONSE >>>", repr(response.text))
 
-        try:
-            resp_json = response.json()
-        except ValueError:
-            print("❌ Discord bot returned non-JSON:", response.text)
-            return JsonResponse(
-                {"error": "Discord bot returned invalid JSON", "raw": response.text},
-                status=500
-            )
+            try:
+                resp_json = response.json()
+            except ValueError:
+                print("❌ Discord bot returned non-JSON:", response.text)
+                return JsonResponse(
+                    {"error": "Discord bot returned invalid JSON", "raw": response.text},
+                    status=500
+                )
 
-        ticket.discord_channel_id = resp_json.get("channel_id")
-        ticket.save()
+            ticket.discord_channel_id = resp_json.get("channel_id")
+            ticket.save()
 
         data = {
             "channel_id": ticket.discord_channel_id,
@@ -350,7 +360,8 @@ def create_ticket_api_key_auth(request):
 
         files = {}
 
-        response = requests.post(settings.DISCORD_BOT_API_URL + "/send-message", data=data, files=files)
+        if not settings.DISABLE_JESS:
+            response = requests.post(settings.DISCORD_BOT_API_URL + "/send-message", data=data, files=files)
 
         return JsonResponse({"status": "ok"})
 
@@ -446,11 +457,12 @@ def close_ticket(request, ticket_id):
     ticket.save()
 
     try:
-        requests.post(
-            settings.DISCORD_BOT_API_URL + "/delete-channel",
-            data={"channel_id": ticket.discord_channel_id},
-            timeout=5
-        )
+        if not settings.DISABLE_JESS:
+            requests.post(
+                settings.DISCORD_BOT_API_URL + "/delete-channel",
+                data={"channel_id": ticket.discord_channel_id},
+                timeout=5
+            )
     except requests.RequestException as e:
         # optional: log error so you know why channel wasn't deleted
         print(f"Failed to delete Discord channel: {e}")
@@ -547,11 +559,12 @@ def create_ticket(request):
                 "category_id": ticket.ticket_type.discord_category_id,
             }
 
-            response = requests.post(settings.DISCORD_BOT_API_URL + "/create-channel", data=data)
-            print("RAW DISCORD RESPONSE >>>", repr(response.text))
+            if not settings.DISABLE_JESS:
+                response = requests.post(settings.DISCORD_BOT_API_URL + "/create-channel", data=data)
+                print("RAW DISCORD RESPONSE >>>", repr(response.text))
 
-            ticket.discord_channel_id = response.json().get("channel_id")
-            ticket.save()
+                ticket.discord_channel_id = response.json().get("channel_id")
+                ticket.save()
 
             data = {
                 "channel_id": ticket.discord_channel_id,
@@ -561,7 +574,8 @@ def create_ticket(request):
 
             files = {}
 
-            response = requests.post(settings.DISCORD_BOT_API_URL + "/send-message", data=data, files=files)
+            if not settings.DISABLE_JESS:
+                response = requests.post(settings.DISCORD_BOT_API_URL + "/send-message", data=data, files=files)
 
             return redirect("ticket_detail", ticket_id=ticket.id)
         else:

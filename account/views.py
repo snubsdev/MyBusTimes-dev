@@ -133,17 +133,18 @@ def send_to_discord_embed(channel_id, title, message, colour=0x00BFFF):
         'channel_id': channel_id,
         'embed': embed
     }
-    try:
-        response = requests.post(
-            f"{settings.DISCORD_BOT_API_URL}/send-embed",
-            json=data,
-            timeout=5,
-        )
-        response.raise_for_status()
-        return True
-    except Exception as e:
-        logger.exception("Failed to send embed to Discord: %s", e)
-        return False
+    if not settings.DISABLE_JESS:
+        try:
+            response = requests.post(
+                f"{settings.DISCORD_BOT_API_URL}/send-embed",
+                json=data,
+                timeout=5,
+            )
+            response.raise_for_status()
+            return True
+        except Exception as e:
+            logger.exception("Failed to send embed to Discord: %s", e)
+            return False
 
 
 def validate_turnstile(token, remoteip=None):
@@ -527,13 +528,13 @@ class stripe_webhook(APIView):
                 'channel_id': '1390369327815065692',  # Configure this in settings
                 'embed': embed
             }
-
-            response = requests.post(
-                f"{settings.DISCORD_BOT_API_URL}/send-embed",
-                json=data,
-                timeout=5
-            )
-            response.raise_for_status()
+            if not settings.DISABLE_JESS:
+                response = requests.post(
+                    f"{settings.DISCORD_BOT_API_URL}/send-embed",
+                    json=data,
+                    timeout=5
+                )
+                response.raise_for_status()
         except Exception as e:
             print(f"❌ Failed to send Discord notification: {str(e)}")
 

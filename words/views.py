@@ -35,11 +35,12 @@ def send_to_discord_embed(discord_id, title, message, colour=0xED4245):
         'embed': embed
     }
 
-    response = requests.post(
-        f"{settings.DISCORD_BOT_API_URL}/send-embed",
-        json=data
-    )
-    response.raise_for_status()
+    if not settings.DISABLE_JESS:
+        response = requests.post(
+            f"{settings.DISCORD_BOT_API_URL}/send-embed",
+            json=data
+        )
+        response.raise_for_status()
 
 def get_real_ip(request):
     ip = request.META.get('HTTP_CF_CONNECTING_IP')

@@ -42,10 +42,12 @@ def send_service_to_discord(removed, before_count, after_count):
         "embed": embed
     }
 
+    response = None
     try:
-        response = requests.post(f"{settings.DISCORD_BOT_API_URL}/send-embed", json=payload)
-        response.raise_for_status()
-        print("Discord embed sent successfully")
+        if not settings.DISABLE_JESS:
+            response = requests.post(f"{settings.DISCORD_BOT_API_URL}/send-embed", json=payload)
+            response.raise_for_status()
+            print("Discord embed sent successfully")
     except Exception as e:
         print(f"Discord notification failed: {e}")
         if response is not None:

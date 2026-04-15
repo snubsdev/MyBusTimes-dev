@@ -1077,19 +1077,22 @@ def mod_recreate_thread(request, thread_id):
             'title': th.title,
             'content': th.posts.order_by('created_at').first().content if th.posts.exists() else ''
         }
-        resp = requests.post(f"{settings.DISCORD_BOT_API_URL}/create-thread", json=payload, timeout=30)
-        resp.raise_for_status()
-        new_channel = resp.json().get('thread_id') or resp.json().get('channel_id')
-        if new_channel:
-            th.discord_channel_id = str(new_channel)
-            th.save(update_fields=['discord_channel_id'])
-            messages.success(request, 'Recreated thread on Discord')
+        if not settings.DISABLE_JESS:
+            resp = requests.post(f"{settings.DISCORD_BOT_API_URL}/create-thread", json=payload, timeout=30)
+            resp.raise_for_status()
+            new_channel = resp.json().get('thread_id') or resp.json().get('channel_id')
+            if new_channel:
+                th.discord_channel_id = str(new_channel)
+                th.save(update_fields=['discord_channel_id'])
+                messages.success(request, 'Recreated thread on Discord')
 
-            # start resync in background for the newly created channel (same behavior as resync)
-            t = threading.Thread(target=_resync_thread_background, args=(th.id, 1, pages), daemon=True)
-            t.start()
+                # start resync in background for the newly created channel (same behavior as resync)
+                t = threading.Thread(target=_resync_thread_background, args=(th.id, 1, pages), daemon=True)
+                t.start()
+            else:
+                messages.error(request, 'Discord API returned no channel id')
         else:
-            messages.error(request, 'Discord API returned no channel id')
+            messages.error(request, 'Discord API is disabled (DISABLE_JESS=True).')
     except Exception as e:
         messages.error(request, f'Failed to recreate thread: {e}')
 
@@ -1121,15 +1124,16 @@ def _recreate_page_background(task_id, thread_ids, pages_limit=None, sleep_secon
                 'title': th.title,
                 'content': th.posts.order_by('created_at').first().content if th.posts.exists() else ''
             }
-            resp = requests.post(f"{settings.DISCORD_BOT_API_URL}/create-thread", json=payload, timeout=30)
-            resp.raise_for_status()
-            new_channel = resp.json().get('thread_id') or resp.json().get('channel_id')
-            if new_channel:
-                th.discord_channel_id = str(new_channel)
-                th.save(update_fields=['discord_channel_id'])
-                # start per-thread resync for this thread
-                t = threading.Thread(target=_resync_thread_background, args=(th.id, sleep_seconds, pages_limit), daemon=True)
-                t.start()
+            if not settings.DISABLE_JESS:
+                resp = requests.post(f"{settings.DISCORD_BOT_API_URL}/create-thread", json=payload, timeout=30)
+                resp.raise_for_status()
+                new_channel = resp.json().get('thread_id') or resp.json().get('channel_id')
+                if new_channel:
+                    th.discord_channel_id = str(new_channel)
+                    th.save(update_fields=['discord_channel_id'])
+                    # start per-thread resync for this thread
+                    t = threading.Thread(target=_resync_thread_background, args=(th.id, sleep_seconds, pages_limit), daemon=True)
+                    t.start()
         except Exception:
             pass
 
@@ -1231,16 +1235,17 @@ def mod_recreate_page(request):
                 'title': th.title,
                 'content': th.posts.order_by('created_at').first().content if th.posts.exists() else ''
             }
-            resp = requests.post(f"{settings.DISCORD_BOT_API_URL}/create-thread", json=payload, timeout=30)
-            resp.raise_for_status()
-            new_channel = resp.json().get('thread_id') or resp.json().get('channel_id')
-            if new_channel:
-                th.discord_channel_id = str(new_channel)
-                th.save(update_fields=['discord_channel_id'])
-                # start resync in background for the newly created channel
-                t = threading.Thread(target=_resync_thread_background, args=(th.id, 1, pages_limit), daemon=True)
-                t.start()
-                created += 1
+            if not settings.DISABLE_JESS:
+                resp = requests.post(f"{settings.DISCORD_BOT_API_URL}/create-thread", json=payload, timeout=30)
+                resp.raise_for_status()
+                new_channel = resp.json().get('thread_id') or resp.json().get('channel_id')
+                if new_channel:
+                    th.discord_channel_id = str(new_channel)
+                    th.save(update_fields=['discord_channel_id'])
+                    # start resync in background for the newly created channel
+                    t = threading.Thread(target=_resync_thread_background, args=(th.id, 1, pages_limit), daemon=True)
+                    t.start()
+                    created += 1
         except Exception:
             # ignore per-thread failures and continue
             continue
@@ -1342,7 +1347,8 @@ def _resync_thread_background(thread_id, sleep_seconds=1, pages=None):
 
             # Send via Discord bot API
             try:
-                requests.post(f"{settings.DISCORD_BOT_API_URL}/send-message", data=data, files=files, timeout=30)
+                if not settings.DISABLE_JESS:
+                    requests.post(f"{settings.DISCORD_BOT_API_URL}/send-message", data=data, files=files, timeout=30)
             except Exception:
                 pass
 
