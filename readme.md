@@ -101,7 +101,22 @@ Notes:
 - Add your domain to `CSRF_TRUSTED_ORIGINS` in settings.
 - Keep `DEBUG=True` in local dev to bypass captcha checks.
 
-## Database Setup (Local Postgres)
+## Database Setup (Local)
+To run MBT local you can use sqlite
+
+settings_local.py
+```python
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+    }
+}
+
 If you prefer PostgreSQL locally:
 
 ```bash
