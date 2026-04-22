@@ -23,6 +23,7 @@ from django.contrib import messages
 from django.contrib.auth import logout
 from rest_framework.decorators import api_view
 from django.core.cache import cache
+from django.db.models import Q
 
 # Third-party imports
 import stripe
@@ -414,52 +415,89 @@ def cancel_subscription(request):
     return render(request, 'cancel_subscription.html')
 
 def calculate_sub_class(user):
-    """Return current subscription tier string based on Stripe subscription.
+    now = timezone.now()
+    print(f"[calculate_sub_class] ── START for user: {user.username} | now: {now}")
 
-    - Staff users fall back to basic_monthly if no valid subscription is found.
-    - Looks up the latest StripeSubscription for the user, fetches the live
-      subscription from Stripe, and maps the price to a plan using _price_catalog.
-    - Falls back to the user's stored sub_plan or "free" if unavailable.
-    """
+    # Find the latest non-expired subscription record for this user
+    all_subs = ActiveSubscription.objects.filter(user=user)
+    print(f"[calculate_sub_class] Total ActiveSubscription rows for user: {all_subs.count()}")
+    for s in all_subs:
+        print(f"  → id={s.id} | plan={s.plan} | end_date={s.end_date} | stripe_id={s.stripe_subscription_id} | is_trial={s.is_trial}")
 
-    # Find the latest subscription record for this user
     sub_record = (
-        StripeSubscription.objects.filter(user=user)
-        .order_by("-id")
+        all_subs
+        .filter(Q(end_date__isnull=True) | Q(end_date__gt=now))
+        .order_by("-end_date", "-id")
         .first()
     )
+    print(f"[calculate_sub_class] Selected record after filter: {sub_record}")
 
-    if not sub_record or not sub_record.subscription_id:
-        return user.sub_plan or "free"
+    if not sub_record:
+        print("[calculate_sub_class] No valid sub_record found → checking staff fallback")
+        if user.is_staff:
+            print("[calculate_sub_class] Staff user → returning basic_monthly")
+            return "basic_monthly"
+        print("[calculate_sub_class] Returning free (no record)")
+        return "free"
 
+    if not sub_record.stripe_subscription_id:
+        print(f"[calculate_sub_class] sub_record id={sub_record.id} has no stripe_subscription_id")
+        print(f"[calculate_sub_class] Stored plan on record: {sub_record.plan!r}")
+        # No Stripe ID — use the stored plan directly if available
+        if sub_record.plan:
+            plan = sub_record.plan
+            print(f"[calculate_sub_class] Returning stored plan: {plan!r}")
+            return plan
+        if user.is_staff:
+            print("[calculate_sub_class] Staff user → returning basic_monthly")
+            return "basic_monthly"
+        print("[calculate_sub_class] Returning free (no stripe_id, no plan)")
+        return "free"
+
+    print(f"[calculate_sub_class] Retrieving Stripe subscription: {sub_record.stripe_subscription_id}")
     try:
-        stripe_sub = stripe.Subscription.retrieve(sub_record.subscription_id)
-    except Exception as exc:  # Stripe errors / network
-        print("[calculate_sub_class] Stripe retrieve failed:", exc)
-        return user.sub_plan or "free"
+        stripe_sub = stripe.Subscription.retrieve(sub_record.stripe_subscription_id)
+        print(f"[calculate_sub_class] Stripe status: {stripe_sub.get('status')}")
+    except Exception as exc:
+        print(f"[calculate_sub_class] Stripe retrieve failed: {exc}")
+        if user.is_staff:
+            return "basic_monthly"
+        return "free"
 
-    # Extract price id from first item
     items = stripe_sub.get("items", {}).get("data", []) if stripe_sub else []
+    print(f"[calculate_sub_class] Stripe items count: {len(items)}")
     if not items:
-        return user.sub_plan or "free"
+        print("[calculate_sub_class] No items on Stripe subscription")
+        if user.is_staff:
+            return "basic_monthly"
+        return "free"
 
     price_id = items[0].get("price", {}).get("id")
+    print(f"[calculate_sub_class] Price ID from Stripe: {price_id!r}")
     price_map = _price_catalog()
+    print(f"[calculate_sub_class] Price catalog keys: {list(price_map.keys())}")
+
     if price_id and price_id in price_map:
         plan = price_map[price_id]["plan"]
         interval_months = price_map[price_id].get("months", 1)
-        # Build a simple tier label
+        print(f"[calculate_sub_class] Matched catalog → plan={plan!r}, months={interval_months}")
         if interval_months >= 12:
             return f"{plan}_yearly"
         if interval_months >= 1:
             return f"{plan}_monthly"
         return plan
 
+    print(f"[calculate_sub_class] Price ID {price_id!r} not in catalog")
+    if sub_record.plan:
+        print(f"[calculate_sub_class] Falling back to stored plan: {sub_record.plan!r}")
+        return sub_record.plan
+
     if user.is_staff:
+        print("[calculate_sub_class] Staff user → returning basic_monthly")
         return "basic_monthly"
 
-
-    return user.sub_plan or "free"
+    print("[calculate_sub_class] Returning free (end of function)")
+    return "free"
 
 @login_required
 def subscribe_ad_free(request):
@@ -666,7 +704,7 @@ class stripe_webhook(APIView):
         user.save(update_fields=["sub_plan", "ad_free_until", "stripe_subscription_id"])
 
         # Create ActiveSubscription record (works for both subscriptions and one-off payments)
-        effective_plan = plan_level or user.sub_plan or "basic"
+        effective_plan = plan_level or "basic"
         if subscription_id:
             # For recurring subscriptions, use get_or_create with subscription_id
             ActiveSubscription.objects.get_or_create(
@@ -905,7 +943,7 @@ class stripe_webhook(APIView):
 
         # Create or update ActiveSubscription for this payment period
         # Use the plan_level we extracted, fallback to user.sub_plan, default to "basic"
-        effective_plan = plan_level or user.sub_plan or "basic"
+        effective_plan = plan_level or "basic"
         print(f"  Using effective_plan for ActiveSubscription: {effective_plan}")
         
         active_defaults = {
