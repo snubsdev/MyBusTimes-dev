@@ -226,6 +226,21 @@
 // Store the current timetable data
 let currentTimetableData = {};
 
+function timeToMinutes(timeStr) {
+  const [h, m] = timeStr.split(":").map(Number);
+  if (isNaN(h) || isNaN(m)) return 0;
+  return h * 60 + m;
+}
+
+// Validation helper
+function validateTimes(timesArray) {
+  for (let i = 1; i < timesArray.length; i++) {
+    const diff = timeToMinutes(timesArray[i]) - timeToMinutes(timesArray[i - 1]);
+    if (diff < 5) return false;
+  }
+  return true;
+}
+
 function autoFillFromStops() {
   const rows = document.querySelectorAll(".stop-item");
   let prevOffset = null;
@@ -242,35 +257,29 @@ function autoFillFromStops() {
     }
 
     const raw = time_s - prevTime;
-    let offset;
-
-    if (raw >= 30) {
-      offset = Math.round(raw / 60);
-    } else {
-      offset = 0;
-    }
-
-    if (offset === 0 && prevOffset === 0) {
-      offset = 1;
-    }
-
+    let offset = raw >= 30 ? Math.round(raw / 60) : 0;
+    if (offset === 0 && prevOffset === 0) offset = 1;
     if (offsetInput) offsetInput.value = offset;
 
     prevOffset = offset;
     prevTime = time_s;
   });
-
   generateStopTimesJSON();
 }
 
-function generateStopTimesJSON() {
+function generateStopTimesJSON(validateManual = false) {
   const rows = document.querySelectorAll('.stop-item');
   const timesInput = document.querySelector('.departure-times');
   const output = {};
   let previousTimes = [];
 
-  // Get first stop times
   const firstStopTimes = timesInput.value.split(',').map(t => t.trim()).filter(Boolean);
+  
+  // Validate manual input if requested
+  if (validateManual && !validateTimes(firstStopTimes)) {
+    alert("Frequency error: Manual departure times must be at least 5 minutes apart.");
+    return false; // Stop generation
+  }
   
   rows.forEach((row, index) => {
     const stopName = row.dataset.stopname;
@@ -310,6 +319,7 @@ function generateStopTimesJSON() {
   document.getElementById('stop-times-json').value = JSON.stringify(output, null, 2);
   currentTimetableData = output;
   renderTimetablePreview(output);
+  return true;
 }
 
 function renderTimetablePreview(data) {
@@ -318,77 +328,52 @@ function renderTimetablePreview(data) {
   const showAll = document.getElementById('show-all-stops')?.checked ?? false;
 
   if (entries.length === 0 || !entries[0][1].times || entries[0][1].times.length === 0) {
-    container.innerHTML = `
-      <div class="preview-empty">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-          <line x1="16" y1="2" x2="16" y2="6"/>
-          <line x1="8" y1="2" x2="8" y2="6"/>
-          <line x1="3" y1="10" x2="21" y2="10"/>
-        </svg>
-        <p>Generate departure times to see preview</p>
-      </div>`;
+    container.innerHTML = `<div class="preview-empty">...</div>`;
     return;
   }
 
   let html = '<div class="preview-table-wrapper"><table class="preview-table"><tbody>';
-
   entries.forEach(([key, stop]) => {
     const isTimingPoint = stop.timing_point;
     if (!showAll && !isTimingPoint) return;
-
-    const rowClass = isTimingPoint ? 'timing-row' : 'minor-row';
-    
-    html += `<tr class="${rowClass}" data-stop-key="${key}">`;
+    html += `<tr class="${isTimingPoint ? 'timing-row' : 'minor-row'}">`;
     html += `<th class="stop-cell">${stop.stopname}</th>`;
-    
     stop.times.forEach((time, timeIndex) => {
       html += `<td class="time-cell" data-stop-key="${key}" data-time-index="${timeIndex}">${time}</td>`;
     });
-    
     html += '</tr>';
   });
-
   html += '</tbody></table></div>';
   container.innerHTML = html;
-
-  // Make cells editable on click
-  container.querySelectorAll('.time-cell').forEach(cell => {
-    cell.addEventListener('click', handleCellClick);
-  });
+  container.querySelectorAll('.time-cell').forEach(cell => cell.addEventListener('click', handleCellClick));
 }
 
 function handleCellClick(e) {
   const cell = e.target;
   if (cell.querySelector('input')) return;
-
   const currentValue = cell.textContent.trim();
   const stopKey = cell.dataset.stopKey;
-  const timeIndex = cell.dataset.timeIndex;
-
+  const timeIndex = parseInt(cell.dataset.timeIndex, 10);
   const input = document.createElement('input');
   input.type = 'time';
   input.value = currentValue;
   input.className = 'inline-time-edit';
 
-  const saveEdit = () => {
-    const newValue = input.value || currentValue;
-    cell.textContent = newValue;
-    
-    if (currentTimetableData[stopKey]) {
+  input.addEventListener('blur', () => {
+    const newValue = input.value;
+    const times = currentTimetableData[stopKey].times;
+    const newTimeInMins = timeToMinutes(newValue);
+
+    const prevTime = timeIndex > 0 ? timeToMinutes(times[timeIndex - 1]) : -1;
+    const nextTime = timeIndex < times.length - 1 ? timeToMinutes(times[timeIndex + 1]) : 9999;
+
+    if (newTimeInMins - prevTime < 5 || nextTime - newTimeInMins < 5) {
+      alert("Frequency error: Times must be at least 5 minutes apart.");
+      cell.textContent = currentValue;
+    } else {
+      cell.textContent = newValue;
       currentTimetableData[stopKey].times[timeIndex] = newValue;
       document.getElementById('stop-times-json').value = JSON.stringify(currentTimetableData, null, 2);
-    }
-  };
-
-  input.addEventListener('blur', saveEdit);
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      input.blur();
-    }
-    if (e.key === 'Escape') {
-      cell.textContent = currentValue;
     }
   });
 
@@ -401,71 +386,56 @@ function autoFillTimes() {
   const start = document.getElementById("autofill-start").value;
   const end = document.getElementById("autofill-end").value;
   const interval = parseInt(document.getElementById("autofill-interval").value, 10);
-  const input = document.querySelector('.departure-times');
-
-  if (!start || !end || !interval || interval <= 0) {
-    alert("Please enter valid start, end times and interval.");
-    return;
-  }
+  
+  if (interval < 5) { alert("Minimum frequency is 5 minutes."); return; }
 
   const times = [];
-  let [startHour, startMin] = start.split(":").map(Number);
-  const [endHour, endMin] = end.split(":").map(Number);
-
-  while (startHour < endHour || (startHour === endHour && startMin <= endMin)) {
-    times.push(`${String(startHour).padStart(2, "0")}:${String(startMin).padStart(2, "0")}`);
-    startMin += interval;
-    if (startMin >= 60) {
-      startHour += Math.floor(startMin / 60);
-      startMin = startMin % 60;
-    }
+  let [h, m] = start.split(":").map(Number);
+  const [endH, endM] = end.split(":").map(Number);
+  while (h < endH || (h === endH && m <= endM)) {
+    times.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+    m += interval;
+    if (m >= 60) { h += Math.floor(m / 60); m %= 60; }
   }
-
-  input.value = times.join(", ");
-  generateStopTimesJSON();
-}
-
-function autoFillOffsets() {
-  const offset = parseInt(document.getElementById("offset-fill").value, 10);
-  if (isNaN(offset) || offset < 0) {
-    alert("Please enter a valid offset value.");
-    return;
-  }
-
-  document.querySelectorAll('.offset-minutes').forEach(el => {
-    el.value = offset;
-  });
-
-  generateStopTimesJSON();
-}
-
-function autoFillDwell() {
-  const dwell = parseInt(document.getElementById("dwell-fill").value, 10);
-  if (isNaN(dwell) || dwell < 0) {
-    alert("Please enter a valid dwell time.");
-    return;
-  }
-
-  document.querySelectorAll('.dwell-seconds').forEach(el => {
-    el.value = dwell;
-  });
-
+  document.querySelector('.departure-times').value = times.join(", ");
   generateStopTimesJSON();
 }
 
 document.addEventListener("DOMContentLoaded", function() {
   // Bind inputs
-  document.querySelectorAll('.departure-times, .offset-minutes, .dwell-seconds, .timing-point').forEach(el => {
+  document.querySelectorAll('.offset-minutes, .dwell-seconds, .timing-point').forEach(el => {
     el.addEventListener('input', generateStopTimesJSON);
-    el.addEventListener('change', generateStopTimesJSON);
+  });
+  
+  // Bind manual times on change
+  document.querySelector('.departure-times').addEventListener('change', () => {
+    generateStopTimesJSON(true);
   });
 
-  // Show all stops toggle
-  document.getElementById('show-all-stops')?.addEventListener('change', () => {
-    renderTimetablePreview(currentTimetableData);
-  });
+  // Toggle for preview
+  document.getElementById('show-all-stops')?.addEventListener('change', () => renderTimetablePreview(currentTimetableData));
 
-  // Initial generation
+  // --- NEW: FORM SUBMISSION INTERCEPTOR ---
+  document.getElementById('timetable-form').addEventListener('submit', function(event) {
+    // 1. Perform a final validation of the manual times
+    const firstStopTimes = document.querySelector('.departure-times').value.split(',').map(t => t.trim()).filter(Boolean);
+    if (!validateTimes(firstStopTimes)) {
+      event.preventDefault(); // This stops the save!
+      alert("Cannot save: Departure times must be at least 5 minutes apart.");
+      return;
+    }
+
+    // 2. Perform a final validation of all times in currentTimetableData
+    for (const key in currentTimetableData) {
+      if (!validateTimes(currentTimetableData[key].times)) {
+        event.preventDefault(); // This stops the save!
+        alert(`Cannot save: Times for ${currentTimetableData[key].stopname} are less than 5 minutes apart.`);
+        return;
+      }
+    }
+  });
+  // ----------------------------------------
+
   generateStopTimesJSON();
 });
 </script>

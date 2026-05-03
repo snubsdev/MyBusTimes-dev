@@ -4611,7 +4611,21 @@ def vehicle_mass_add(request, operator_slug):
     data = safe_json_load(path, default={})
     features_list = data.get("features", [])
 
-    if request.method == "POST":
+    if request.method == 'POST':
+        now = timezone.now()
+        last_add = request.session.get('last_mass_add')
+
+        if last_add:
+            last_add_time = timezone.datetime.fromisoformat(last_add)
+            if now - last_add_time < timedelta(minutes=2):
+                request.session['last_mass_add'] = now.isoformat()
+                remaining = 120 - int((now - last_add_time).total_seconds())
+                return JsonResponse({
+                    'error': f'Rate limited. Try again in {remaining} seconds.'
+                }, status=429)
+
+        request.session['last_mass_add'] = now.isoformat()
+
         try:
             number_of_vehicles = int(request.POST.get("number_of_vehicles", 1))
         except ValueError:
