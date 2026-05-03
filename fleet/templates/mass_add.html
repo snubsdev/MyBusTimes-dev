@@ -133,46 +133,189 @@
 
 <script>
 $(document).ready(function() {
-  function formatLivery(livery) {
-    if (!livery.id) return livery.text;
-    const $option = $('#livery').find('option[value="' + livery.id + '"]');
-    const leftCss = livery.left_css || $option.data('left_css') || '#ccc';
-    return $(`<div class="livery-cell" style="background: ${leftCss};"></div><span>${livery.text}</span>`);
-  }
+    function formatLivery(livery) {
+      if (!livery.id) return livery.text;
 
-  $('#livery').select2({
-    placeholder: 'Select a livery',
-    allowClear: true,
-    width: '100%',
-    templateResult: formatLivery,
-    templateSelection: formatLivery,
-    ajax: {
-      url: '/api/liveries/',
-      dataType: 'json',
-      delay: 250,
-      data: function (params) {
-        return {
-          limit: 100,
-          offset: params.page ? params.page * 100 : 0,
-          name__icontains: params.term || ''
-        };
-      },
-      processResults: function (data, params) {
-        params.page = params.page || 0;
-        return {
-          results: data.results.map(function(livery) {
-            return { id: livery.id, text: livery.name, left_css: livery.left_css };
-          }),
-          pagination: { more: data.next !== null }
-        };
-      },
-      cache: true
-    },
-    minimumInputLength: 0
-  });
+      const $option = $('#livery').find('option[value="' + livery.id + '"]');
+      const leftCss = livery.left_css || $option.data('left_css') || '#ccc';
 
-  $('#operator').select2({ width: '100%' });
-  $('#loan_operator').select2({ width: '100%' });
+      const $container = $(`
+        <div class="livery-cell" style="background: ${leftCss};"></div><span>${livery.text}</span>
+      `);
+      return $container;
+    }
+    const $operator = $('#operator');
+    const isSuperuser = {{ user.is_superuser|yesno:"true,false" }};
+    const userId = {{ user.id }};
+
+    if (!isSuperuser) {
+      // Normal users: static options
+      $operator.select2({
+        placeholder: 'Select an operator',
+        allowClear: true,
+        width: '100%'
+      });
+    } else {
+      $operator.select2({
+        placeholder: 'Select an operator',
+        allowClear: true,
+        width: '100%',
+        ajax: {
+          url: function (params) {
+            let apiUrl = '/api/operator/';
+            console.log('API URL:', apiUrl);
+            console.log('Search Term:', params.term);
+            console.log(params.term ? params.term.length : 0);
+            let charCount = params.term ? params.term.length : 0;
+            console.log('Character Count:', charCount);
+            if (charCount < 2) {
+              apiUrl += '?user=' + userId;
+            }
+            return apiUrl;
+          },
+
+
+          dataType: 'json',
+          delay: 250,
+          data: function (params) {
+            return {
+              limit: 100,
+              offset: params.page ? params.page * 100 : 0,
+              operator_name__icontains: params.term || ''
+            };
+          },
+          processResults: function (data, params) {
+            params.page = params.page || 0;
+
+            return {
+              results: data.results.map(function (operator) {
+                return {
+                  id: operator.id,
+                  text: operator.operator_name,
+                };
+              }),
+              pagination: {
+                more: data.next !== null
+              }
+            };
+          },
+          cache: true
+        },
+        language: {
+          inputTooShort: function () {
+            return ''; // hide "type more characters" text
+          },
+          searching: function () {
+            return 'Searching...';
+          }
+        }
+      });
+    }
+    $('#loan_operator').select2({
+      placeholder: 'Select a loan operator',
+      allowClear: true,
+      width: '100%'
+    });
+    $('#livery').select2({
+      placeholder: 'Select a livery',
+      allowClear: true,
+      width: '100%',
+      templateResult: formatLivery,
+      templateSelection: formatLivery,
+      ajax: {
+        url: '/api/liveries/',
+        dataType: 'json',
+        delay: 250,
+        data: function (params) {
+          return {
+            limit: 100,
+            offset: params.page ? params.page * 100 : 0,
+            name__icontains: params.term || ''
+          };
+        },
+        processResults: function (data, params) {
+          params.page = params.page || 0;
+
+          return {
+            results: data.results.map(function(livery) {
+              return {
+                id: livery.id,
+                text: livery.name,
+                left_css: livery.left_css
+              };
+            }),
+            pagination: {
+              more: data.next !== null
+            }
+          };
+        },
+        cache: true
+      },
+      minimumInputLength: 0
+    });
+    $('#type').select2({
+      placeholder: 'Select a type',
+      allowClear: true,
+      width: '100%',
+      ajax: {
+        url: '/api/type/',
+        dataType: 'json',
+        delay: 250,
+        data: function (params) {
+          return {
+            limit: 100,
+            offset: params.page ? params.page * 100 : 0,
+            type_name_contains: params.term || ''
+          };
+        },
+        processResults: function (data, params) {
+          params.page = params.page || 0;
+
+          const groups = {};
+          let groupOrder = [];
+
+          data.results.forEach(function (type) {
+            const groupName = type.type || 'Other';
+            if (!groups[groupName]) {
+              groups[groupName] = [];
+              groupOrder.push(groupName);
+            }
+            groups[groupName].push({
+              id: type.id,
+              text: type.type_name
+            });
+          });
+
+          if (groupOrder.includes('Bus')) {
+            groupOrder = ['Bus'].concat(groupOrder.filter(function (name) {
+              return name !== 'Bus';
+            }));
+          }
+
+          return {
+            results: groupOrder.map(function (groupName) {
+              return {
+                text: groupName,
+                children: groups[groupName]
+              };
+            }),
+            pagination: {
+              more: data.next !== null
+            }
+          };
+        },
+        cache: true
+      },
+      minimumInputLength: 0
+    });
+    $('#type').next('.select2-container').find('.select2-selection--single').addClass('custom-type-radius');
+    $('#type').on('select2:open', function() {
+      $('.select2-dropdown').css('border-radius', '0 0 .5em .5em');
+    });
+
+    $('#operator').on('change', function () {
+      $('#vehicle_category').val(null).trigger('change');
+    });
 });
 
 document.addEventListener('DOMContentLoaded', function () {
