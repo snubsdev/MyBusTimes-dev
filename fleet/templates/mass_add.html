@@ -81,7 +81,13 @@
     <br><br>
 
     <label for="livery">Livery:</label>
-    <select name="livery" id="livery"></select>
+    <select name="livery" id="livery">
+      {% for livery in liveryData %}
+      <option value="{{ livery.id }}" data-left_css="{{ livery.left_css }}" {% if livery.id == liveryID %}selected{% endif %}>
+        {{ livery.name }}
+      </option>
+      {% endfor %}
+    </select>
 
     <label for="vehicle_category">Category:</label>
     <select name="vehicle_category" id="vehicle_category"></select>
@@ -127,6 +133,44 @@
 
 <script>
 $(document).ready(function() {
+  function formatLivery(livery) {
+    if (!livery.id) return livery.text;
+    const $option = $('#livery').find('option[value="' + livery.id + '"]');
+    const leftCss = livery.left_css || $option.data('left_css') || '#ccc';
+    return $(`<div class="livery-cell" style="background: ${leftCss};"></div><span>${livery.text}</span>`);
+  }
+
+  $('#livery').select2({
+    placeholder: 'Select a livery',
+    allowClear: true,
+    width: '100%',
+    templateResult: formatLivery,
+    templateSelection: formatLivery,
+    ajax: {
+      url: '/api/liveries/',
+      dataType: 'json',
+      delay: 250,
+      data: function (params) {
+        return {
+          limit: 100,
+          offset: params.page ? params.page * 100 : 0,
+          name__icontains: params.term || ''
+        };
+      },
+      processResults: function (data, params) {
+        params.page = params.page || 0;
+        return {
+          results: data.results.map(function(livery) {
+            return { id: livery.id, text: livery.name, left_css: livery.left_css };
+          }),
+          pagination: { more: data.next !== null }
+        };
+      },
+      cache: true
+    },
+    minimumInputLength: 0
+  });
+
   $('#operator').select2({ width: '100%' });
   $('#loan_operator').select2({ width: '100%' });
 });
