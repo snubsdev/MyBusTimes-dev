@@ -105,6 +105,11 @@ AUTH_USER_MODEL = 'main.CustomUser'
 USE_X_FORWARDED_HOST = True
 
 INSTALLED_APPS = [
+    'django_otp',
+    'django_otp.plugins.otp_static',
+    'django_otp.plugins.otp_totp',
+    'two_factor',
+#    'djangocms_simple_admin_style',  # ← only once, before django.contrib.admin
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -137,7 +142,6 @@ INSTALLED_APPS = [
     'a',
     'simple_history',
     'words',
-    'djangocms_simple_admin_style',
     'django.contrib.sites',
     'cms',
     'menus',
@@ -194,6 +198,8 @@ MIDDLEWARE.extend([
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django_otp.middleware.OTPMiddleware',
+    'admin_dash.middleware.RequireOTPMiddleware',  
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'simple_history.middleware.HistoryRequestMiddleware',
@@ -238,7 +244,7 @@ REST_FRAMEWORK = {
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],  # ← Add this
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -351,8 +357,8 @@ SESSION_ENGINE = "django.contrib.sessions.backends.db"  # important if not alrea
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SAMESITE = "Lax"  
-LOGIN_URL = "/oidc/authenticate/"
-LOGOUT_URL = "/oidc/logout/"
+LOGIN_URL = 'two_factor:login'
+LOGIN_REDIRECT_URL = '/'
 
 LANGUAGE_CODE = 'en-gb'
 TIME_ZONE = 'Europe/London'
@@ -418,9 +424,9 @@ MEDIA_URL = "https://cdn.mybustimes.cc/mybustimes/mybustimes/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-LOGIN_URL = '/account/login/'
-LOGIN_REDIRECT_URL = '/'
-LOGOUT_REDIRECT_URL = '/'
+#LOGIN_URL = '/account/login/'
+#LOGIN_REDIRECT_URL = '/'
+#LOGOUT_REDIRECT_URL = '/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

@@ -1,0 +1,30 @@
+{% extends 'two_factor/_base.html' %}
+{% load i18n %}
+
+{% block two_factor_content %}
+<h2>Login</h2>
+<form method="post" class="fleet-edit-wrapper">
+  {% csrf_token %}
+  {{ wizard.form.as_p }}
+  {{ wizard.management_form }}
+
+  {% if wizard.steps.current == 'auth' %}
+  <div class="cf-turnstile" 
+       data-sitekey="{{ CF_SITE_KEY }}" 
+       data-theme="{% if themeDark == 'True' %}dark{% else %}light{% endif %}">
+  </div>
+  {% endif %}
+
+  <button type="submit">
+    {% if wizard.steps.current == 'auth' %}Login{% else %}Verify{% endif %}
+  </button>
+</form>
+
+{% if wizard.steps.current == 'auth' %}
+<div>
+  <p>Login with <a href="/oidc/authenticate/">Next Stop Login</a></p>
+  <p>Don't have an account? <a href="{% url 'register' %}">Register here</a>.<br>
+  Forgot your password? <a href="{% url 'password_reset' %}">Reset it here</a>.</p>
+</div>
+{% endif %}
+{% endblock %}

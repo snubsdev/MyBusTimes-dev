@@ -1,0 +1,13 @@
+{% extends 'mbtbase.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/narrow.css' %}">
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+{% endblock %}
+
+{% block title %}Login{% endblock %}
+
+{% block content %}
+{% block two_factor_content %}{% endblock %}
+{% endblock %}

@@ -24,6 +24,7 @@ from django.contrib.auth import logout
 from rest_framework.decorators import api_view
 from django.core.cache import cache
 from django.db.models import Q
+from two_factor.views import LoginView as TwoFactorLoginView
 
 # Third-party imports
 import stripe
@@ -170,33 +171,32 @@ def validate_turnstile(token, remoteip=None):
             print(f"Turnstile validation error: {e}")
             return {'success': False, 'error-codes': ['internal-error']}
 
-class CustomLoginView(LoginView):
-    def form_valid(self, form):
-        token = self.request.POST.get('cf-turnstile-response')
-        remoteip = (
-            self.request.headers.get('CF-Connecting-IP')
-            or self.request.headers.get('X-Forwarded-For')
-            or self.request.META.get('REMOTE_ADDR')
-        )
+class CustomLoginView(TwoFactorLoginView):
 
-        validation = validate_turnstile(token, remoteip)
+    def post(self, *args, **kwargs):
+        # Only validate captcha on the first step (auth form)
+        if self.steps.current == 'auth':
+            token = self.request.POST.get('cf-turnstile-response')
+            remoteip = (
+                self.request.headers.get('CF-Connecting-IP')
+                or self.request.headers.get('X-Forwarded-For')
+                or self.request.META.get('REMOTE_ADDR')
+            )
+            validation = validate_turnstile(token, remoteip)
+            if not validation.get('success'):
+                form = self.get_form()
+                form.add_error(None, "Captcha validation failed. Please try again.")
+                return self.render(form)
+        return super().post(*args, **kwargs)
 
-        if not validation.get('success'):
-            form.add_error(None, "Captcha validation failed. Please try again.")
-            return self.form_invalid(form)
-
-        response = super().form_valid(form)
+    def done(self, form_list, **kwargs):
+        response = super().done(form_list, **kwargs)
         user = self.request.user
-
-        # Get IP address
         x_forwarded_for = self.request.META.get('HTTP_X_FORWARDED_FOR')
         ip = x_forwarded_for.split(',')[0] if x_forwarded_for else self.request.META.get('REMOTE_ADDR')
-
-        # Save login info
         user.last_login_ip = ip
         user.last_login = now()
         user.save(update_fields=["last_login_ip", "last_login"])
-
         return response
     
 def register_view(request):

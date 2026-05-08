@@ -7,8 +7,13 @@ from django.conf import settings
 from django.urls import include, path
 from django.views.decorators.cache import cache_control
 from django.views.generic.base import RedirectView
+from two_factor.urls import urlpatterns as tf_urls
+from django_otp.admin import OTPAdminSite
+
+admin.site.__class__ = OTPAdminSite
 
 urlpatterns = [
+    path('', include(tf_urls)),
     path('BusTimes/', RedirectView.as_view(url='/', permanent=False)),
     path('BusTimes/<path:path>', RedirectView.as_view(url='/', permanent=False)),
     path('api-admin/', admin.site.urls),
