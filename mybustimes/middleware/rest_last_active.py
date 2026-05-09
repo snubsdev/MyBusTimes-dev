@@ -331,7 +331,8 @@ class UpdateLastActiveMiddleware:
                     user.last_ip = new_ip
                     user.save(update_fields=["last_ip"])
         except Exception as e:
-            print(f"[DEBUG] Error recording device usage: {e}")
+            #print(f"[DEBUG] Error recording device usage: {e}")
+            pass
         
         return response
 

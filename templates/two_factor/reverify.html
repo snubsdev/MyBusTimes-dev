@@ -1,0 +1,18 @@
+{% extends 'two_factor/_base.html' %}
+{% load i18n %}
+{% block two_factor_content %}
+<h2>Confirm Your Identity</h2>
+<form method="post" class="fleet-edit-wrapper">
+  {% csrf_token %}
+  <p>
+    <label for="otp_token">Authentication code</label>
+    <input id="otp_token" name="otp_token" type="text"
+           inputmode="numeric" autocomplete="one-time-code"
+           autofocus maxlength="6" />
+  </p>
+  {% if error %}
+  <p style="color: red;">{{ error }}</p>
+  {% endif %}
+  <button type="submit">Verify</button>
+</form>
+{% endblock %}

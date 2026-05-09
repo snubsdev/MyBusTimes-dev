@@ -17,6 +17,7 @@ urlpatterns = [
     path('settings/', account_settings, name='account_settings'),
     path('delete-account/', delete_account, name='delete_account'),
     path('TicketerCode/', ticketer_code, name='ticketer_code'),
+    path('two_factor/reverify/', admin_reverify, name='otp_admin_reverify'),
 
     path('password-reset/', auth_views.PasswordResetView.as_view(
         template_name='password_reset_form.html',

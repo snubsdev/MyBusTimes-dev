@@ -25,6 +25,7 @@ from rest_framework.decorators import api_view
 from django.core.cache import cache
 from django.db.models import Q
 from two_factor.views import LoginView as TwoFactorLoginView
+from django_otp import devices_for_user
 
 # Third-party imports
 import stripe
@@ -1291,3 +1292,26 @@ def get_all_available_badges(request):
 
     badges = badge.objects.all().values("badge_name").order_by("badge_name")
     return JsonResponse({"badges": list(badges)}, status=200)
+
+@login_required
+def admin_reverify(request):
+    if request.method == 'POST':
+        token = request.POST.get('otp_token', '').strip()
+
+        verified = False
+        for device in devices_for_user(request.user):
+            try:
+                if device.verify_token(token):
+                    verified = True
+                    break
+            except Exception:
+                continue
+
+        if verified:
+            request.session['otp_admin_verified_at'] = timezone.now().timestamp()
+            next_url = request.session.pop('otp_admin_next', '/admin/')
+            return redirect(next_url)
+
+        return render(request, 'two_factor/reverify.html', {'error': 'Invalid code. Please try again.'})
+
+    return render(request, 'two_factor/reverify.html')
