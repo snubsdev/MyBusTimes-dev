@@ -14,7 +14,7 @@ from mybustimes.permissions import ReadOnly
 from .models import *
 from .filters import *
 from .serializers import *
-from fleet.models import MBTOperator
+from fleet.models import MBTOperator, group as OperatorGroup
 from collections import defaultdict
 from django.contrib.admin.views.decorators import staff_member_required
 from django.shortcuts import get_object_or_404
@@ -51,6 +51,11 @@ class routesListView(generics.ListCreateAPIView):
                 'service_updates',
                 'service_updates__effected_route'
             )
+
+class groupRoutesListView(routesListView):
+    def get_queryset(self):
+        operator_group = get_object_or_404(OperatorGroup, group_name=self.kwargs["group_name"])
+        return super().get_queryset().filter(route_operators__group=operator_group).distinct()
     
 class routeStops(View):
     def get(self, request, pk):

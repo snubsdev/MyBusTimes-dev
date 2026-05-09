@@ -1,0 +1,104 @@
+{% extends 'mbtbase.html' %}
+{% load static %}
+
+{% block title %}Routes - {{ group.group_name }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/wide.css' %}">
+<style>
+  .is-short {
+    text-wrap: nowrap;
+  }
+
+  .operator-route-section {
+    margin-top: 1.5rem;
+  }
+
+  .operator-route-section h2 {
+    margin-bottom: 0.5rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<h1 style="margin: 0;display: inline-block;align-content: center;vertical-align: sub;margin-right: .25em;">
+  {{ group.group_name }}
+</h1>
+{% if owner %}<a href="/group/{{ group.group_name|urlencode }}/edit/">Edit</a>{% endif %}
+
+<ul class="tabs">
+  <li>
+    <a href="/group/{{ group.group_name|urlencode }}/">{{ vehicle_count }} vehicles</a>
+  </li>
+  <li class="active">
+    {{ route_count }} routes
+  </li>
+  <li>
+    <a href="/group/{{ group.group_name|urlencode }}/map/">Map</a>
+  </li>
+</ul>
+
+<ul class="horizontal">
+  {% if show_hidden %}
+  <li><a href="/group/{{ group.group_name|urlencode }}/routes/">Hide Hidden Routes</a></li>
+  {% else %}
+  <li><a href="/group/{{ group.group_name|urlencode }}/routes/?hidden=true">Show Hidden Routes</a></li>
+  {% endif %}
+</ul>
+
+{% for section in route_sections %}
+<section class="operator-route-section">
+  <h2>{{ section.operator.operator_name }}</h2>
+  <ul class="services">
+    {% for group in section.routes %}
+    {% with primary=group.primary linked=group.linked %}
+    <li class="route" {% if primary.hidden %}style="opacity: 0.5;"{% endif %}>
+      <a href="/operator/{{ section.operator.operator_slug }}/route/{{ primary.id }}/">
+        {% if linked %}
+          <strong class="name first is-short" style="{{ primary.colours }}{% if primary.route_num|length > 10 %}; text-wrap: nowrap; font-size: 15px{% endif %}">{{ primary.route_num }}</strong>
+          {% for linked_route in linked %}
+            {% if forloop.last %}
+              {% if primary.route_name %}
+                <strong class="name is-short middle" style="{{ linked_route.colours|default:primary.colours }}{% if linked_route.route_num|length > 10 %}; text-wrap: nowrap; font-size: 15px{% endif %}">{{ linked_route.route_num }}</strong>
+              {% else %}
+                <strong class="name is-short last" style="{{ linked_route.colours|default:primary.colours }}{% if linked_route.route_num|length > 10 %}; text-wrap: nowrap; font-size: 15px{% endif %}">{{ linked_route.route_num }}</strong>
+              {% endif %}
+            {% else %}
+              <strong class="name is-short middle" style="{{ linked_route.colours|default:primary.colours }}{% if linked_route.route_num|length > 10 %}; text-wrap: nowrap; font-size: 15px{% endif %}">{{ linked_route.route_num }}</strong>
+            {% endif %}
+          {% endfor %}
+        {% else %}
+          {% if primary.route_name %}
+            <strong class="name is-short first" style="{{ primary.colours }}{% if primary.route_num|length > 10 %}; text-wrap: nowrap; font-size: 15px{% endif %}">{{ primary.route_num }}</strong>
+          {% else %}
+            {% if primary.route_num %}
+            <strong class="name is-short" style="{{ primary.colours }}{% if primary.route_num|length > 10 %}; text-wrap: nowrap; font-size: 15px{% endif %}">{{ primary.route_num }}</strong>
+            {% endif %}
+          {% endif %}
+        {% endif %}
+
+        {% if primary.route_name and primary.route_name != 'NULL' %}
+        <strong class="last name" style="{{ primary.colours }}{% if primary.route_name|length > 20 %}; font-size: 10px{% endif %}">{{ primary.route_name }}</strong>
+        {% endif %}
+
+        <span class="destination">
+          {{ primary.inbound_destination }}{% if primary.outbound_destination %} -
+          {{ primary.outbound_destination }}{% endif %}
+        </span>
+        {% if primary.start_date and primary.start_date > today and primary.start_date != 'None' %}
+          <small>{{ primary.start_date }}</small>
+        {% endif %}
+      </a>
+    </li>
+    {% endwith %}
+    {% endfor %}
+  </ul>
+</section>
+{% empty %}
+<ul class="services">
+  <li>No routes found for this group.</li>
+</ul>
+  {% endfor %}
+
+{% endblock %}

@@ -3,6 +3,8 @@ from group.views import *
 
 urlpatterns = [
     path('create/', create_group, name='create_group'),
+    path('<str:group_name>/map/', group_operator_map, name='group_operator_map'),
+    path('<str:group_name>/routes/', group_routes, name='group_routes'),
     path('<str:group_name>/', group_view, name='group'),
     path('<str:group_name>/edit/', group_edit, name='group_edit'),
     path('<str:group_name>/delete/', group_delete, name='group_delete'),

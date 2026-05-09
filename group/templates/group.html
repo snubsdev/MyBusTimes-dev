@@ -73,6 +73,16 @@ Vehicles - {{ group.group_name }}
   <li class="active">
     {{ total_count }} vehicles
   </li>
+  {% if not is_org %}
+  <li>
+    <a href="/group/{{ group.group_name|urlencode }}/routes/">{{ route_count }} routes</a>
+  </li>
+  {% endif %}
+  {% if not is_org %}
+  <li>
+    <a href="/group/{{ group.group_name|urlencode }}/map/">Map</a>
+  </li>
+  {% endif %}
 </ul>
 
 <ul class="horizontal">

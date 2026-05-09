@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from .models import *
-from fleet.models import MBTOperator, helper
+from fleet.models import MBTOperator, helper, group as OperatorGroup
 from mybustimes.permissions import ReadOnly
 from rest_framework import generics
 from .serializers import trackingSerializer, trackingDataSerializer, TripSerializer, TrackingSerializer
@@ -12,7 +12,7 @@ from rest_framework.permissions import AllowAny
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from .forms import trackingForm
-from django.shortcuts import redirect
+from django.shortcuts import redirect, get_object_or_404
 import math
 from main.models import UserKeys
 from rest_framework import generics, serializers
@@ -440,6 +440,7 @@ class trackingAPIView(generics.ListAPIView):
             return fleet.objects.none()
 
         operator_id = params.get("operator_id")
+        group_name = params.get("group_name") or self.kwargs.get("group_name")
         route_id = params.get("route_id")
         vehicle_id = params.get("vehicle_id")
         
@@ -459,6 +460,11 @@ class trackingAPIView(generics.ListAPIView):
 
         if operator_id:
             filters &= Q(operator_id=operator_id) | Q(loan_operator__id=operator_id)
+
+        if group_name:
+            operator_group = get_object_or_404(OperatorGroup, group_name=group_name)
+            operator_ids = MBTOperator.objects.filter(group=operator_group).values_list("id", flat=True)
+            filters &= Q(operator_id__in=operator_ids) | Q(loan_operator_id__in=operator_ids)
 
         if route_id:
             filters &= Q(current_trip__trip_route_id=route_id)

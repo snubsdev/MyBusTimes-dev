@@ -46,6 +46,8 @@ urlpatterns = [
     path('operator/<int:pk>/', ratelimit(key='ip', method='GET', rate='10/s')(operatorDetailView.as_view()), name='operator-detail'),
     path('operator/route/', routesListView.as_view(), name='operator-routes'),
     path('operator/route/<int:pk>/', ratelimit(key='ip', method='GET', rate='10/s')(routesDetailView.as_view()), name='operator-route-detail'),
+    path('group/<str:group_name>/vehicles/', ratelimit(key='ip', method='GET', rate='10/s')(trackingAPIView.as_view()), name='group-vehicles'),
+    path('group/<str:group_name>/routes/', groupRoutesListView.as_view(), name='group-routes'),
     path('operator/ticket/', ratelimit(key='ip', method='GET', rate='10/s')(ticketListView.as_view()), name='operator-tickets'),
     path('operator/tickle/<int:pk>/', ratelimit(key='ip', method='GET', rate='10/s')(ticketDetailView.as_view()), name='operator-ticket-detail'),
 

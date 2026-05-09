@@ -1,6 +1,6 @@
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
-from fleet.models import group, MBTOperator, fleet, organisation
+from fleet.models import group, MBTOperator, fleet, organisation, mapTileSet
 from fleet.serializers import fleetSerializer
 from django.contrib import messages
 from django.views.decorators.http import require_http_methods
@@ -13,9 +13,10 @@ from django.db.models.functions import Cast
 import re
 from django.shortcuts import get_object_or_404, render
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from tracking.models import Trip
-from fleet.views import vehicles
+from routes.models import route, transitAuthoritiesColour
+from fleet.views import feature_enabled, get_route_colours, get_unique_linked_routes, parse_route_key, vehicles
 
 @login_required
 @require_http_methods(["GET", "POST"])
@@ -178,6 +179,7 @@ def group_view(request, group_name):
             item['last_trip_display'] = None
 
     operators = MBTOperator.objects.filter(group=grp).values('id', 'operator_slug')
+    route_count = route.objects.filter(route_operators__id__in=ops_ids, hidden=False).distinct().count()
 
     breadcrumbs = [
         {'name': 'Home', 'url': '/'},
@@ -201,6 +203,141 @@ def group_view(request, group_name):
         'is_paginated':  page_obj.has_other_pages(),
         'page_obj':      page_obj,
         'total_count':   qs.count(),
+        'route_count':   route_count,
+    })
+
+def group_operator_map(request, group_name):
+    response = feature_enabled(request, "route_map")
+    if response:
+        return response
+
+    grp = get_object_or_404(group, group_name=group_name)
+    operator = (
+        MBTOperator.objects
+        .filter(group=grp, mapTile__isnull=False)
+        .select_related("mapTile")
+        .first()
+    )
+    mapTiles_instance = operator.mapTile if operator else mapTileSet.objects.filter(is_default=True).first()
+
+    if mapTiles_instance is None:
+        mapTiles_instance = mapTileSet.objects.get(id=1)
+
+    context = {
+        'group': grp,
+        'mapTile': mapTiles_instance,
+    }
+    return render(request, 'map-group-operator.html', context)
+
+def group_routes(request, group_name):
+    response = feature_enabled(request, "view_routes")
+    if response:
+        return response
+
+    grp = get_object_or_404(group, group_name=group_name)
+    show_hidden = request.GET.get('hidden', 'false').lower() == 'true'
+    owner = request.user.is_authenticated and (grp.group_owner == request.user)
+
+    operator_qs = MBTOperator.objects.filter(group=grp).order_by('operator_name')
+    operator_ids = list(operator_qs.values_list('id', flat=True))
+
+    route_query = route.objects.filter(route_operators__id__in=operator_ids).distinct()
+    if not show_hidden:
+        route_query = route_query.filter(hidden=False)
+
+    authority_codes = set()
+    for operator in operator_qs.only('operator_details'):
+        details = operator.operator_details or {}
+        transit_authority = details.get('transit_authority') or details.get('transit_authorities')
+        if transit_authority:
+            authority_codes.add(transit_authority.split(",")[0].strip())
+
+    authority_lookup = {
+        authority.authority_code: authority
+        for authority in transitAuthoritiesColour.objects.filter(authority_code__in=authority_codes)
+    }
+
+    def apply_route_colour(route_instance, authority):
+        colours_result = get_route_colours(route_instance, authority)
+        if isinstance(colours_result, tuple):
+            route_instance.colours = colours_result[0]
+            route_instance.school_service = colours_result[1]
+        else:
+            route_instance.colours = colours_result
+            route_instance.school_service = None
+
+    def colour_routes(routes_for_operator, operator):
+        details = operator.operator_details if operator else {}
+        transit_authority = (details or {}).get('transit_authority') or (details or {}).get('transit_authorities')
+        authority = None
+        if transit_authority:
+            authority = authority_lookup.get(transit_authority.split(",")[0].strip())
+
+        for route_instance in routes_for_operator:
+            route_instance.primary_operator = operator
+            apply_route_colour(route_instance, authority)
+
+    route_sections = []
+    for operator in operator_qs:
+        operator_routes = list(
+            route_query
+            .filter(route_operators=operator)
+            .prefetch_related(
+                Prefetch(
+                    'route_operators',
+                    queryset=MBTOperator.objects.only('id', 'operator_name', 'operator_slug', 'operator_details'),
+                ),
+                Prefetch(
+                    'linked_route',
+                    queryset=route.objects.prefetch_related(
+                        'linked_route',
+                        Prefetch(
+                            'route_operators',
+                            queryset=MBTOperator.objects.only('id', 'operator_name', 'operator_slug', 'operator_details'),
+                        )
+                    )
+                )
+            )
+        )
+
+        if not operator_routes:
+            continue
+
+        operator_routes = sorted(operator_routes, key=parse_route_key)
+        colour_routes(operator_routes, operator)
+
+        unique_routes = get_unique_linked_routes(operator_routes)
+        for route_group in unique_routes:
+            for route_instance in [route_group["primary"], *route_group["linked"]]:
+                if not hasattr(route_instance, "primary_operator"):
+                    route_instance.primary_operator = operator
+                    apply_route_colour(route_instance, None)
+
+        route_sections.append({
+            'operator': operator,
+            'routes': unique_routes,
+            'route_count': len(operator_routes),
+        })
+
+    vehicle_count = fleet.objects.filter(operator_id__in=operator_ids, in_service=True).count()
+    route_count = route_query.count()
+
+    breadcrumbs = [
+        {'name': 'Home', 'url': '/'},
+        {'name': 'Groups', 'url': '/groups/'},
+        {'name': grp.group_name, 'url': f'/group/{grp.group_name}/'},
+        {'name': 'Routes', 'url': f'/group/{grp.group_name}/routes/'}
+    ]
+
+    return render(request, 'group_routes.html', {
+        'group': grp,
+        'route_sections': route_sections,
+        'breadcrumbs': breadcrumbs,
+        'owner': owner,
+        'show_hidden': show_hidden,
+        'route_count': route_count,
+        'vehicle_count': vehicle_count,
+        'today': timezone.now().date(),
     })
 
 def organisation_view(request, organisation_name):

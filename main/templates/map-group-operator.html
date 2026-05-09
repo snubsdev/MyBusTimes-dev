@@ -1,0 +1,539 @@
+{% extends 'mbtbase.html' %}
+{% load static %}
+{% load url_filters %}
+
+{% block title %}{{ group.group_name }} - Group Operator Map{% endblock %}
+
+{% block extra_css %}
+<link href="https://unpkg.com/maplibre-gl@5.0.0/dist/maplibre-gl.css" rel="stylesheet" />
+
+<style>
+  html, body, main {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  #map {
+    position: fixed !important;
+    top: 55px;
+    bottom: 0;
+    width: 100%;
+    left: 0;
+  }
+
+  #routesToggle, #vehiclesToggle {
+    position: fixed;
+    bottom: 10px;
+    z-index: 1000;
+    background: var(--brand-color);
+    color: var(--text-color);
+    padding: 6px 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  #routesToggle {
+    left: 10px;
+  }
+
+  #vehiclesToggle {
+    left: 140px;
+  }
+
+  .vehicle-marker {
+    text-align: center;
+    color: #000;
+    fill: currentColor;
+    text-anchor: middle;
+    paint-order: stroke;
+    stroke-width: 2px;
+    line-height: 16px;
+    z-index: 20;
+  }
+
+  .maplibregl-popup-tip,
+  .maplibregl-popup-content {
+    background: var(--background-color) !important;
+    color: var(--text-color) !important;
+    border-radius: 0.5em !important;
+    font-size: 12px !important;
+  }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/maplibre-gl@5.0.0/dist/maplibre-gl.js"></script>
+{% endblock %}
+
+{% block content %}
+
+<button id="routesToggle">Show Routes</button>
+<button id="vehiclesToggle">Hide Vehicles</button>
+<div id="map"></div>
+
+<script>
+const savedView = JSON.parse(localStorage.getItem('mbt_map_view') || 'null');
+const groupName = "{{ group.group_name|urlencode }}";
+let showRoutes = false;
+let showVehicles = true;
+let routeLayers = [];
+let btMarkers = [];
+let btVehicleData = []; // Store vehicle data to re-render on zoom change
+const DETAIL_ZOOM_THRESHOLD = 10; // Zoom level to switch between circle and full icon
+
+{% if themeDark == 'True' %}
+  tilesJSON = 'https://maps.fluffynet.dev/styles/dark/style.json';
+{% else %}
+  tilesJSON = 'https://maps.fluffynet.dev/styles/light/style.json';
+{% endif %}
+
+const map = new maplibregl.Map({
+  container: 'map',
+  style: tilesJSON,
+  center: savedView?.center || [-2.5, 54.5],
+  zoom: savedView?.zoom || 5,
+  dragRotate: false
+});
+
+map.on('style.load', () => {
+  map.setProjection({
+    type: 'globe'
+  });
+});
+
+map.addControl(new maplibregl.NavigationControl(), 'top-left');
+
+//
+// ------------------------------
+//  VEHICLE ICON (same as route map)
+// ------------------------------
+//
+function createLiveryIcon({ label='', rotation=0, bg='#0000', css=null, isColour=false, textColour='#fff', textStroke="#0000", strokeWidth="0px", carriages=1 } = {}) {
+    const normalisedRotation = ((rotation % 360) + 360) % 360;
+    const cellRotation = (normalisedRotation < 90 || normalisedRotation > 270) ? 0 : 180;
+    const backgroundStyle = css ? `background: ${css};` : `background: ${bg};`;
+
+    const html = document.createElement('div');
+    
+    // Ensure carriages is at least 1
+    const numCarriages = Math.min(16, Math.max(1, parseInt(carriages) || 1));
+    let localTextColour = textColour;
+    let localTextStroke = textStroke;
+    if (isColour) {
+      localTextColour = '#000';
+      localTextStroke = '#fff';
+      strokeWidth = "2px";
+    }
+    
+    // Build carriage SVGs - last carriage (front) has label, rest are empty
+    let carriageSvgs = '';
+    for (let i = 0; i < numCarriages; i++) {
+      const isLastCarriage = i === numCarriages - 1;
+      const carriageLabel = isLastCarriage ? label : '';
+      carriageSvgs += `
+           <svg width="24" height="16" class="vehicle-marker"
+             style="stroke:${localTextStroke}; ${backgroundStyle} transform: rotate(${cellRotation}deg);
+              border:1px solid rgba(0,0,0); color:${localTextColour}; fill:${localTextColour};
+              stroke-width:${strokeWidth}; ${i > 0 ? 'margin-left: 3px;' : ''}">
+          <text x="12" y="12">${carriageLabel}</text>
+        </svg>
+      `;
+    }
+    
+    html.innerHTML = `
+      <div style="display:inline-flex; transform: rotate(${rotation}deg); align-items: center;">
+        ${carriageSvgs}
+        <span style="display:flex; margin-left:-8px; color:black;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+            <path d="M8 6.65v10.69c0 .64.76.99 1.24.56l6.11-5.35c.34-.3.34-.83 0-1.13L9.24 6.07C8.76 5.65 8 5.99 8 6.63Z" />
+          </svg>
+        </span>
+      </div>
+    `;
+    return html;
+}
+
+function createSimpleCircle({ colour = '#000', borderColour = '#000' } = {}) {
+  const el = document.createElement('div');
+  el.style.cssText = `width: 10px; height: 10px; background: ${colour}; border-radius: 50%;`;
+  return el;
+}
+
+function normaliseApiUrl(url) {
+  if (!url) return null;
+
+  try {
+    const parsed = new URL(url, window.location.origin);
+
+    // Some API responses return http links even on https pages.
+    if (parsed.hostname === window.location.hostname) {
+      parsed.protocol = window.location.protocol;
+    }
+
+    return parsed.toString();
+  } catch (err) {
+    return url;
+  }
+}
+
+async function fetchPaginatedResults(initialUrl) {
+  const firstUrl = normaliseApiUrl(initialUrl);
+  if (!firstUrl) return [];
+
+  const firstRes = await fetch(firstUrl);
+  if (!firstRes.ok) {
+    throw new Error(`Request failed (${firstRes.status}) for ${firstUrl}`);
+  }
+
+  const firstData = await firstRes.json();
+  if (Array.isArray(firstData)) {
+    return firstData;
+  }
+
+  const combinedResults = Array.isArray(firstData.results) ? [...firstData.results] : [];
+  if (!firstData.next) {
+    return combinedResults;
+  }
+
+  const firstUrlObj = new URL(firstUrl, window.location.origin);
+  const nextUrlObj = new URL(normaliseApiUrl(firstData.next), window.location.origin);
+
+  const totalCount = Number.isFinite(firstData.count) ? firstData.count : combinedResults.length;
+  const initialOffset = Number(firstUrlObj.searchParams.get('offset') || '0');
+  const limit = Number(
+    nextUrlObj.searchParams.get('limit') ||
+    firstUrlObj.searchParams.get('limit') ||
+    combinedResults.length ||
+    100
+  );
+
+  if (!limit || totalCount <= combinedResults.length) {
+    return combinedResults;
+  }
+
+  const offsets = [];
+  for (let offset = initialOffset + limit; offset < initialOffset + totalCount; offset += limit) {
+    offsets.push(offset);
+  }
+
+  const concurrency = 3;
+  for (let i = 0; i < offsets.length; i += concurrency) {
+    const batchOffsets = offsets.slice(i, i + concurrency);
+    const batchResponses = await Promise.all(
+      batchOffsets.map(async (offset) => {
+        const pageUrl = new URL(firstUrlObj.toString());
+        pageUrl.searchParams.set('offset', String(offset));
+        pageUrl.searchParams.set('limit', String(limit));
+
+        const res = await fetch(normaliseApiUrl(pageUrl.toString()));
+        if (!res.ok) {
+          throw new Error(`Request failed (${res.status}) for ${pageUrl.toString()}`);
+        }
+
+        const data = await res.json();
+        return Array.isArray(data.results) ? data.results : [];
+      })
+    );
+
+    for (const pageResults of batchResponses) {
+      combinedResults.push(...pageResults);
+    }
+  }
+
+  return combinedResults;
+}
+
+//
+// ------------------------------
+//         VEHICLE TRACKING
+// ------------------------------
+//
+async function loadGroupBT() {
+  const b = map.getBounds();
+
+  const q = new URLSearchParams({
+    ymax: b.getNorth(),
+    ymin: b.getSouth(),
+    xmax: b.getEast(),
+    xmin: b.getWest(),
+    limit: 5000
+  });
+
+  const url = `/api/group/${groupName}/vehicles/?${q}`;
+
+  const res = await fetch(url);
+  const data = await res.json();
+  btVehicleData = Array.isArray(data.results) ? data.results : [];
+
+  renderBTMarkers();
+}
+
+function renderBTMarkers() {
+  btMarkers.forEach(m => m.remove());
+  btMarkers = [];
+
+  if (!showVehicles) return; // Skip rendering if vehicles are hidden
+
+  const zoom = map.getZoom();
+  const showDetailedIcon = zoom >= DETAIL_ZOOM_THRESHOLD;
+
+  for (const v of btVehicleData) {
+    if (!v.lat || !v.lng) continue;
+
+    let heading = v.heading ?? 0;
+    const vehicleColour = v.vehicle?.colour || '#000';
+
+    const left_css = v.vehicle?.left_css || null;
+    const right_css = v.vehicle?.right_css || null;
+
+    heading = heading + 180;
+    const rotation = heading;
+    heading = heading + 90;
+
+    let css = left_css;
+
+    if (rotation > 180 && rotation < 360) {
+      css = right_css;
+    } else {
+      css = left_css;
+    }
+    
+    let textColour = v.vehicle?.text_colour || (v.vehicle?.white_text ? "#fff" : "#000");
+    const textStroke = v.vehicle?.stroke_colour ?? false;
+    const strokeWidth = textStroke ? "2px" : "0px";
+    const livery = v.vehicle?.livery || null;
+    
+    if (livery == null) {
+      textColour = '#000';
+      css = "#fff";
+    }
+
+    // Stroke logic: treat plain-colour liveries as colour-only vehicles
+    let isColour = false;
+    if (vehicleColour && v.vehicle?.livery && v.vehicle?.livery.left_css == '' && v.vehicle?.livery.right_css == '') {
+      isColour = true;
+    }
+    
+    if (v.vehicle?.css) {
+      css = v.vehicle.css;
+    }
+
+    // Parse custom_features for carriages
+    let carriages = 1;
+    const customFeatures = v.vehicle?.custom_features;
+    if (customFeatures) {
+      try {
+        let features = customFeatures;
+        if (typeof customFeatures === 'string') {
+          features = JSON.parse(customFeatures.replace(/'/g, '"'));
+        }
+        if (features && features.carriages) {
+          carriages = parseInt(features.carriages) || 1;
+        }
+      } catch (e) {
+        console.warn('Failed to parse custom_features:', customFeatures, e);
+      }
+    }
+
+    let el;
+    if (showDetailedIcon) {
+      // Only show multiple carriages when zoomed in past level 12
+      const displayCarriages = zoom > 12 ? carriages : 1;
+      el = createLiveryIcon({
+        label: v.service?.line_name || "",
+        css,
+        isColour,
+        textColour,
+        rotation: heading,
+        textStroke,
+        strokeWidth,
+        carriages: displayCarriages
+      });
+    } else {
+      el = createSimpleCircle({ colour: vehicleColour, borderColour: '#333' });
+    }
+
+    const m = new maplibregl.Marker({ element: el })
+      .setLngLat([v.lng, v.lat])
+      .setPopup(new maplibregl.Popup({ offset: 6 }).setHTML(`
+        <a href="${v.service?.url || '#'}">${v.service?.line_name || ''} to ${v.destination || ''}</a><br>
+        ${v.vehicle?.url ? `<a href="${v.vehicle.url}">${v.vehicle.name || 'Vehicle'}</a>` : ""}<br>
+          <span class="time-ago" data-time="${v.updated_at}">${timeAgo(v.updated_at)}</span>
+          <small style="margin-bottom: 0;">Simulated Location</small>
+      `))
+      .addTo(map);
+
+    btMarkers.push(m);
+  }
+}
+
+//
+// ------------------------------
+//   LOAD ALL ROUTES FOR GROUP
+// ------------------------------
+//
+async function loadGroupRoutes() {
+  // Remove existing layers
+  for (const id of routeLayers) {
+    if (map.getLayer(id)) map.removeLayer(id);
+    if (map.getSource(id)) map.removeSource(id);
+  }
+  routeLayers = [];
+
+  const routes = await fetchPaginatedResults(
+    `/api/group/${groupName}/routes/?stops_have_cords=true`
+  );
+
+  const bounds = new maplibregl.LngLatBounds();
+
+  for (const route of routes) {
+    await drawRoute(route.id, bounds);
+  }
+
+  if (!bounds.isEmpty()) {
+    map.fitBounds(bounds, { padding: 60 });
+  }
+}
+
+//
+// ------------------------------
+//   DRAW INDIVIDUAL ROUTE
+// ------------------------------
+//
+async function drawRoute(routeId, bounds) {
+  const res = await fetch(`/api/routes/${routeId}/stops/`);
+  if (!res.ok) return;
+
+  const data = await res.json();
+
+  const stops = data.stops || [];
+  const snapped = data.snapped_route || [];
+  const hasSnapped = data.has_snapped_route === true;
+
+  // Parse unsnapped stop coords
+  const stopCoords = stops
+    .map(s => s.cords?.split(',').map(Number))
+    .filter(c => c && c.length === 2)
+    .map(([lat, lon]) => [lon, lat]);
+
+  let geometry = [];
+
+  if (hasSnapped && snapped.length > 1) {
+    geometry = snapped;  // already [lon, lat]
+  } else {
+    geometry = stopCoords;
+  }
+
+  const lid = `route_${routeId}`;
+
+  if (geometry.length >= 2) {
+
+    if (data.route_colour == "var(--background-color)") {
+      data.route_colour = '#2f80ed';
+    }
+
+    const routeColour = data.route_colour || '#2f80ed'; // Use route_colour if available, otherwise default to blue
+
+    map.addSource(lid, {
+      type: 'geojson',
+      data: {
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: geometry }
+      }
+    });
+
+    map.addLayer({
+      id: lid,
+      type: 'line',
+      source: lid,
+      paint: {
+        'line-color': routeColour,
+        'line-width': 3
+      }
+    });
+
+    routeLayers.push(lid);
+    geometry.forEach(c => bounds.extend(c));
+  }
+}
+
+//
+// ------------------------------
+//   TOGGLE ROUTES BUTTON
+// ------------------------------
+//
+document.getElementById("routesToggle").addEventListener("click", async () => {
+  showRoutes = !showRoutes;
+  document.getElementById("routesToggle").innerText = showRoutes ? "Hide Routes" : "Show Routes";
+
+  if (showRoutes) {
+    await loadGroupRoutes();
+  } else {
+    // Remove existing route layers and sources
+    for (const id of routeLayers) {
+      if (map.getLayer(id)) map.removeLayer(id);
+      if (map.getSource(id)) map.removeSource(id);
+    }
+    routeLayers = [];
+  }
+});
+
+//
+// ------------------------------
+//   TOGGLE VEHICLES BUTTON
+// ------------------------------
+//
+document.getElementById("vehiclesToggle").addEventListener("click", () => {
+  showVehicles = !showVehicles;
+  document.getElementById("vehiclesToggle").innerText = showVehicles ? "Hide Vehicles" : "Show Vehicles";
+
+  renderBTMarkers(); // Re-render markers based on the toggle state
+});
+
+map.on('load', async () => {
+  await loadGroupBT();
+});
+
+map.on("moveend", loadGroupBT);
+setInterval(loadGroupBT, 30000);
+
+// Re-render BT markers when zooming past the threshold (without re-fetching data)
+let lastZoomLevel = map.getZoom();
+map.on('zoom', () => {
+  const currentZoom = map.getZoom();
+  const crossedThreshold = 
+    (lastZoomLevel < DETAIL_ZOOM_THRESHOLD && currentZoom >= DETAIL_ZOOM_THRESHOLD) ||
+    (lastZoomLevel >= DETAIL_ZOOM_THRESHOLD && currentZoom < DETAIL_ZOOM_THRESHOLD);
+  
+  if (crossedThreshold && btVehicleData.length > 0) {
+    renderBTMarkers();
+  }
+  lastZoomLevel = currentZoom;
+});
+
+function timeAgo(dateString) {
+    if (!dateString) return '';
+    const seconds = Math.floor((new Date() - new Date(dateString)) / 1000);
+    if (seconds < 60) return `${seconds} sec${seconds !== 1 ? 's' : ''} ago`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes} min${minutes !== 1 ? 's' : ''} ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} hr${hours !== 1 ? 's' : ''} ago`;
+    const days = Math.floor(hours / 24);
+    return `${days} day${days !== 1 ? 's' : ''} ago`;
+  }
+
+setInterval(() => {
+    document.querySelectorAll('.time-ago').forEach(el => {
+      const dateString = el.dataset.time;
+      if (dateString) {
+        el.textContent = timeAgo(dateString);
+      }
+    });
+  }, 1000); 
+
+</script>
+
+{% endblock %}
