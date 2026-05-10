@@ -97,6 +97,23 @@ class OperatorOrganisationFilter(AutocompleteFilter):
         qs = super().get_queryset(request)
         return qs.order_by("organisation__organisation_name")
 
+class AssignOperatorsOrganisationForm(forms.Form):
+    organisation = forms.ModelChoiceField(
+        label="Organisation",
+        queryset=organisation.objects.all().order_by("organisation_name"),
+        required=True,
+        widget=AutocompleteSelect(
+            field=MBTOperator._meta.get_field("organisation"),
+            admin_site=admin.site,
+        ),
+    )
+
+@admin.action(description="Add selected operators to an organisation")
+def assign_operators_to_organisation(modeladmin, request, queryset):
+    key = get_random_string(12)
+    request.session[f"assign_operator_organisation_ids_{key}"] = list(queryset.values_list("id", flat=True))
+    return redirect(f"/api-admin/fleet/mbtoperator/assign-organisation/?key={key}")
+
 @admin.register(MBTOperator)
 class MBTOperatorAdmin(SimpleHistoryAdmin):
     search_fields = ['operator_name', 'operator_code']
@@ -105,10 +122,58 @@ class MBTOperatorAdmin(SimpleHistoryAdmin):
     autocomplete_fields = ('owner',)
     ordering = ['operator_name']
     list_filter = (OperatorOwnerFilter, OperatorGroupFilter, OperatorOrganisationFilter)
+    actions = [assign_operators_to_organisation]
 
     def get_search_results(self, request, queryset, search_term):
         queryset, use_distinct = super().get_search_results(request, queryset, search_term)
         return queryset.order_by('operator_name'), use_distinct
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                "assign-organisation/",
+                self.admin_site.admin_view(self.assign_organisation_view),
+                name="assign_operator_organisation",
+            ),
+        ]
+        return custom_urls + urls
+
+    def assign_organisation_view(self, request):
+        key = request.GET.get("key")
+        ids = request.session.get(f"assign_operator_organisation_ids_{key}", [])
+        queryset = self.model.objects.filter(pk__in=ids).order_by("operator_name")
+
+        if not ids:
+            self.message_user(request, "No operators were selected.", messages.ERROR)
+            return redirect("..")
+
+        if request.method == "POST":
+            form = AssignOperatorsOrganisationForm(request.POST)
+            if form.is_valid():
+                selected_organisation = form.cleaned_data["organisation"]
+                updated = queryset.update(organisation=selected_organisation)
+                request.session.pop(f"assign_operator_organisation_ids_{key}", None)
+                self.message_user(
+                    request,
+                    f"{updated} operator(s) added to {selected_organisation.organisation_name}.",
+                    level=messages.SUCCESS,
+                )
+                return redirect("..")
+
+            self.message_user(request, "Organisation assignment failed. Please check the form.", messages.ERROR)
+        else:
+            form = AssignOperatorsOrganisationForm()
+
+        return render(
+            request,
+            "admin/assign_operators_organisation.html",
+            {
+                "form": form,
+                "operators": queryset,
+                "title": "Add Operators To Organisation",
+            },
+        )
 
 @admin.register(vehicleType)
 class VehicleTypeAdmin(SimpleHistoryAdmin):

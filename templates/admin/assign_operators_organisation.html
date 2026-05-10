@@ -1,0 +1,38 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static %}
+
+{% block extrastyle %}
+{{ block.super }}
+{{ form.media.css }}
+{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+{{ form.media.js }}
+{% endblock %}
+
+{% block content %}
+<form method="post" novalidate>
+  {% csrf_token %}
+
+  <fieldset class="module aligned">
+    <div class="form-row">
+      {{ form.organisation.errors }}
+      {{ form.organisation.label_tag }}
+      {{ form.organisation }}
+    </div>
+  </fieldset>
+
+  <h2>Selected operators</h2>
+  <ul>
+    {% for operator in operators %}
+    <li>{{ operator.operator_name }} ({{ operator.operator_code }})</li>
+    {% endfor %}
+  </ul>
+
+  <div class="submit-row">
+    <input type="submit" class="default" value="Add to organisation">
+    <a href="../" class="button cancel-link">Cancel</a>
+  </div>
+</form>
+{% endblock %}
