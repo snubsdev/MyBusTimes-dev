@@ -48,6 +48,12 @@
 <p>A bus operator {% for region in regions %}{% if not forloop.first %}{% if forloop.last %} and {% else %},
   {% endif %}{% endif %}{% if region.in_the %}in the {% else %}in {% endif %}<a
     href="/region/{{ region.region_code }}">{{ region.region_name }}</a>{% empty %}{% endfor %}</p>
+{% if operator.group %}
+<p>Part of <a href="/group/{{ operator.group.group_name }}">{{ operator.group.group_name }}</a></p>
+{% endif %}
+{% if operator.organisation %}
+<p>Part of <a href="/organisation/{{ operator.organisation.organisation_name }}">{{ operator.organisation.organisation_name }}</a></p>
+{% endif %}
 
 <div class="incontent-ad-container in-page-ad" style="height:100px;">
     <div id="AFM_inContent_ad" style="margin:auto;"></div>

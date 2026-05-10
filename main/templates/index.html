@@ -41,6 +41,13 @@
     <input type="submit" value="Search">
   </form>
 </div>
+<h2><strong>Statistics</strong></h2>
+<p>
+  <strong><a href="/map/">Tracking {{ tracking_vehicle_count }} vehicle{{ tracking_vehicle_count|pluralize }}</a></strong>
+  · <strong>{{ route_count }} route{{ route_count|pluralize }}</strong>
+  · <strong>{{ operator_count }} operator{{ operator_count|pluralize }}</strong>
+  · <strong>{{ vehicle_count }} vehicle{{ vehicle_count|pluralize }}</strong>
+</p>
 <div class="status" id="status-home" style="display: none;">
     <div id="content" class="grid" aria-live="polite"></div>
 </div>

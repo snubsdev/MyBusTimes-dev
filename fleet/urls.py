@@ -18,6 +18,7 @@ urlpatterns = [
 
     # Operator management
     path('create/', create_operator, name='create-operator'),
+    path('<str:operator_slug>/manage/', operator_manage, name='operator_manage'),
     path('<str:operator_slug>/', operator, name='operator'),
     path('<str:operator_slug>/edit/', operator_edit, name='edit-operator'),
     path('<str:operator_slug>/delete/', operator_delete, name='delete_operator'),

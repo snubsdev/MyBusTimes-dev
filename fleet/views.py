@@ -324,7 +324,7 @@ def get_helper_permissions(user, operator):
         return []
 
 
-def generate_tabs(active, operator, count=None):
+def generate_tabs(active, operator, count=None, helper_permissions=None):
 
     vehicle_count = count
 
@@ -356,6 +356,13 @@ def generate_tabs(active, operator, count=None):
 
     tab_name = f"{vehicle_count} vehicles" if active == "vehicles" else "Vehicles"
     tabs.append({"name": tab_name, "url": f"/operator/{operator.operator_slug}/vehicles/", "active": active == "vehicles"})
+
+    if helper_permissions:
+        tabs.append({
+            "name": "Manage Operator",
+            "url": f"/operator/{operator.operator_slug}/manage/",
+            "active": active == "manage"
+        })
 
     if duty_count > 0:
         tab_name = f"{duty_count} duties" if active == "duties" else "Duties"
@@ -615,7 +622,7 @@ def operator(request, operator_slug):
         {'name': 'Home', 'url': '/'}, 
         {'name': operator.operator_name, 'url': f'/operator/{operator.operator_slug}/'}
     ]
-    tabs = generate_tabs("routes", operator)
+    tabs = generate_tabs("routes", operator, helper_permissions=helper_permissions)
     
     context = {
         'breadcrumbs': breadcrumbs,
@@ -1160,6 +1167,28 @@ def route_detail(request, operator_slug, route_id):
     
     return render(request, 'route_detail.html', context)
 
+def operator_manage(request, operator_slug):
+    operator = get_object_or_404(MBTOperator, operator_slug=operator_slug)
+    helper_permissions = get_helper_permissions(request.user, operator)
+
+    if not helper_permissions:
+        return render(request, 'error/403.html', status=403)
+
+    breadcrumbs = [
+        {'name': 'Home', 'url': '/'},
+        {'name': operator.operator_name, 'url': f'/operator/{operator.operator_slug}/'},
+        {'name': 'Manage Operator', 'url': f'/operator/{operator.operator_slug}/manage/'}
+    ]
+
+    context = {
+        'breadcrumbs': breadcrumbs,
+        'operator': operator,
+        'helper_permissions': helper_permissions,
+        'tabs': generate_tabs("manage", operator, helper_permissions=helper_permissions),
+    }
+
+    return render(request, 'operator_manage.html', context)
+
 def trackable_status(request, operator_slug, route_id):
     response = feature_enabled(request, "view_routes")
     if response:
@@ -1362,7 +1391,7 @@ def vehicles(request, operator_slug, depot=None, withdrawn=False):
         'allowed_operators': allowed_operators,
         'operator': operator,
         'helper_permissions': helper_permissions,
-        'tabs': generate_tabs("vehicles", operator, total_count),
+        'tabs': generate_tabs("vehicles", operator, total_count, helper_permissions=helper_permissions),
         'sales_operator': sales_operator,
         'total_count': total_count,
     }
@@ -4218,7 +4247,10 @@ def operator_edit(request, operator_slug):
     # Make these available to both POST and GET
     groups = group.objects.filter(Q(group_owner=request.user) | Q(private=False)).order_by('group_name')
     games = game.objects.filter(active=True).order_by('game_name')
-    organisations = organisation.objects.filter(organisation_owner=request.user)
+    if request.user.is_superuser:
+        organisations = organisation.objects.all().order_by('organisation_name')
+    else:
+        organisations = organisation.objects.filter(organisation_owner=request.user).order_by('organisation_name')
     operator_types = operatorType.objects.filter(published=True).order_by('operator_type_name')
     try:
         current_map = operator.mapTile.id
@@ -4285,13 +4317,15 @@ def operator_edit(request, operator_slug):
 
         operator.group = group_instance
 
-        if request.POST.get('organisation', None) == "":
-            organisation_instance = None
-        else:
-            try:
-                organisation_instance = organisation.objects.get(id=request.POST.get('organisation'))
-            except organisation.DoesNotExist:
+        organisation_instance = operator.organisation
+        if request.user.is_superuser:
+            if request.POST.get('organisation', None) == "":
                 organisation_instance = None
+            else:
+                try:
+                    organisation_instance = organisation.objects.get(id=request.POST.get('organisation'))
+                except (organisation.DoesNotExist, ValueError, TypeError):
+                    organisation_instance = operator.organisation
 
         operator.group = group_instance
         operator.organisation = organisation_instance

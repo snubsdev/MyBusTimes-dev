@@ -311,6 +311,14 @@ def for_sale_count_api(request):
 
 def index(request):
     message = get_random_message()
+    tracking_vehicle_count = fleet.objects.filter(
+        sim_lat__isnull=False,
+        sim_lon__isnull=False,
+        current_trip__isnull=False,
+    ).count()
+    route_count = route.objects.filter(hidden=False).distinct().count()
+    operator_count = MBTOperator.objects.count()
+    vehicle_count = fleet.objects.count()
     
     # Cache regions for 1 hour
     regions = cache.get('all_regions')
@@ -323,12 +331,24 @@ def index(request):
         'breadcrumbs': breadcrumbs,
         'message': message,
         'regions': regions,
+        'tracking_vehicle_count': tracking_vehicle_count,
+        'route_count': route_count,
+        'operator_count': operator_count,
+        'vehicle_count': vehicle_count,
     }
     return render(request, 'index.html', context)
 
 def adfirst_test(request):
     # Load mod.json messages as before
     for_sale_vehicles = fleet.objects.filter(for_sale=True).order_by('fleet_number').count()
+    tracking_vehicle_count = fleet.objects.filter(
+        sim_lat__isnull=False,
+        sim_lon__isnull=False,
+        current_trip__isnull=False,
+    ).count()
+    route_count = route.objects.filter(hidden=False).distinct().count()
+    operator_count = MBTOperator.objects.count()
+    vehicle_count = fleet.objects.count()
 
     path = "JSON/mod.json"
     try:
@@ -377,6 +397,10 @@ def adfirst_test(request):
         'message': message,
         'regions': regions,
         'for_sale_vehicles': for_sale_vehicles,
+        'tracking_vehicle_count': tracking_vehicle_count,
+        'route_count': route_count,
+        'operator_count': operator_count,
+        'vehicle_count': vehicle_count,
     }
     return render(request, 'index-adfirst.html', context)
 

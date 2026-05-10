@@ -42,7 +42,7 @@
     <select name="organisation" id="" style="margin-bottom: .5em;">
         <option value="">None</option>
         {% for organisation in organisations %}
-        <option value="{{ organisation.id }}" {% if organisation == details.organisation %}selected{% endif %}>
+        <option value="{{ organisation.id }}" {% if organisation == operator.organisation %}selected{% endif %}>
             {{ organisation }}</option>
         {% endfor %}
     </select>
