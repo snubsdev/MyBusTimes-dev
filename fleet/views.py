@@ -1,5 +1,6 @@
 # Python standard library imports
 from multiprocessing import context
+import calendar
 import re
 import os
 import json
@@ -31,7 +32,7 @@ from django.forms.models import model_to_dict
 from django.http import JsonResponse, HttpResponse, HttpResponseRedirect
 from django.core.serializers import serialize
 from django.utils import timezone
-from django.utils.dateparse import parse_datetime
+from django.utils.dateparse import parse_date, parse_datetime
 from django.utils.timezone import now, make_aware, datetime, timedelta
 from django.http import Http404
 from django.core.paginator import Paginator
@@ -877,7 +878,7 @@ def build_grouped_schedule(timetable_entries, operators_cache):
         return []
     
     flat_schedule = list(chain.from_iterable(
-        entry.operator_schedule for entry in timetable_entries
+        entry.operator_schedule or [] for entry in timetable_entries
     ))
     
     if not flat_schedule:
@@ -895,6 +896,32 @@ def build_grouped_schedule(timetable_entries, operators_cache):
         })
     
     return grouped_schedule
+
+
+def add_one_month(day):
+    """Return the same day next month, clamped for shorter months."""
+    month = day.month + 1
+    year = day.year
+    if month > 12:
+        month = 1
+        year += 1
+
+    last_day = calendar.monthrange(year, month)[1]
+    return day.replace(year=year, month=month, day=min(day.day, last_day))
+
+
+def timetable_entry_runs_on(entry, service_date):
+    if entry.start_date and service_date < entry.start_date:
+        return False
+    if entry.end_date and service_date > entry.end_date:
+        return False
+
+    service_day = service_date.strftime("%A")
+    return any(day.name == service_day for day in entry.day_type.all())
+
+
+def format_service_date(service_date):
+    return f"{service_date.strftime('%A')} {service_date.day} {service_date.strftime('%B %Y')}"
 
 
 def route_detail(request, operator_slug, route_id):
@@ -972,30 +999,45 @@ def route_detail(request, operator_slug, route_id):
     
     # Query 5: Get all day types
     days = list(dayType.objects.all())
-    
-    # Get selected day
-    selected_day_id = request.GET.get('day')
-    selectedDay = 1
-    if selected_day_id:
-        selectedDay = next(
-            (day for day in days if str(day.id) == selected_day_id),
-            1
-        )
-    
+
     # Query 6: Fetch ALL timetable entries at once
     all_timetable_entries = list(
         timetableEntry.objects
-        .filter(route=route_instance, day_type=selectedDay)
+        .filter(route=route_instance)
+        .prefetch_related('day_type')
     )
+
+    max_service_date = add_one_month(current_date)
+    available_dates = []
+    service_date = current_date
+    while service_date <= max_service_date:
+        if any(timetable_entry_runs_on(entry, service_date) for entry in all_timetable_entries):
+            available_dates.append(service_date)
+        service_date += timedelta(days=1)
+
+    requested_date = parse_date(request.GET.get('date') or '')
+    selected_service_date = requested_date if requested_date in available_dates else None
+    if selected_service_date is None:
+        selected_service_date = available_dates[0] if available_dates else current_date
+
+    selectedDay = next(
+        (day for day in days if day.name == selected_service_date.strftime("%A")),
+        None
+    )
+
+    selected_timetable_entries = [
+        entry for entry in all_timetable_entries
+        if timetable_entry_runs_on(entry, selected_service_date)
+    ]
     
     # Split in Python (no additional queries)
-    inbound_entries = [e for e in all_timetable_entries if e.inbound]
-    outbound_entries = [e for e in all_timetable_entries if not e.inbound]
+    inbound_entries = [e for e in selected_timetable_entries if e.inbound]
+    outbound_entries = [e for e in selected_timetable_entries if not e.inbound]
     
     # Query 7: Pre-fetch ALL operators that might be needed for schedules
     # Extract all operator codes from all entries
     all_operator_codes = set()
-    for entry in all_timetable_entries:
+    for entry in selected_timetable_entries:
         if hasattr(entry, 'operator_schedule') and entry.operator_schedule:
             all_operator_codes.update(entry.operator_schedule)
     
@@ -1093,12 +1135,19 @@ def route_detail(request, operator_slug, route_id):
         'outboundGroupedSchedule': outbound_groupedSchedule,
         'outboundUniqueOperators': list({group['code'] for group in outbound_groupedSchedule}),
         'otherRoutes': otherRoutes,
-        'days': days,
+        'date_options': [
+            {
+                'value': date_option.isoformat(),
+                'label': format_service_date(date_option),
+            }
+            for date_option in available_dates
+        ],
         'route_stops_full': {
             'inbound': route_stop_full_inbound,
             'outbound': route_stop_full_outbound
         },
         'selectedDay': selectedDay,
+        'selectedDate': selected_service_date.isoformat(),
         'hidden': route_instance.hidden,
         'current_updates': current_updates,
         'transit_authority_details': getattr(operator.operator_details, 'transit_authority_details', None),

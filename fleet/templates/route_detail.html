@@ -200,19 +200,21 @@
     <input type="hidden" name="route-selector" id="route" value="{{ route.id }}">
     {% endif %}
 
-    <!-- Day Selector -->
-    {% if days %}
-    <select id="day-selector" name="day">
-        {% for day in days %}
-        <option value="{{ day.id }}" {% if selectedDay == day %}selected{% endif %}>{{ day }}</option>
+    <!-- Date Selector -->
+    {% if date_options %}
+    <select id="date-selector" name="date">
+        {% for date_option in date_options %}
+        <option value="{{ date_option.value }}" {% if selectedDate == date_option.value %}selected{% endif %}>
+            {{ date_option.label }}
+        </option>
         {% endfor %}
     </select>
     {% else %}
-    <input type="hidden" name="day-selector" id="day" value="{{ selectedDay|default:'0' }}">
+    <input type="hidden" name="date-selector" id="date" value="{{ selectedDate|default:'' }}">
     {% endif %}
 
     <!-- Submit Button -->
-    {% if otherRoutes or days %}
+    {% if otherRoutes or date_options %}
     <input type="submit" value="Submit">
     {% endif %}
 </form>
@@ -222,14 +224,14 @@
         e.preventDefault();
 
         const routeEl = document.getElementById('route');
-        const dayEl = document.getElementById('day-selector') || document.getElementById('day');
+        const dateEl = document.getElementById('date-selector') || document.getElementById('date');
 
         const selectedRoute = routeEl ? routeEl.value : '';
-        const selectedDay = dayEl ? dayEl.value : '0';
+        const selectedDate = dateEl ? dateEl.value : '';
         const operatorSlug = "{{ operator.operator_slug|escapejs }}";
 
         const finalUrl =
-            `/operator/${operatorSlug}/route/${selectedRoute}?day=${encodeURIComponent(selectedDay)}`;
+            `/operator/${operatorSlug}/route/${selectedRoute}?date=${encodeURIComponent(selectedDate)}`;
         window.location.href = finalUrl;
     });
 </script>
