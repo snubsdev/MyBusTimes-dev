@@ -1,0 +1,24 @@
+<script>
+  function hideWarning() {
+    localStorage.setItem("hideWarning", "true");
+    document.querySelectorAll(".warning-box").forEach(el => {
+      el.style.display = "none";
+    });
+  }
+
+  window.addEventListener("DOMContentLoaded", () => {
+    if (localStorage.getItem("hideWarning") === "true") {
+      document.querySelectorAll(".warning-box").forEach(el => {
+        el.style.display = "none";
+      });
+    }
+  });
+</script>
+
+<br>
+<div class="warning-box" style="border: 8px dotted yellow;padding: 5px 10px;max-width: 750px;margin: 0 auto;text-align:center;">
+  <h3 style="margin: 5px;">DO NOT USE THIS SITE FOR REAL WORLD PURPOSES</h3>
+  <p style="margin-bottom: 0;font-size: 14px;">This is a fictional and community-run site for transport enthusiasts. All data shown here is fictional and not real world data.</p>
+  <button onclick="hideWarning()">I understand, please hide this notice</button>
+</div>
+<br>

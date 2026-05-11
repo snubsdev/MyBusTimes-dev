@@ -73,13 +73,13 @@ class Command(BaseCommand):
                 user.ad_free_until = None
                 user.ticketer_code = row.get('code') or None
 
-                if user_id == '0' and username == 'Kai':
-                    user.is_superuser = True
-                    user.is_staff = True
-                    user.password = make_password('#Anslow2022')
-                else:
-                    user.is_superuser = False
-                    user.is_staff = False
+                #if user_id == '0' and username == 'Kai':
+                #    user.is_superuser = True
+                #    user.is_staff = True
+                #    user.password = make_password('#FUCK ME IN STUPID')
+                #else:
+                #    user.is_superuser = False
+                #    user.is_staff = False
 
                 if row.get('PFP'):
                     user.pfp = f'images/profile_pics/{row["PFP"]}'

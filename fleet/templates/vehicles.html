@@ -95,7 +95,7 @@
   </div>
 
 {% include "partials/tabs.html" with tabs=tabs %}
-
+{% include 'extra/warning-small.html' %}
 <ul class="horizontal">
     <li><a href="/operator/history?operator={{ operator.id }}&approved=true">Recent Edits</a></li>
     {% if request.GET.withdrawn == "true" %}

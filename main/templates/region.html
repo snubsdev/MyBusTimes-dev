@@ -11,7 +11,7 @@
 
 <h2>All Operators</h2>
 <p>Operators in {% if region.in_the %}the {% endif %} {{ region.region_name }}</p>
-
+{% include 'extra/warning.html' %}
 <div class="operator-grid">
   {% for operator in operators %}
     <a href="/operator/{{ operator.operator_slug|urlencode }}">{{ operator.operator_name }}</a>
@@ -22,7 +22,7 @@
     {% endif %}
   {% endfor %}
 </div>
-
+{% include 'extra/warning.html' %}
 <div class="incontent-ad-container in-page-ad" style="height:100px;">
     <div id="AFM_inContent_ad" style="margin:auto;"></div>
   </div>

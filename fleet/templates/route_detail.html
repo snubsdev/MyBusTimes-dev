@@ -118,6 +118,7 @@
 {% if route.start_date and route.start_date > today and route.start_date != 'None' %}
     <p style="margin-top: -1em;">Starting {{ route.start_date }}</p>
 {% endif %}
+{% include 'extra/warning-small.html' %}
 <p>
     A service operated by
     {% for operator in allOperators %}
